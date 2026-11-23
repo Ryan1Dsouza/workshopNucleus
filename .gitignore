@@ -1,0 +1,11 @@
+node_modules/
+.local/
+archive/
+test-results/
+dist/
+.workshop/
+opencode.json
+opencode.jsonc
+native/android/.gradle/
+native/android/local.properties
+native/android/app/build/

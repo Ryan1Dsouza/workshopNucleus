@@ -1,0 +1,34 @@
+{
+  "name": "air-slice-workshop",
+  "version": "1.2.0",
+  "description": "Phone gyro Fruit Ninja workshop demo built on OpenWii, with native Android Bluetooth and WebRTC input",
+  "type": "module",
+  "main": "server/index.cjs",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node server/index.cjs",
+    "dev": "node --watch server/index.cjs",
+    "test": "node --test tests/*.test.mjs",
+    "audit:filter": "node scripts/audit/filter.mjs",
+    "audit:browser": "node scripts/audit/browser.mjs",
+    "audit:bluetooth": "node scripts/audit/bluetooth.mjs",
+    "audit:render": "node scripts/audit/render.mjs",
+    "audit:stage": "node scripts/audit/stage.mjs",
+    "test:native-protocol": "node scripts/native/protocol.mjs",
+    "package:android": "node scripts/native/package.mjs",
+    "export:workshop": "node scripts/workshop/export.mjs",
+    "workshop:kit": "node scripts/workshop/build-kit.mjs",
+    "workshop:stage": "node scripts/workshop/stage.mjs",
+    "workshop:verify": "node scripts/workshop/verify.mjs"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "selfsigned": "^2.4.1",
+    "socket.io": "^4.7.5",
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "playwright": "1.58.2",
+    "socket.io-client": "^4.8.1"
+  }
+}

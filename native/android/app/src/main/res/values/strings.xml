@@ -1,0 +1,4 @@
+<resources>
+    <string name="start_bluetooth">Start Bluetooth</string>
+    <string name="metrics">Native pose %1$d Hz · gyro %2$d Hz\nBLE sent %3$d Hz · failed notifications %4$d</string>
+</resources>

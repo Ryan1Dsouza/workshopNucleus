@@ -1,0 +1,133 @@
+{
+  "schema": 1,
+  "baseFiles": [
+    "package.json",
+    "package-lock.json",
+    ".gitignore",
+    "AGENTS.md",
+    "README.md",
+    "licenses/**",
+    "docs/**",
+    "workshop/**",
+    "public/stage.mjs",
+    "scripts/workshop/files.mjs",
+    "scripts/workshop/build-kit.mjs",
+    "scripts/workshop/stage.mjs",
+    "scripts/workshop/verify.mjs",
+    "scripts/audit/browser-options.mjs",
+    "scripts/audit/stage.mjs"
+  ],
+  "stages": [
+    {
+      "id": 1,
+      "title": "Server and projector shell",
+      "minutes": 10,
+      "files": [
+        "server/**",
+        "public/host/index.html",
+        "public/host/bootstrap.mjs",
+        "public/vendor/**",
+        "tests/server.test.mjs"
+      ],
+      "outcome": "A running Node server and responsive projector shell, with no game or phone input yet."
+    },
+    {
+      "id": 2,
+      "title": "Fruit Ninja and desktop blade",
+      "minutes": 20,
+      "files": [
+        "public/games/**",
+        "public/host/setup.mjs",
+        "public/core/orientation.js",
+        "public/core/pose-pointer.js",
+        "public/core/motion-input.js",
+        "public/core/one-euro.js",
+        "public/core/blade-display.js",
+        "public/core/blade-ribbon.js",
+        "public/core/screen-blade.js",
+        "public/core/render-budget.js",
+        "public/core/audio.js",
+        "public/core/trail.js",
+        "public/core/preferences.js",
+        "public/core/diagnostics.js",
+        "public/core/room.js",
+        "public/core/input-links.js",
+        "tests/audio-resources.test.mjs",
+        "tests/blade-display.test.mjs",
+        "tests/blade-ribbon.test.mjs",
+        "tests/effect-budget.test.mjs",
+        "tests/game-logic.test.mjs",
+        "tests/pose-pointer.test.mjs",
+        "tests/render-budget.test.mjs"
+      ],
+      "outcome": "The supplied OpenWii 3D game runs locally; a held mouse drag cuts fruit."
+    },
+    {
+      "id": 3,
+      "title": "Phone sensors and Center blade",
+      "minutes": 20,
+      "files": [
+        "public/controller/**",
+        "public/core/relay-link.js",
+        "public/core/phone-link.js",
+        "public/core/net.js",
+        "tests/sensors.test.mjs",
+        "tests/motion-input.test.mjs",
+        "tests/diagnostics.test.mjs"
+      ],
+      "outcome": "One phone pairs by QR and controls a calibrated blade through the explicitly labeled server relay."
+    },
+    {
+      "id": 4,
+      "title": "Direct WebRTC and two players",
+      "minutes": 20,
+      "files": [
+        "public/core/transport.js",
+        "public/core/motion-clock.js",
+        "public/core/motion-queue.js",
+        "tests/motion-clock.test.mjs",
+        "tests/motion-queue.test.mjs"
+      ],
+      "outcome": "Two isolated phone sessions use direct WebRTC, reliable commands and relay fallback."
+    },
+    {
+      "id": 5,
+      "title": "Measurements and smooth motion",
+      "minutes": 15,
+      "files": [
+        "public/host/diagnostics.mjs",
+        "scripts/audit/browser.mjs",
+        "scripts/audit/filter.mjs",
+        "scripts/audit/render.mjs",
+        "tests/filter.test.mjs"
+      ],
+      "outcome": "Motion check, blade-only mode and measured smoothing comparisons become available."
+    },
+    {
+      "id": 6,
+      "title": "Android Bluetooth controller",
+      "minutes": 20,
+      "files": [
+        "native/**",
+        "public/downloads/**",
+        "public/core/ble-protocol.js",
+        "public/core/bluetooth-link.js",
+        "tests/ble-protocol.test.mjs",
+        "tests/bluetooth-link.test.mjs",
+        "tests/helpers/**",
+        "scripts/native/**",
+        "scripts/audit/bluetooth.mjs"
+      ],
+      "outcome": "The v1.2 APK supplies direct BLE motion and captured-pose centering; the live Android demonstration is optional."
+    },
+    {
+      "id": 7,
+      "title": "Verify and share the complete build",
+      "minutes": 10,
+      "files": [
+        "scripts/workshop/export.mjs"
+      ],
+      "outcome": "All source hashes and automated checks pass, then a clean runnable source export is created."
+    }
+  ]
+}

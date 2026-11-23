@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Air Slice · Remote</title>
+  <style>
+    :root { color-scheme: dark; --paper:#fff4dc; --accent:#f5b642; --muted:#a8a293; }
+    * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    body { margin:0; color:var(--paper); background:#171916; font:15px/1.5 system-ui,sans-serif; padding:max(22px,env(safe-area-inset-top)) 22px max(22px,env(safe-area-inset-bottom)); min-height:100dvh; overscroll-behavior:none; }
+    main { max-width:430px; margin:auto; } header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .brand { font-size:12px; font-weight:900; letter-spacing:3px; } #status { color:var(--muted); font-size:11px; text-align:right; }
+    .intro { margin:34px 0 20px; } .intro small { color:var(--accent); font-size:11px; text-transform:uppercase; letter-spacing:2px; } h1 { font-size:38px; line-height:1.05; letter-spacing:-1.5px; margin:10px 0; }
+    p { color:var(--muted); } .remote { border:1px solid #ffffff18; border-radius:28px; background:#232721; padding:28px 24px; text-align:center; }
+    .device { height:135px; width:65px; border-radius:20px 20px 13px 13px; border:2px solid var(--accent); margin:0 auto 22px; position:relative; background:#f5b64208; transform:rotate(-12deg); }
+    .device::before { content:''; position:absolute; width:13px; height:13px; border:2px solid var(--accent); border-radius:50%; top:20px; left:24px; }
+    .device::after { content:'+'; position:absolute; top:48px; left:23px; color:var(--accent); font-size:27px; line-height:1; }
+    #tracking { font-weight:750; font-size:15px; } #hint { font-size:12px; margin-bottom:0; }
+    button,input { font:inherit; } button { touch-action:manipulation; cursor:pointer; } button:disabled { opacity:.45; cursor:default; }
+    button:focus-visible,input:focus-visible { outline:3px solid var(--accent); outline-offset:4px; }
+    .primary { margin-top:20px; width:100%; border:0; border-radius:15px; padding:16px; background:var(--accent); color:#231a0c; font-weight:850; }
+    .controls { margin-top:14px; display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .controls button { background:#232721; border:1px solid #ffffff20; color:var(--paper); padding:14px 8px; border-radius:14px; font-size:13px; font-weight:700; }
+    [hidden] { display:none !important; } #message { text-align:center; min-height:20px; font-size:12px; color:var(--accent); margin:18px 0; }
+    .setting { border-top:1px solid #ffffff15; padding-top:18px; } label { display:flex; justify-content:space-between; color:var(--muted); font-size:12px; } input { width:100%; accent-color:var(--accent); margin:13px 0; }
+    footer { margin:22px 0 0; color:#777e70; text-align:center; font-size:10px; } #flash { position:fixed; inset:0; background:var(--accent); opacity:0; z-index:1; pointer-events:none; transition:opacity 80ms; } #flash.hit { opacity:.12; }
+    @media(max-height:700px) { .intro { margin-top:22px; } .remote { padding:20px; } .device { height:100px; margin-bottom:14px; } h1 { font-size:32px; } }
+  </style>
+</head>
+<body>
+  <div id="flash" aria-hidden="true"></div>
+  <main>
+    <header><span class="brand">AIR / SLICE</span><span id="status">Connecting</span></header>
+    <div class="intro"><small id="player">Phone remote</small><h1>Your phone.<br>Your blade.</h1><p>Look at the big screen. Sweep your wrist.</p></div>
+    <section class="remote"><div class="device" aria-hidden="true"></div><div id="tracking">Motion is off</div><p id="hint">Hold horizontally, center the blade, then turn your wrist. Small turns make small movements.</p></section>
+    <button id="enable" class="primary">Enable motion</button>
+    <div id="controls" hidden><button id="recenter" class="primary">Center blade</button><div class="controls"><button id="play">Start / restart</button><button id="pause">Pause motion</button></div></div>
+    <div id="message" role="status" aria-live="polite">Allow motion access when your browser asks.</div>
+    <p data-feature="bluetooth" style="text-align:center"><a href="/downloads/air-slice-ble.apk" style="color:#ffd283">Install / update Android Bluetooth app · v1.2</a><br><small>Runs in the background while you record video. Start Bluetooth in the app, then pair from the laptop.</small></p>
+    <button id="resetConnection" class="primary" type="button">Reset motion connection</button>
+    <div class="setting"><label for="sensitivity"><span>Movement scale</span><span id="sensitivityValue">1.0×</span></label><input id="sensitivity" type="range" min="50" max="200" value="100" step="10"></div>
+    <footer id="metrics">Keep this page open · Same Wi-Fi as the screen</footer>
+  </main>
+  <script src="/socket.io/socket.io.js"></script><script type="module" src="/controller/app.mjs"></script>
+</body>
+</html>
