@@ -46,6 +46,10 @@ export class FruitNinja {
     this.onEvent = onEvent;
     this.infiniteLives = infiniteLives;   // practice: misses and bombs never end the run
     this.rng = rng;                        // injected so criticals are testable
+    this.splitScreen = false;
+    this.durationMs = 0;
+    this.paused = false;
+    this.pausedAt = null;
 
     this.state = {
       phase: 'idle',        // idle | playing | over
@@ -55,6 +59,7 @@ export class FruitNinja {
       comboUntil: 0,
       nextSpawn: 0,
       startedAt: 0,
+      remainingMs: 0,
     };
 
     this.fruits = [];
@@ -71,6 +76,39 @@ export class FruitNinja {
 
   setAspect(aspect) {
     this.w = this.h * aspect;
+  }
+
+  laneBounds(slot) {
+    return this.splitScreen ? { min: slot === 0 ? -this.w / 2 : 0, max: slot === 0 ? 0 : this.w / 2 }
+      : { min: -this.w / 2, max: this.w / 2 };
+  }
+
+  setSplitScreen(value) {
+    value = !!value;
+    if (value === this.splitScreen) return;
+    this.splitScreen = value;
+    for (const p of this.players.values()) { p.trail.clear(); p.cutting = false; p.cursor.active = false; }
+    for (const f of this.fruits) f.lane = value ? (f.x < 0 ? 0 : 1) : undefined;
+  }
+
+  setDuration(seconds) {
+    if (!Number.isFinite(seconds) || seconds < 0 || seconds > 3600) throw new Error('Invalid round duration.');
+    this.durationMs = seconds * 1000;
+  }
+
+  pause(now) {
+    if (this.paused) return;
+    this.paused = true; this.pausedAt = now;
+  }
+
+  resume(now) {
+    if (!this.paused) return;
+    if (this.pausedAt !== null) {
+      const elapsed = Math.max(0, now - this.pausedAt);
+      for (const key of ['startedAt', 'nextSpawn', 'comboUntil']) this.state[key] += elapsed;
+      for (const p of this.players.values()) p.comboUntil += elapsed;
+    }
+    this.paused = false; this.pausedAt = null;
   }
 
   /** Lazily create a player's per-slot state: trail, cursor, score, combo. */
@@ -102,6 +140,8 @@ export class FruitNinja {
   setCursor(x, y, now, slot = 0, { cutting = true, reset = false } = {}) {
     const p = this.getPlayer(slot);
     if (reset) p.trail.clear();
+    const bounds = this.laneBounds(slot);
+    x = clamp(x, bounds.min, bounds.max);
     p.cursor.x = x;
     p.cursor.y = y;
     p.cursor.active = true;
@@ -111,9 +151,11 @@ export class FruitNinja {
   }
 
   start(now) {
+    this.paused = false; this.pausedAt = null;
     Object.assign(this.state, {
       phase: 'playing', score: 0, lives: 3, combo: 0, comboUntil: 0,
-      startedAt: now, nextSpawn: now + 900,
+      startedAt: now, nextSpawn: now + 100,
+      remainingMs: this.durationMs,
     });
     this.fruits.length = 0;
     this.halves.length = 0;
@@ -126,25 +168,31 @@ export class FruitNinja {
       p.combo = 0;
       p.comboUntil = 0;
       p.trail.clear();
+      p.cutting = false; p.cursor.active = false;
     }
     this.onEvent({ type: 'start' });
   }
 
-  end(now) {
+  end(now, reason = 'lives') {
+    if (this.state.phase === 'over') return;
     this.state.phase = 'over';
-    this.onEvent({ type: 'gameover', score: this.state.score });
+    this.onEvent({ type: 'gameover', score: this.state.score, reason });
   }
 
-  spawn(isBomb, now) {
+  spawn(isBomb, now, lane = 0) {
     // Skip an overcrowded wave instead of queueing it for a catch-up burst.
     if (this.fruits.length >= MAX_ACTIVE_FRUIT) return false;
     const kind = FRUIT_TYPES[(Math.random() * FRUIT_TYPES.length) | 0];
-    const x = rand(-this.w * 0.38, this.w * 0.38);
+    const bounds = this.laneBounds(lane);
+    const radius = isBomb ? 0.6 : kind.r;
+    const inset = Math.min(radius + .1, (bounds.max - bounds.min) / 2);
+    const x = this.splitScreen ? rand(bounds.min + inset, bounds.max - inset) : rand(-this.w * 0.38, this.w * 0.38);
+    const center = (bounds.min + bounds.max) / 2;
     const rise = rand(this.h * 0.55, this.h * 0.88);
     this.fruits.push({
       x,
       y: -this.h / 2 - 0.8,
-      vx: (-x / 4) * rand(0.4, 1.1),
+      vx: ((center - x) / 4) * rand(0.4, 1.1),
       vy: Math.sqrt(2 * GRAVITY * rise),
       r: isBomb ? 0.6 : kind.r,
       rot: rand(0, Math.PI * 2),
@@ -153,6 +201,7 @@ export class FruitNinja {
       bomb: !!isBomb,
       kind,
       id: FruitNinja.nextId++,
+      lane: this.splitScreen ? lane : undefined,
     });
     this.onEvent({ type: 'launch', bomb: !!isBomb });
     return true;
@@ -221,13 +270,18 @@ export class FruitNinja {
   }
 
   update(now, dt) {
+    if (this.paused) return;
     this.stepDebris(dt);
     if (this.state.phase !== 'playing') return;
+    this.state.remainingMs = Math.max(0, this.durationMs - (now - this.state.startedAt));
+    if (this.durationMs && !this.state.remainingMs) { this.end(now, 'timer'); return; }
 
     if (now >= this.state.nextSpawn) {
       const roll = Math.random();
       const burst = roll < 0.15 ? 4 : roll < 0.35 ? 3 : roll < 0.62 ? 2 : 1;
-      for (let i = 0; i < burst; i += 1) this.spawn(Math.random() < this.bombChance(now), now);
+      for (let i = 0; i < burst; i += 1) {
+        for (const lane of this.splitScreen ? [0, 1] : [0]) this.spawn(Math.random() < this.bombChance(now), now, lane);
+      }
       this.state.nextSpawn = now + this.spawnInterval(now);
     }
 
@@ -255,10 +309,18 @@ export class FruitNinja {
       f.x += f.vx * dt;
       f.y += f.vy * dt;
       f.rot += f.spin * dt;
+      if (this.splitScreen) {
+        f.lane ??= f.x < 0 ? 0 : 1;
+        const bounds = this.laneBounds(f.lane), inset = Math.min(f.r, (bounds.max - bounds.min) / 2);
+        const clampedX = clamp(f.x, bounds.min + inset, bounds.max - inset);
+        if (clampedX !== f.x) f.vx *= -1;
+        f.x = clampedX;
+      }
 
       let cutBy = null;
       let cutSeg = null;
       for (const { player, segments } of activeBlades) {
+        if (this.splitScreen && player.slot !== f.lane) continue;
         for (const s of segments) {
           if (segmentDistance(f.x, f.y, s.x1, s.y1, s.x2, s.y2) > f.r) continue;
           cutBy = player;
@@ -280,8 +342,10 @@ export class FruitNinja {
             this.state.combo = 0;
             this.onEvent({ type: 'bomb', fatal: false, x: f.x, y: f.y, slot: cutBy.slot });
           } else {
-            this.onEvent({ type: 'bomb', fatal: true, x: f.x, y: f.y, slot: cutBy.slot });
-            this.end(now);
+            this.state.lives = Math.max(0,this.state.lives-1);
+            cutBy.combo=0;this.state.combo=0;
+            this.onEvent({ type: 'bomb', fatal: this.state.lives===0, lives:this.state.lives, x: f.x, y: f.y, slot: cutBy.slot });
+            if(this.state.lives===0)this.end(now, 'bomb');
           }
         } else {
           this.slice(f, Math.atan2(cutSeg.y2 - cutSeg.y1, cutSeg.x2 - cutSeg.x1), now);
@@ -301,16 +365,13 @@ export class FruitNinja {
             x: f.x, y: f.y, kind: f.kind, r: f.r, slot: cutBy.slot, playerScore: cutBy.score,
           });
         }
+        if (this.state.phase === 'over') break;
         continue;
       }
 
       if (f.y + f.r < floor) {
         this.fruits.splice(i, 1);
-        if (!f.bomb && this.state.phase === 'playing') {
-          if (!this.infiniteLives) this.state.lives -= 1;
-          this.onEvent({ type: 'miss', lives: this.state.lives, x: f.x });
-          if (this.state.lives <= 0) this.end(now);
-        }
+        // Dropped fruit is ignored: no damage, miss cue or BLE haptic traffic.
       }
     }
 

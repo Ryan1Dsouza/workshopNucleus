@@ -1,0 +1,16 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
+const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..'),folder=path.join(root,'native/ios');
+const project=await fs.readFile(path.join(folder,'ControllerKit.xcodeproj/project.pbxproj'),'utf8');
+const ids=new Set([...project.matchAll(/^\s{4}([A-F0-9]{24})\s*=/gm)].map(match=>match[1]));
+for(const id of project.match(/[A-F0-9]{24}/g)||[])assert.ok(ids.has(id),'Unknown Xcode object: '+id);
+for(const name of ['AppDelegate.swift','ControllerViewController.swift','ControllerPeripheral.swift','FrameCodec.swift','Info.plist','Resources/controller.html','Assets.xcassets/AppIcon.appiconset/AppIcon.png'])await fs.access(path.join(folder,name));
+const plist=await fs.readFile(path.join(folder,'Info.plist'),'utf8');
+for(const key of ['NSBluetoothAlwaysUsageDescription','NSMotionUsageDescription','CFBundleIdentifier'])assert.ok(plist.includes('<key>'+key+'</key>'));
+const apple=await fs.readFile(path.join(folder,'Resources/controller.html'));
+const android=await fs.readFile(path.join(root,'native/android/app/src/main/assets/controller.html'));
+assert.ok(apple.equals(android),'Native phone UI bundles differ');
+console.log('PASS iOS project references, resources, permission descriptions and shared UI packaging.');
+console.log('Mac/Xcode compilation, signing and physical iPhone BLE checks remain separate.');

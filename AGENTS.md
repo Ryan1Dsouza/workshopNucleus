@@ -1,25 +1,19 @@
-# Controller workshop project instructions
+# Skills and MCP tools
 
-- Follow the user's current task and authorization. Make routine reversible choices without introducing approval steps.
-- The browser uses JavaScript ES modules. The Node entry point is `server/index.cjs`; keep the CommonJS boundary explicit. Use Node.js 22+ and the dependency lockfile.
-- Keep runtime credentials out of `public/` and Android source. OpenCode/OmniRoute are development tools, not game dependencies.
-- Preserve the supplied OpenWii renderer/game and its exact attribution in `licenses/`.
-- Put all unit checks in `tests/`; audit, native and workshop scripts belong in their named subfolders. Do not put tests or machine output under served source.
-- Center blade binds a captured pose to a calibration epoch. Preserve ordering protection, held aim, stroke resets and the 15-byte BLE Center command. See `docs/CENTER-BLADE.md`.
-- Run checks appropriate to the changed layer. Browser sensor/GATT fixtures do not establish physical phone or radio performance.
+Use relevant installed skills and connected MCP tools through actual tool calls. State when a required skill or tool is unavailable.
 
-## Current product goal
+## Frontend Design skill (`frontend-design`)
 
-Read `workshop/FINAL-SYSTEM.md` and `workshop/PROMPT-SPEC.md` for the reusable Android/iOS Wii-style controller target. The current Air Slice source is the working reference. Keep its renderer, calibration and useful transport contracts while introducing common controller/profile/game interfaces.
+Load the skill before creating or changing an interface. Follow the user's visual direction and apply deliberate layout, typography, colors and spacing. Keep screen text concise and useful. Support mobile layouts, accessible controls and visible keyboard focus.
 
-Game-specific controller labels and mappings must come from profiles. The cross-platform foundation is a phone web interface with explicit motion permissions and usable button fallback. Follow the final visual references and fixed protocol/API when they are produced.
+## Playwright MCP (`playwright`)
 
-The existing `workshop/STAGE-PROMPTS.md` is the previous Air Slice reference sequence. New participant prompts must come from the completed and tested controller system, with clear copy boundaries, outcomes, checks and recovery. Do not describe the planned universal controller as already implemented.
+Use for browser interaction and visual verification. Check desktop and mobile layouts, exercise relevant controls, capture screenshots and inspect console errors. Review the observed results after interface changes.
 
-## Air Slice reference reconstruction
+## Chrome DevTools MCP (`chrome-devtools`)
 
-When `.workshop/manifest.json` exists, work within the requested checkpoint. Read `workshop/STAGE-PROMPTS.md` and stage ownership in `workshop/stages.json`.
+Use to investigate JavaScript errors, failed network requests, rendering problems, memory usage and browser performance. Record performance traces when diagnosing slow interactions or animation. Base findings on the inspected browser data.
 
-Use `npm run workshop:stage -- N` to reconstruct the next stage from the frozen reference, then `npm run workshop:verify -- N`, `npm test` and `npm run audit:stage -- N`. Keep the reference/manifest and earlier stages intact. Do not weaken tests to pass a generated implementation. Explain the restored code and observed result.
+## Context7 MCP (`context7`)
 
-Provider configuration files, installed packages, certificates, reports, SDK paths and native build output are local artifacts excluded from reconstruction hashes. The hidden workshop reference is required when sharing the staged kit; the finished-game export excludes it.
+Use when current library documentation or API examples are needed. Resolve the relevant library and consult documentation matching the version in use before applying an unfamiliar API.

@@ -1,24 +1,50 @@
 # OmniRoute + OpenCode controller workshop
 
-The workshop goal is a reusable Wii-style phone controller for Android and iOS, with game-selected layouts and a common input interface. Fruit Ninja and an original racing demo are the first integrations.
-
-The organizer handles provider connections and OpenCode setup. The build material will explain each layer and provide one complete, checked prompt per stage.
+The prepared application is ControllerKit: one Wii-style phone remote, a neutral laptop dashboard and a common input contract for games. Today's release includes Controller Lab and Fruit Ninja. The extension stage supplies a small working template for attendee games.
 
 ## Start here
 
-- [Final system and planned stages](FINAL-SYSTEM.md): the agreed target, interface, connection and game integration requirements.
-- [Participant prompt format](PROMPT-SPEC.md): exactly what to copy, what each stage builds and how the agent must follow the final design.
-- [OpenCode configuration](opencode.workshop.example.json): the organizer's provider/model entries with the gateway key read from the environment.
-- [Network check](NETWORK-CHECK.md): practical phone/network preparation using the current reference application.
+1. Organizers read [ORGANIZER-SETUP.md](ORGANIZER-SETUP.md), [TEACHING-SCRIPT.md](TEACHING-SCRIPT.md), [FINAL-SYSTEM.md](FINAL-SYSTEM.md) and [device preparation](NETWORK-CHECK.md).
+2. Participants follow [NEW-LAPTOP.md](NEW-LAPTOP.md) in the supplied starter.
+3. Start with [PROMPTS.md](PROMPTS.md) for setup, then copy one complete labelled build block per stage from [STAGE-PROMPTS.md](STAGE-PROMPTS.md). Each prompt loads the shared [CONTEXT.md](CONTEXT.md).
+4. Extend a clean completed export with [EXTENDING-GAMES.md](EXTENDING-GAMES.md).
 
-## Implementation status
+Windows, macOS and Linux use the same stage commands. Prepare the matching shell/browser/JDK setup with [PLATFORMS.md](PLATFORMS.md); only Windows has been rehearsed here so far.
 
-The current source is the working Air Slice game and Android BLE v1.2 reference. The controller redesign, dynamic game profiles and racing demo are the next implementation work. New participant prompts and a matching starter are published after that system is tested.
+## Prepare before the session
 
-The old [stage prompts](STAGE-PROMPTS.md), [stage ownership](stages.json) and [new-laptop guide](NEW-LAPTOP.md) remain reference material for the previous Air Slice reconstruction. Their kit/export tools describe that reference system. Previous generated bundles and obsolete instructions were moved to the external backup; see [cleanup record](../docs/CLEANUP.md).
+Run the final checks, build the Android APK and prepare/sign the iPhone app on a Mac if demonstrating iPhone. Check the actual venue laptop and phones. The native foundation and game engine are provided so the live session can focus on interfaces, input, profiles and integration.
 
-## Provider setup
+~~~sh
+npm ci
+npm test
+npm run audit:stage -- 7
+npm run audit:controller
+npm run test:native-protocol
+npm run workshop:kit
+npm run export:workshop
+~~~
 
-Save the included configuration as opencode.json in the participant project's root. Set OMNIROUTE_API_KEY to an enabled OmniRoute gateway key in the terminal that launches OpenCode. Provider connection keys remain in OmniRoute.
+Give attendees dist/controllerkit-kit/, keeping starter/.workshop/. A transfer ZIP is supplied with the final kit. The root is complete Stage 7; starter/ is Stage 0.
 
-The configured localhost address refers to that laptop. A workshop-free entry requires an actual saved combo of that name in OmniRoute. Select a working tool-capable route and check file/tool access before construction prompts.
+## Teaching order
+
+| Stage | Suggested build time | Demonstration |
+|---|---:|---|
+| 1. Host and pairing | 10 min | Two isolated BLE slots and download QR |
+| 2. Wii-style buttons | 10 min | Multi-touch press/release in the input lab |
+| 3. Motion and centering | 10 min | Calibrated wrist aim; center creates no cut |
+| 4. Profiles and adapters | 10 min | Shared schema, action mappings and game registry |
+| 5. Fruit Ninja | 15 min | Native A starts the first round; Space plays again; motion slices; scoring/restart work |
+| 6. Your own game | 10 min | Working counter template and new profile |
+| 7. Verify/package | 10 min | Clean complete source export |
+
+These are planning estimates. Stages 1–5 total 55 minutes after setup. Model quotas, downloads and physical device setup affect session timing.
+
+The reconstruction prompts use supplied source and hashes. OpenCode inspects, assembles, runs checks and explains each layer. A separate exercise asks the model to write a feature in an exported copy. The setup does not claim freeform generation yields byte-identical source.
+
+Provider keys remain in OmniRoute. The OpenCode [example](opencode.workshop.example.json) reads the gateway key from OMNIROUTE_API_KEY. Confirm that workshop-free exists as a saved combo and select a tool-capable route before the model smoke check.
+
+## Verification status
+
+See [VERIFICATION.md](../docs/VERIFICATION.md). Browser/GATT fixtures establish covered application behavior, not physical radio performance. iPhone source requires a Mac build and actual phone checks.

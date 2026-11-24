@@ -1,51 +1,53 @@
-# Architecture and stage boundaries
+# ControllerKit architecture
 
-Air Slice has one Node server, a projector page and up to two phone inputs. Shared game math operates on normalized screen coordinates; Three.js maps the fixed 2D play field into the 3D scene. OpenCode writes/reconstructs the source through an OmniRoute provider. Neither tool participates in gameplay.
+ControllerKit separates a phone remote from the games it controls. Node serves the laptop dashboard, assets and app download page. Gameplay button/motion input crosses BLE between the native phone app and the laptop browser.
 
-## Input flow
-
-~~~text
-Browser sensors -> SensorStream -> phone-link -> relay or WebRTC
-Android sensors -> FrameCodec -> BLE -> BluetoothLink
-                                |
-                            MotionInput
-                                |
-                  calibrated PosePointer + epoch
-                         /               \\
-            immediate collision       BladeDisplay
-                    |                 screen dot/trail
-                FruitNinja                 |
-                    +---------> Three.js / SVG / HUD
+~~~mermaid
+flowchart LR
+  UI[Shared phone UI] --> Native[Android / iOS bridge]
+  Sensors[Gyro + accelerometer fusion] --> Native
+  Native -->|BLE buttons / orientation / center| Receiver[Laptop BLE receiver]
+  Receiver --> State[Common controller state]
+  State --> Adapter[Selected game adapter]
+  Adapter --> Game[Fruit Ninja / attendee game]
+  Picker[Host game picker] -->|Profile JSON over BLE| Native
+  Native --> UI
+  Node[Node server] -->|Pages and APK downloads| Picker
 ~~~
 
-`public/core/input-links.js` loads phone/Bluetooth adapters only when the current stage enables them. `public/core/phone-link.js` uses the relay adapter at Stage 3 and the direct-capable transport from Stage 4. Early checkpoints can therefore run with future modules genuinely absent.
+## Responsibilities and files
 
-## Files and contracts
-
-| Area | Files | Contract |
+| Part | Implementation | Contract |
 |---|---|---|
-| Server | `server/index.cjs` | `createWorkshopServer()`, `/api/health`, `/host`, `/controller`, two isolated room slots |
-| Host | `public/host/index.html`, `bootstrap.mjs`, `setup.mjs` | Fixed DOM IDs, lazy startup, QR origin preservation, practice/classic controls |
-| Stage switch | `public/stage.mjs` | Explicit checkpoint number and feature flags; final source uses 7 |
-| Phone capture | `public/controller/sensors.mjs` | Finite raw pose/rates, capture timestamps, source separation and monotonically increasing epochs |
-| Calibration lifecycle | `public/core/motion-input.js` | Session/epoch fences, captured-pose centering, held aim and display/stroke resets |
-| Proportional aim | `public/core/pose-pointer.js` | 60°/screen at 1×; fixed grip axis; no prediction/coasting; physical-motion gating |
-| Phone network | `relay-link.js`, `transport.js`, `motion-queue.js`, `motion-clock.js` | Relay first, then direct unordered motion and reliable commands; freshness and sequence checks |
-| Native input | `ble-protocol.js`, `bluetooth-link.js`, Android `FrameCodec.java` | Documented quaternion units/epochs, one source per slot and reconnect cleanup |
-| Visual blade | `blade-display.js`, `screen-blade.js`, `blade-ribbon.js` | Bounded endpoint interpolation and fading ribbons above fruit; separate from collision input |
-| Game | `public/games/fruit-ninja/logic.js`, `game.js` | Consume measured collision segments once; scoring/physics independent of cosmetic budgets |
-| Measurements | core/host `diagnostics`, `scripts/audit/` | Separate sensor, packet, pose, RTT and frame timing; local JSON reports |
+| Host shell | public/host/index.html, host.css, hub.mjs | Pair players, display connection state, pick adapters and download the app |
+| BLE receiver | core/bluetooth-link.js, ble-protocol.js | Two independent device/session records, fresh motion, ordered commands and serialized writes |
+| Shared input | core/controller-state.js, controller-contract.js | Stable button ids, action edges, profile epochs, watchdog release and normalized motion |
+| Motion mapping | motion-input.js, pose-pointer.js, orientation.js | Captured neutral grip and proportional measured rotation; center creates no cut |
+| Profile catalog | controller-profiles.js, games/catalog.mjs | Game-selected controls and action mappings |
+| Adapter lifecycle | game-registry.js | mount, input, pause, reset, dispose; optional tick |
+| Phone UI | controller/index.html, phone.css, phone-ui.mjs | Render supported controls from profiles; send press/release and native commands |
+| Native Android | MainActivity, MotionService, FrameCodec, ProfileTransfer | Offline WebView, BLE peripheral, fused sensor quaternion and captured center |
+| Native iPhone | ControllerViewController, ControllerPeripheral, FrameCodec | Same offline UI, CoreBluetooth peripheral and CoreMotion orientation |
+| Fruit Ninja | games/fruit-ninja/adapter.mjs, embedded.mjs, game.js, logic.js | Use common state through an isolated rendering frame |
 
-All tests live in `tests/`. The root package declares ES modules; the server alone uses `.cjs`, so redundant nested package manifests are unnecessary. Android source and Gradle wrapper remain under `native/android/`; machine SDK configuration and build caches are ignored.
+## Input and calibration
 
-## Construction layers
+Phones expose the BLE service; desktop Chrome/Edge acts as the central. Two player slots have distinct device ids and session generations. A disconnect clears only that slot. Button snapshots carry a separate profile epoch so a delayed packet cannot restore controls from the previous game.
 
-Stage 1 adds the server and host shell. Stage 2 adds the supplied game and shared engine/visual primitives. Stage 3 adds the controller, sensor capture and one-player relay. Stage 4 adds direct transport, queue/clock logic and Player 2. Stage 5 exposes diagnostics and smoothing controls, with shared filters/display support already present in the engine. Stage 6 adds native BLE source/receiver/APK. Stage 7 adds the export script and final verification.
+Native sensor fusion produces an XYZW quaternion. MotionInput binds a captured pose to its calibration epoch and maps wrist rotation to normalized aim. Steering also exposes rotation around the grip's device axis. Sensor capture time, delivery time and calibration/profile epochs have different meanings.
 
-The exact per-file ownership is `workshop/stages.json`. `workshop:kit` freezes the current source in the participant starter's `.workshop/reference/`, records per-file hashes and creates Stage 0. `workshop:stage` validates the preceding checkpoint before adding its own files. `workshop:verify` checks the cumulative file set, rejects premature/extra source and detects any byte difference. The stage switch is the only shared file rewritten at every checkpoint.
+Collision consumes measured motion once. The visual blade can interpolate measured endpoints, but visual frames cannot submit new collision travel. Centering, stale data and discontinuities break strokes.
 
-Fonts, QR code, renderer and native app are supplied reference assets. The workshop reconstructs this established implementation; it does not claim a freeform prompt can invent byte-identical procedural artwork. Generated feature work belongs in a separate copy after the final checkpoint.
+## Game switching
 
-## Limits to preserve
+The host releases old buttons and motion, increments the profile epoch, disposes the old adapter and selects the new one. It transfers a validated profile to each phone with bounded, checksummed BLE chunks. Controls become ready after the matching acknowledgement. The phone changes its UI from data and clears held touches.
 
-Sensor capture timestamps and network delivery timestamps serve different purposes. Echo RTT is a round trip, not physical one-way tracking latency. Browser motion pages stay visible; Android's user-started foreground service can keep running while the camera is open. Sensors measure wrist rotation, not absolute translation. Real phones, BLE support, HTTPS trust and Wi-Fi isolation remain physical acceptance checks.
+The Fruit Ninja adapter reuses the supplied renderer/logic in an iframe. Its embedded mode receives normalized state from the parent and does not open another BLE/phone link. This preserves its artwork and game rules while using the common controller.
+
+## Teaching checkpoints
+
+Stage 0 is the starter/tooling. Stage 1 installs the host and prepared native/BLE foundation. Stage 2 exposes the shared remote and button lab. Stage 3 binds motion/calibration. Stage 4 adds profiles and the game registry. Stage 5 connects Fruit Ninja. Stage 6 supplies the extension template. Stage 7 adds final audits/export and retained transport regression references.
+
+The exact file ownership is workshop/stages.json. public/stage.mjs is the one shared feature file rewritten at every checkpoint. Early checkpoints run with later modules absent; the native app/UI bundle is prepared in advance and controlled by the host's stage profile.
+
+See [CONTROLLER-CONTRACT.md](CONTROLLER-CONTRACT.md) for exact APIs and [VERIFICATION.md](VERIFICATION.md) for what has been checked.

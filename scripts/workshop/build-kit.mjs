@@ -3,7 +3,7 @@ import path from 'node:path';
 import { root, sourceFiles, inside, sha256, json, copyFile, emptyOutput, outputArgument, stageContent } from './files.mjs';
 import { stage as currentStage } from '../../public/stage.mjs';
 if (currentStage !== 7) throw new Error('Create a kit from the complete Stage 7 source project.');
-const output = outputArgument(path.join(root, 'dist/air-slice-kit'));
+const output = outputArgument(path.join(root, 'dist/controllerkit-kit'));
 const spec = JSON.parse(await fs.readFile(path.join(root, 'workshop/stages.json'), 'utf8'));
 const matches = (file, pattern) => pattern.endsWith('/**') ? file.startsWith(pattern.slice(0, -2)) : file === pattern;
 const files = [];
@@ -39,5 +39,18 @@ for (const file of files) {
 }
 await fs.writeFile(path.join(starter, '.workshop/manifest.json'), json(manifest));
 await fs.writeFile(path.join(starter, '.workshop/state.json'), json({ stage: 0 }));
-await fs.writeFile(path.join(output, 'START-HERE.md'), "# Air Slice workshop kit\n\nStart with [the new-laptop walkthrough](starter/workshop/NEW-LAPTOP.md). It covers transferring this kit, Node dependencies, your OmniRoute model configuration, the gateway key and a tool-call smoke test.\n\nThen paste the prompts from [STAGE-PROMPTS.md](starter/workshop/STAGE-PROMPTS.md), one at a time, starting with Stage 1. Work inside starter/ throughout. The starter begins at Stage 0, with no server/game yet; source is restored from .workshop/reference/ and checked with SHA-256.\n\nKeep .workshop/ when sharing the kit. Installed packages, certificates, SDK paths, old exports and native build output are excluded.\n");
+// Supply the gateway configuration with an environment placeholder, never a key.
+await copyFile(path.join(starter, 'workshop/opencode.workshop.example.json'), path.join(starter, 'opencode.json'));
+await fs.writeFile(path.join(output, 'START-HERE.md'), `# ControllerKit workshop kit
+
+Open the starter/ folder in your IDE. Follow the short checklist in [NEW-LAPTOP.md](starter/workshop/NEW-LAPTOP.md). It covers npm ci, the test browser, gateway-key entry and launching OpenCode. The starter already includes opencode.json; your instructor supplies the gateway key and model name.
+
+Open [PROMPTS.md](starter/workshop/PROMPTS.md) and paste its setup smoke prompt. It loads [CONTEXT.md](starter/workshop/CONTEXT.md), checks the actual workspace and verifies Stage 0 through tools.
+
+Then paste exactly one COPY THIS PROMPT block at a time from [STAGE-PROMPTS.md](starter/workshop/STAGE-PROMPTS.md), starting at Stage 1. Each stage reads the shared context and owned source, reconstructs the supplied layer and checks source, units and browser behavior. Use PROMPTS.md for resume/recovery after a model switch or interruption.
+
+The phone apps/native foundation are prepared for the workshop. Android has a supplied APK; iPhone installation requires a Mac/signing and separate device checks. Gameplay input uses BLE. The QR downloads the app.
+
+The finished baseline includes Controller Lab, Fruit Ninja and an extension template. See [TEACHING-SCRIPT.md](starter/workshop/TEACHING-SCRIPT.md) for the organizer's explanations.
+`);
 console.log('Workshop kit: ' + output + '\nParticipant folder: ' + starter + '\n' + files.length + ' frozen files; 7 sequential stages. Start with npm ci and the Stage 1 prompt.');

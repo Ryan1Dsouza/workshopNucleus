@@ -9,23 +9,33 @@ export function installFakeBluetooth(target = globalThis) {
     removeEventListener(type, fn) { super.removeEventListener(type, fn); this.listeners.delete(fn); }
   }
   class Characteristic extends Emitter {
-    constructor(uuid) { super(); this.uuid = uuid; this.writes = []; this.activeWrites = 0; this.maxWrites = 0; }
+    constructor(uuid, device) { super(); this.uuid = uuid; this.device = device; this.writes = []; this.activeWrites = 0; this.maxWrites = 0; }
     async startNotifications() { this.subscribed = true; return this; }
     emit(bytes) { this.value = bytes instanceof DataView ? bytes : new DataView(Uint8Array.from(bytes).buffer); this.dispatchEvent(new Event('characteristicvaluechanged')); }
     async writeValueWithResponse(bytes) {
       this.activeWrites++; this.maxWrites = Math.max(this.maxWrites, this.activeWrites); this.writes.push([...bytes]);
-      await new Promise(resolve => setTimeout(resolve, 8));
+      await new Promise(resolve => setTimeout(resolve, this.device.writeDelay ?? 8));
       if (bytes[0] === 0x10) this.emit([0x90, ...bytes.slice(1)]);
+      const view=new DataView(Uint8Array.from(bytes).buffer),d=this.device;
+      if(bytes[0]===0x40){d.transfer={id:view.getUint16(1,true),bytes:new Uint8Array(view.getUint16(3,true)),offset:0};}
+      else if(bytes[0]===0x41){if(!d.transfer||view.getUint16(1,true)!==d.transfer.id||view.getUint16(3,true)!==d.transfer.offset)throw Error('Invalid profile chunk');d.transfer.bytes.set(bytes.slice(5),d.transfer.offset);d.transfer.offset+=bytes.length-5;}
+      else if(bytes[0]===0x42){if(!d.transfer||d.transfer.offset!==d.transfer.bytes.length)throw Error('Incomplete profile');d.profile=JSON.parse(new TextDecoder().decode(d.transfer.bytes));this.emit([0x43,...bytes.slice(1),0,d.profile.profileEpoch&255,d.profile.profileEpoch>>8]);d.transfer=null;}
       this.activeWrites--;
     }
   }
   function phone(id) {
     const device = new Emitter(); device.id = id; device.name = 'Test Android ' + id;
-    device.motion = new Characteristic(MOTION); device.control = new Characteristic(CONTROL);
+    device.motion = new Characteristic(MOTION,device); device.control = new Characteristic(CONTROL,device);
     device.sequence = 0; device.time = 1000; device.epoch = 1;
+    device.buttonSequence=0;
+    device.buttons=(mask,epoch=device.profile?.profileEpoch||0)=>{const v=new DataView(new ArrayBuffer(7));v.setUint8(0,4);v.setUint16(1,mask,true);v.setUint16(3,device.buttonSequence++,true);v.setUint16(5,epoch,true);device.control.emit(v);};
     device.gatt = {
-      connected: false, connects: 0,
-      async connect() { this.connects++; if (device.holdConnect) await device.holdConnect; this.connected = true; return this; },
+      connected: false, connects: 0, activeConnects: 0, maxConnects: 0,
+      async connect() {
+        this.connects++;this.activeConnects++;this.maxConnects=Math.max(this.maxConnects,this.activeConnects);
+        try{if(device.holdConnect)await device.holdConnect;if(device.connectFailures?.length)throw device.connectFailures.shift();this.connected=true;return this;}
+        finally{this.activeConnects--;}
+      },
       async getPrimaryService(uuid) { if (uuid !== SERVICE) throw Error('Wrong service'); return this; },
       async getCharacteristic(uuid) { return uuid === MOTION ? device.motion : device.control; },
       disconnect() { const was = this.connected; this.connected = false; if (was) device.dispatchEvent(new Event('gattserverdisconnected')); },
@@ -51,8 +61,9 @@ export function installFakeBluetooth(target = globalThis) {
     return device;
   }
   const phones = [phone('one'), phone('two')];
-  const state = { phones, next: 0, failure: null, requests: [],
-    async requestDevice(options) { this.requests.push(options); if (this.failure) throw this.failure; return this.phones[this.next]; },
+  const state = { phones, next: 0, failure: null, requests: [], granted: [],
+    async getDevices(){return this.granted.slice();},
+    async requestDevice(options) { this.requests.push(options); if (this.failure) throw this.failure; const device=this.phones[this.next];if(!this.granted.includes(device))this.granted.push(device);return device; },
   };
   Object.defineProperty(target.navigator, 'bluetooth', { configurable: true, value: state });
   target.__fakeBle = state;

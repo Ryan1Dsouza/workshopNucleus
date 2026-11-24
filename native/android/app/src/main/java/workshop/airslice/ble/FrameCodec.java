@@ -17,6 +17,11 @@ public final class FrameCodec {
         putQuaternion(b,q);
         return b.array();
     }
+    public static byte[] encodeButtons(int mask,int sequence,int profileEpoch){
+        if((mask&~2047)!=0)throw new IllegalArgumentException("Invalid buttons");
+        return ByteBuffer.allocate(7).order(ByteOrder.LITTLE_ENDIAN).put((byte)4)
+            .putShort((short)mask).putShort((short)sequence).putShort((short)profileEpoch).array();
+    }
     private static void putQuaternion(ByteBuffer b,float[] q){
         if(q==null||q.length!=4)throw new IllegalArgumentException("Invalid quaternion");
         double norm=Math.sqrt((double)q[0]*q[0]+(double)q[1]*q[1]+(double)q[2]*q[2]+(double)q[3]*q[3]);

@@ -2,6 +2,7 @@ node_modules/
 .local/
 archive/
 test-results/
+.playwright-mcp/
 dist/
 .workshop/
 opencode.json
@@ -9,3 +10,7 @@ opencode.jsonc
 native/android/.gradle/
 native/android/local.properties
 native/android/app/build/
+native/ios/DerivedData/
+native/ios/**/xcuserdata/
+native/ios/.build/
+*.mobileprovision

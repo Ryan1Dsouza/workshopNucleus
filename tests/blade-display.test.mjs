@@ -26,7 +26,7 @@ test('network silence never extrapolates beyond the last measured endpoint', () 
   const blade = new BladeDisplay();
   blade.push({ x: .1, y: .9 }, 0, 0);
   blade.push({ x: .9, y: .1 }, 33, 33);
-  assert.equal(blade.delay, 32);
+  assert.equal(blade.delay, 33);
   for (let t = 33; t < 66; t++) {
     const p = blade.sampleAt(t);
     assert(p.x >= .1 && p.x <= .9 && p.y >= .1 && p.y <= .9);
@@ -94,4 +94,18 @@ test('sensor/host clock offsets, duplicate and reordered captures cannot create 
   blade.push({x:1,y:1},1000016,200);blade.push({x:0,y:0},1000015,201);
   assert.equal(blade.points.length,count);assert.equal(blade.delay,delay);
   assert.deepEqual(blade.sampleAt(1000),{x:.4,y:.6});
+});
+
+test('25 Hz uneven BLE delivery stays moving between packets without exceeding measured aim',()=>{
+  const blade=new BladeDisplay(),packets=Array.from({length:110},(_,n)=>({t:n*40,a:n*40+[0,12,0,4][n%4]}));
+  let index=0,previous=null,holds=0,frames=0;
+  for(let now=0;now<3500;now+=1000/144){
+    while(index<packets.length&&packets[index].a<=now){const p=packets[index++];blade.push({x:.1+p.t*.00015,y:.5},p.t,p.a);}
+    const x=blade.sampleAt(now).x;
+    assert.ok(x<=.1+packets[Math.max(0,index-1)].t*.00015+1e-8,'display invented future motion');
+    if(now>600){frames++;if(Math.abs(x-previous)<1e-10)holds++;assert.ok(x>=previous,'display replayed a stroke backwards');}
+    previous=x;
+  }
+  assert.ok(holds<frames*.02,`${holds}/${frames} frames froze during a steady sweep`);
+  assert.ok(blade.delay<=64);
 });

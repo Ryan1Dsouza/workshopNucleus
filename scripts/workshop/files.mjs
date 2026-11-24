@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-export const sourceEntries = ['public', 'server', 'native', 'licenses', 'tests', 'scripts', 'workshop', 'docs', 'AGENTS.md', 'README.md', '.gitignore', 'package.json', 'package-lock.json'];
+export const sourceEntries = ['public', 'server', 'native', 'licenses', 'tests', 'scripts', 'workshop', 'docs', '.agents', 'skills-lock.json', 'AGENTS.md', 'README.md', '.gitignore', 'package.json', 'package-lock.json'];
 export const sha256 = content => createHash('sha256').update(content).digest('hex');
 export const json = value => JSON.stringify(value, null, 2) + '\n';
 export function inside(folder, relative) {
@@ -21,7 +21,9 @@ export async function sourceFiles(folder = root) {
     if (stat.isSymbolicLink()) throw new Error('Cannot export a symbolic link: ' + relative);
     if (stat.isDirectory()) {
       for (const name of (await fs.readdir(absolute)).sort()) {
-        if (['.gradle', 'build', 'node_modules', '.local', '.workshop', 'dist', 'test-results', 'local.properties'].includes(name) || /\.(jks|keystore)$/i.test(name)) continue;
+        // Finder and ZIP extraction can add metadata without changing source.
+        if (name === '.DS_Store' || name.startsWith('._')) continue;
+        if (['.gradle', 'build', 'node_modules', '.local', '.workshop', 'dist', 'test-results', 'local.properties', 'DerivedData', 'xcuserdata', '.build', 'Pods'].includes(name) || /\.(jks|keystore|mobileprovision)$/i.test(name)) continue;
         await walk(relative + '/' + name);
       }
     } else files.push(relative.replaceAll('\\', '/'));

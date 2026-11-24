@@ -70,3 +70,83 @@ test('unsupported context, picker cancellation and idle metrics are honest and r
   assert.equal(link.diagnostics(now + 300)[0].deliveredCaptureHz, 0);
   link.resetMetrics(); assert.equal(link.diagnostics()[0].received, 0);
 });
+
+test('live gyro traffic avoids unnecessary ping writes and continues during a slow control write',async t=>{
+  const {fake,link,samples}=fixture(t);await link.connect(0);
+  const phone=fake.phones[0],r=link.devices.get(0);phone.pose(0,0);
+  await link.ping(r);assert.equal(phone.control.writes.length,0);
+  const write=phone.control.writeValueWithResponse.bind(phone.control);
+  phone.control.writeValueWithResponse=async bytes=>{await wait(60);return write(bytes);};
+  const pending=link.write(r,new Uint8Array([0x11]));
+  for(let i=0;i<4;i++){await wait(10);phone.pose(i+1,60);}
+  assert.equal(samples.length,5,'a control write blocked incoming motion');
+  await pending;assert.equal(r.connected,true);assert.equal(phone.control.maxWrites,1);
+});
+
+test('first pairing failure retries the selected phone once without reopening the picker',async t=>{
+  const {fake,link,samples,states}=fixture(t),phone=fake.phones[0];
+  phone.connectFailures=[new DOMException('Connection attempt failed.','NetworkError')];
+  await link.connect(0);phone.pose(2,60);
+  assert.equal(fake.requests.length,1);assert.equal(phone.gatt.connects,2);assert.equal(phone.gatt.maxConnects,1);
+  assert.equal(link.connected(0),true);assert.equal(samples.length,1);
+  assert.ok(states.some(s=>s.text==='Retrying Bluetooth connection…'));
+  assert.equal(phone.motion.listeners.size,1);assert.equal(phone.control.listeners.size,1);
+});
+
+test('a second failed initial attempt stops with the real error and no background retry',async t=>{
+  const {fake,link}=fixture(t),phone=fake.phones[0];
+  phone.connectFailures=[new DOMException('Connection attempt failed.','NetworkError'),new DOMException('Still unavailable.','NetworkError')];
+  await assert.rejects(link.connect(0),/Still unavailable/);await wait(1100);
+  assert.equal(phone.gatt.connects,2);assert.equal(link.has(0),false);assert.equal(phone.motion.listeners.size,0);
+});
+
+test('cancelling during the initial retry delay cannot reconnect a removed player',async t=>{
+  const {fake,link}=fixture(t),phone=fake.phones[0];phone.connectFailures=[new DOMException('Connection attempt failed.','NetworkError')];
+  const pending=link.connect(0);await wait(20);link.disconnect(0);
+  await assert.rejects(pending,{name:'AbortError'});await wait(550);
+  assert.equal(phone.gatt.connects,1);assert.equal(link.has(0),false);assert.equal(phone.gatt.connected,false);
+});
+
+test('permission failures do not trigger an automatic GATT retry',async t=>{
+  const {fake,link}=fixture(t),phone=fake.phones[0];phone.connectFailures=[new DOMException('Bluetooth permission denied.','SecurityError')];
+  await assert.rejects(link.connect(0),{name:'SecurityError'});assert.equal(phone.gatt.connects,1);assert.equal(link.has(0),false);
+});
+
+test('a disconnect during initial notification setup has one serialized retry and clean listeners',async t=>{
+  const {fake,link,samples}=fixture(t),phone=fake.phones[0];
+  const subscribe=phone.motion.startNotifications.bind(phone.motion);let failed=false;
+  phone.motion.startNotifications=async()=>{if(!failed){failed=true;phone.gatt.disconnect();throw new DOMException('GATT Server is disconnected.','NetworkError');}return subscribe();};
+  await link.connect(0);phone.pose(3,60);await wait(1100);
+  assert.equal(phone.gatt.connects,2);assert.equal(phone.gatt.maxConnects,1);assert.equal(samples.length,1);
+  assert.equal(phone.motion.listeners.size,1);assert.equal(phone.control.listeners.size,1);
+});
+
+test('reconnecting a verified phone reuses its grant instead of opening the picker again',async t=>{
+  const {fake,link}=fixture(t);await link.connect(0);link.disconnect(0);await link.connect(0);
+  assert.equal(fake.requests.length,1);assert.equal(fake.phones[0].gatt.connects,2);assert.equal(link.connected(0),true);
+});
+
+test('saved slot assignment survives a reload only when the browser still grants that device',async t=>{
+  const previous=Object.getOwnPropertyDescriptor(globalThis,'localStorage'),values=new Map();
+  Object.defineProperty(globalThis,'localStorage',{configurable:true,value:{getItem:k=>values.get(k),setItem:(k,v)=>values.set(k,v)}});
+  t.after(()=>{if(previous)Object.defineProperty(globalThis,'localStorage',previous);else delete globalThis.localStorage;});
+  const first=fixture(t);await first.link.connect(0);first.link.disconnect(0);
+  const next=fixture(t);next.fake.granted=[next.fake.phones[0]];await next.link.loadGrantedDevices();await next.link.connect(0);
+  assert.equal(next.fake.requests.length,0);assert.equal(next.link.connected(0),true);
+  next.link.disconnect(0);next.fake.granted=[];await next.link.loadGrantedDevices();await next.link.connect(0);
+  assert.equal(next.fake.requests.length,1,'a revoked grant must require selecting the phone again');
+});
+
+test('choosing another phone bypasses a remembered device and keeps the other slot isolated',async t=>{
+  const {fake,link}=fixture(t);await link.connect(0);link.disconnect(0);
+  fake.next=1;await link.connect(0,{chooseNew:true});
+  assert.equal(fake.requests.length,2);assert.equal(fake.phones[1].gatt.connected,true);assert.equal(fake.phones[0].gatt.connected,false);
+  assert.equal(link.has(1),false);
+});
+
+test('a late permission preload cannot forget a phone paired while it was pending',async t=>{
+  const {fake,link}=fixture(t);await link.loadGrantedDevices();let resolve;
+  fake.getDevices=()=>new Promise(r=>{resolve=r;});const preload=link.loadGrantedDevices();
+  await link.connect(0);resolve([]);await preload;link.disconnect(0);await link.connect(0);
+  assert.equal(fake.requests.length,1);assert.equal(link.connected(0),true);
+});

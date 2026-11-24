@@ -4,6 +4,13 @@ import { once } from 'node:events';
 import { io } from 'socket.io-client';
 import serverModule from '../server/index.cjs';
 const delay = ms => new Promise(resolve=>setTimeout(resolve,ms));
+test('missing optional audio and favicon are quiet while missing required assets still fail',async t=>{
+  const server=serverModule.createWorkshopServer();await new Promise(r=>server.servers[0].listen(0,'127.0.0.1',r));
+  t.after(()=>new Promise(r=>server.io.close(r)));
+  const base='http://127.0.0.1:'+server.servers[0].address().port;
+  for(const file of ['/audio/absent-cue.mp3','/favicon.ico']){const response=await fetch(base+file);assert.equal(response.status,204);assert.equal((await response.arrayBuffer()).byteLength,0);}
+  assert.equal((await fetch(base+'/required-missing.js')).status,404);
+});
 async function fixture(t) {
   const server=serverModule.createWorkshopServer(), sockets=[];
   await new Promise(resolve=>server.servers[0].listen(0,'127.0.0.1',resolve));

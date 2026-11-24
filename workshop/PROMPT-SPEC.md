@@ -1,46 +1,15 @@
-# Participant prompt format
+# How to use the participant prompts
 
-Status: instructions for preparing the new controller workshop prompts. This file is an organizer specification. The existing [Air Slice reference prompts](STAGE-PROMPTS.md) describe the previous game-specific workshop.
+[PROMPTS.md](PROMPTS.md) is the session entry point: setup/tool smoke check, stage links, resume and recovery. [CONTEXT.md](CONTEXT.md) supplies the shared architecture, directory roles, source authority, behavior constraints and reporting requirements. [STAGE-PROMPTS.md](STAGE-PROMPTS.md) contains one complete numbered build block per checkpoint.
 
-## One place to copy from
+PROMPTS.md is for attendees and starts directly with the setup check. Kit-generation and gateway-preparation instructions are in [ORGANIZER-SETUP.md](ORGANIZER-SETUP.md).
 
-The new participant STAGE-PROMPTS.md will contain one numbered section per tested stage, in execution order. A participant should immediately know what the stage builds, what to copy, what success looks like and when to continue.
+Copy only the block between **COPY THIS PROMPT — STAGE N** and **END OF STAGE N PROMPT**. Start at Stage 1 in the generated starter and wait for each stage's checks before proceeding.
 
-Every section must contain:
+Every stage block explicitly tells OpenCode to read the shared context, AGENTS.md, final system, exact controller contract, visual references and current manifest/state. It validates the starting checkpoint, lists stage ownership, reads concrete reference entry points, restores only that layer and checks source/unit/browser behavior. It stops after the requested stage and reports actual command results and pending hardware checks.
 
-1. **Stage title and purpose:** explain the layer in plain language.
-2. **Starting point:** required previous checkpoint, prerequisites and current features.
-3. **What you get:** the visible screen, controls or game behavior after completion.
-4. **COPY THIS PROMPT — STAGE N:** one complete fenced text block containing all instructions for that stage.
-5. **END OF STAGE N PROMPT:** a clear marker after the block.
-6. **Check the result:** commands that exist in the supplied project and a short manual demonstration.
-7. **Recovery:** the supplied checkpoint and concrete steps to retry that stage.
+The file name CONTEXT.md is descriptive; do not assume OpenCode automatically loads it. The setup and stage prompts load it through file tools. Keep model input focused on the context, requested layer and relevant contracts. The state file records an installed checkpoint, not test completion; a fresh session reruns missing validation before advancing.
 
-Only the block between the copy/end markers is pasted into OpenCode. Explain prerequisites and demonstrations outside it. Never split one stage across several unlabeled prompt blocks. Published participant prompts must contain no unresolved placeholders.
+The baseline reconstruction is deliberate: source hashes establish equality with the provided implementation. The agent's job includes inspection, explanation, tools and verification. Model-written features belong in a separate completed export; their source can differ while preserving the controller contract.
 
-## What the building agent must be told
-
-Each prompt must be self-contained and require the agent to:
-
-- Read AGENTS.md, [FINAL-SYSTEM.md](FINAL-SYSTEM.md), final architecture/protocol documentation and the current checkpoint before editing.
-- Build only the requested stage and preserve previous working layers.
-- Use final host/phone screenshots, design dimensions, control identifiers and profile examples. State which elements appear at this checkpoint and how they match the final interface.
-- Follow the fixed message schema and game adapter API. Include relevant exact fields/method signatures so models cannot invent incompatible versions.
-- Name files to create/change, their responsibilities and available dependencies. Earlier checkpoints must run with later-stage files absent.
-- State applicable interactions precisely: touch press/release, simultaneous controls, permissions, centering, player isolation, game switching and reconnect.
-- Run actual stage checks and fix failures without weakening assertions. Include a browser check when changing the interface or input integration.
-- Report files changed, observed behavior, passed commands and pending physical-device checks. Stop after this stage.
-
-## Keep the final result consistent
-
-Finish and test the universal controller before deriving reconstruction checkpoints. Preserve the baseline, file ownership and visual reference. State explicitly whether each exercise restores reference files or asks the model to write a feature.
-
-Source hashes establish equality with supplied reference code. Model-written changes need behavioral and visual checks; a successful freeform prompt does not establish byte equality. Both routes must preserve the controller contract and expected behavior.
-
-Use the same terms everywhere: host, controller, player, profile, buttons, motion and game adapter. Reusable phone labels/mappings come from profiles. Keep provider credentials in OmniRoute/development environment variables.
-
-## Publication check
-
-Run the participant sequence from a fresh starter using OpenCode through the organizer's working OmniRoute route. Confirm each prompt's commands exist and each checkpoint runs with later files absent. Try actual Android/iPhone controls and the network before the workshop.
-
-Publish stage explanations and copy blocks together with the matching starter and recovery checkpoints. Label planned material clearly until this check is complete.
+Organizers use [TEACHING-SCRIPT.md](TEACHING-SCRIPT.md) for explanations and [EXTENDING-GAMES.md](EXTENDING-GAMES.md) for the later coding exercise.

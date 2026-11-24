@@ -1,25 +1,28 @@
 {
-  "name": "air-slice-workshop",
-  "version": "1.2.0",
-  "description": "Phone gyro Fruit Ninja workshop demo built on OpenWii, with native Android Bluetooth and WebRTC input",
+  "name": "controllerkit-workshop",
+  "version": "2.0.0",
+  "description": "Reusable native BLE phone controller, dynamic game profiles and Fruit Ninja workshop",
   "type": "module",
   "main": "server/index.cjs",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node server/index.cjs",
     "dev": "node --watch server/index.cjs",
     "test": "node --test tests/*.test.mjs",
     "audit:filter": "node scripts/audit/filter.mjs",
-    "audit:browser": "node scripts/audit/browser.mjs",
-    "audit:bluetooth": "node scripts/audit/bluetooth.mjs",
-    "audit:render": "node scripts/audit/render.mjs",
+    "audit:browser": "node scripts/audit/controller.mjs",
+    "audit:bluetooth": "node scripts/audit/controller.mjs",
     "audit:stage": "node scripts/audit/stage.mjs",
     "test:native-protocol": "node scripts/native/protocol.mjs",
     "package:android": "node scripts/native/package.mjs",
     "export:workshop": "node scripts/workshop/export.mjs",
     "workshop:kit": "node scripts/workshop/build-kit.mjs",
     "workshop:stage": "node scripts/workshop/stage.mjs",
-    "workshop:verify": "node scripts/workshop/verify.mjs"
+    "workshop:verify": "node scripts/workshop/verify.mjs",
+    "audit:controller": "node scripts/audit/controller.mjs",
+    "sync:phone-ui": "node scripts/native/sync-ui.mjs"
   },
   "dependencies": {
     "express": "^4.19.2",

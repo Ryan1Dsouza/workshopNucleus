@@ -1,4 +1,5 @@
 
+import test from 'node:test';
 import assert from 'node:assert/strict';
 import { MotionQueue } from '../public/core/motion-queue.js';
 const channel = () => ({ readyState: 'open', bufferedAmount: 0, sent: [], send(data) { this.sent.push(JSON.parse(data)); } });

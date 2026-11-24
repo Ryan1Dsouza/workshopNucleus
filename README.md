@@ -1,78 +1,79 @@
-# Controller workshop / Air Slice reference
+# ControllerKit
 
-The workshop target is a reusable Wii-style phone controller for Android and iOS, with dynamic controls for Fruit Ninja, an original racing demo and attendee games. Start with the [final-system brief](workshop/FINAL-SYSTEM.md) and [workshop guide](workshop/README.md).
+A reusable Wii-style phone controller and a neutral laptop game dashboard. Native Android/iPhone bridges provide BLE and sensors; both apps host the same offline HTML/CSS interface. Games receive a shared controller state and choose their button labels, motion mode and actions through profiles.
 
-The current working source is Air Slice: a two-player phone-motion Fruit Ninja-style browser game built on the MIT OpenWii source. It supplies the tested game, calibration and transport reference for the redesign. Play with a mouse, browser phone sensors over Wi-Fi/WebRTC, or the Android Bluetooth controller.
+The workshop release includes Controller Lab, the supplied OpenWii Fruit Ninja game and a small extension template. Racing is a future attendee exercise.
 
-## Run the finished game
+## Run the complete application
 
-Requires Node.js 22+ and a current desktop browser with WebGL 2.
+Use current Node.js 22 LTS or 24 LTS and desktop Chrome/Edge. [Platform setup](workshop/PLATFORMS.md) covers Windows/macOS/Linux browser dependencies, shell syntax and Linux's experimental physical Web Bluetooth support.
 
 ~~~sh
 npm ci
 npm start
 ~~~
 
-Open [http://localhost:3000/host](http://localhost:3000/host). Drag with the mouse button held, or scan a phone QR code, enable motion and tap **Center blade** in your natural grip. At 1.0×, a 60° wrist rotation spans the screen width. Phone sensors measure rotation, not absolute hand position.
+Open http://localhost:3000/host. If another application owns that port:
 
-Local HTTPS runs at port 3443 and creates a private development certificate in `.local/`. Phones need HTTPS and motion permission. For a trusted HTTPS tunnel, open the host through the tunnel before scanning; host and phone should share a private network for direct WebRTC. See [network setup](workshop/NETWORK-CHECK.md).
+~~~powershell
+$env:PORT = "3001"
+npm start
+~~~
 
-Android: install/update [the Bluetooth v1.2 APK](public/downloads/air-slice-ble.apk), start Bluetooth in the app, then connect it from Chrome/Edge on the host. This update fixes captured-pose centering and preserves background camera recording. See [Android setup and builds](native/android/README.md).
+On macOS/Linux Bash or Zsh, use PORT=3001 npm start.
 
-## Workshop
+Scan **Scan to install** beside Player connections, or click **Connect phones** for the larger QR and installation guide. Put the phone and laptop on the same Wi-Fi/hotspot, download the supplied [Android APK](public/downloads/air-slice-ble.apk), install it and open ControllerKit. Allow Nearby devices and start Bluetooth. Connect a player in the laptop's player dock, choose a game and center your grip. The QR is for app downloads; gameplay input uses BLE.
 
-The new controller stages are described in [FINAL-SYSTEM.md](workshop/FINAL-SYSTEM.md). Their participant prompts will follow [PROMPT-SPEC.md](workshop/PROMPT-SPEC.md) after the complete implementation is tested.
+Use **Enlarge game** beside Fruit Ninja's Play/Pause/Restart controls for a larger play surface. **Restore size** or Escape returns to the dashboard while preserving the round and paired phones.
 
-The existing [stage prompts](workshop/STAGE-PROMPTS.md) and [new-laptop walkthrough](workshop/NEW-LAPTOP.md) belong to the previous Air Slice reference workshop. Its source reconstruction tools remain available:
+The [iPhone project](native/ios/README.md) needs a Mac, Xcode and signing before installation. Its source and shared UI are supplied; Windows checks do not establish an iOS build or physical Bluetooth readiness.
+
+## Organizer and participant material
+
+- [Workshop guide](workshop/README.md): scope, preparation and teaching order.
+- [New-laptop setup](workshop/NEW-LAPTOP.md): transfer, dependencies, model smoke check and gameplay.
+- [Platform setup](workshop/PLATFORMS.md): Windows, macOS and Linux prerequisites and validation coverage.
+- [OpenCode session prompts](workshop/PROMPTS.md): setup, resume, recovery and stage order.
+- [Model context](workshop/CONTEXT.md): architecture, supplied-source reconstruction and completion rules.
+- [Stage prompts](workshop/STAGE-PROMPTS.md): copy one complete labelled block per stage.
+- [Teaching script](workshop/TEACHING-SCRIPT.md): short explanations and demonstrations.
+- [Controller contract](docs/CONTROLLER-CONTRACT.md): message formats, profiles and adapter API.
+- [Game extension guide](workshop/EXTENDING-GAMES.md): connect attendee games to the same app.
+
+Create a participant kit and clean complete source export:
 
 ~~~sh
 npm run workshop:kit
+npm run export:workshop
 ~~~
 
-That command creates an Air Slice reference kit under `dist/air-slice-kit/`, including its hidden `.workshop/` directory. Its seven stages are:
-
-1. Server and projector shell.
-2. Fruit Ninja and desktop blade.
-3. One phone, sensors and Center blade over the relay.
-4. Direct WebRTC and two players.
-5. Measurements and smooth motion.
-6. Android Bluetooth; live Android demonstration is optional.
-7. Verification and clean export.
-
-The current root contains all seven reference layers. Run reference reconstruction prompts inside their generated starter. Frozen source and SHA-256 checks establish exact source equality; physical phone behavior requires device checks. Old generated bundles and reports were archived in the [cleanup](docs/CLEANUP.md).
+Outputs are dist/controllerkit-kit/ and dist/controllerkit-workshop/. Share the full starter including .workshop/. The source equality checks use a supplied frozen reference. The current root is the complete Stage 7 application; participants work inside kit/starter/.
 
 ## Project layout
 
-| Folder | Purpose |
+| Folder | Responsibility |
 |---|---|
-| `server/` | HTTP/HTTPS, room pairing, signaling and relay |
-| `public/host/` | Projector UI, setup and diagnostics |
-| `public/controller/` | Browser phone UI and raw sensors |
-| `public/core/` | Shared aiming, calibration, transports and visual support |
-| `public/games/fruit-ninja/` | Game logic and procedural Three.js renderer |
-| `native/android/` | Android BLE controller source and Gradle wrapper |
-| `tests/` | All automated unit checks and fixtures |
-| `scripts/audit/`, `scripts/native/`, `scripts/workshop/` | Browser audits, Android packaging and stage tooling |
-| `workshop/`, `docs/`, `licenses/` | Prompts/setup, architecture and attribution |
+| server/ | Local webpages, downloads, LAN address discovery and retained room-isolation contracts |
+| public/host/ | Neutral dashboard, game library, BLE pairing and controller preview |
+| public/controller/ | Shared Wii-style phone UI and input handling |
+| public/core/ | BLE protocol, shared state, calibration, profiles, adapter registry and reusable helpers |
+| public/games/ | Catalog, Controller Lab, Fruit Ninja and extension template |
+| native/android/ | Android BLE/sensor foreground service and offline UI container |
+| native/ios/ | iPhone CoreBluetooth/CoreMotion bridge, Xcode project and same UI |
+| tests/ | Unit checks and simulated GATT fixture |
+| scripts/ | Audits, native preparation, kit creation and reconstruction tools |
+| workshop/, docs/, licenses/ | Teaching material, contracts, visual reference and attribution |
 
-Read [architecture](docs/ARCHITECTURE.md), [the Center blade contract](docs/CENTER-BLADE.md) and [cleanup notes](docs/CLEANUP.md).
-
-## Checks and sharing
+## Checks
 
 ~~~sh
 npm test
 npm run audit:stage -- 7
-npm run audit:browser
-npm run audit:bluetooth
+npm run audit:controller
 npm run audit:filter
 npm run test:native-protocol
-npm run export:workshop
 ~~~
 
-The native protocol check requires a JDK. Browser audits use Playwright Chromium, an installed Chrome/Edge fallback, or `BROWSER_EXECUTABLE`. Reports go to `test-results/`. Automated sensor/GATT data are simulated; validate the actual workshop phones and network before presenting.
+The native byte check needs JDK 17+. Browser checks use simulated GATT/sensors. Check real phones separately; see [verification](docs/VERIFICATION.md).
 
-The clean source export is `dist/air-slice-workshop/`. Exports refuse to overwrite a nonempty folder; use `--out <new-folder>` for a new destination. `PORT`, `HTTPS_PORT` and `LOCAL_HTTPS=0` configure the server.
-
-## Credits
-
-Adapted from OpenWii, copyright Patrick Sun, MIT licensed. [Exact source revision](licenses/OpenWii-source.json) and [MIT license](licenses/OpenWii-MIT.txt) are retained. The Permanent Marker font uses the Apache license; the QR library license stays in `public/vendor/`.
+Fruit Ninja uses Patrick Sun's MIT OpenWii source. Exact attribution and the original source revision remain in [licenses/](licenses/OpenWii-source.json).

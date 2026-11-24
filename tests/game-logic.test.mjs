@@ -77,12 +77,13 @@ test('slicing two fruits in one swipe pays a combo bonus', () => {
   assert.ok(g.state.score >= 3, `combo bonus applied (got ${g.state.score})`);
 });
 
-test('slicing a bomb ends the game', () => {
+test('slicing a bomb costs one life and the round continues', () => {
   const g = game();
   const clock = { t: 0 };
   put(g, 0, 0, true);
   sweep(g, -3, 3, 0, 5, 16, clock);
-  assert.equal(g.state.phase, 'over', 'game over');
+  assert.equal(g.state.phase, 'playing', 'round continues');
+  assert.equal(g.state.lives, 2, 'one life lost');
   assert.ok(g.particles.length > 50, 'explosion');
 });
 
@@ -96,21 +97,20 @@ test('a bomb that falls off the bottom costs nothing', () => {
   assert.equal(g.fruits.length, 0, 'bomb removed');
 });
 
-test('a fruit that falls off the bottom costs a life', () => {
+test('a fruit that falls off the bottom costs no life', () => {
   const g = game();
   const f = put(g, 0, -FIELD_H / 2 - 2);
   f.vy = -1;
   g.update(16, 0.016);
-  assert.equal(g.state.lives, 2, 'one life lost');
+  assert.equal(g.state.lives, 3, 'lives unchanged');
   assert.equal(g.fruits.length, 0, 'fruit removed');
 });
 
 test('losing the last life ends the game', () => {
   const g = game();
   g.state.lives = 1;
-  const f = put(g, 0, -FIELD_H / 2 - 2);
-  f.vy = -1;
-  g.update(16, 0.016);
+  put(g,0,0,true);
+  sweep(g,-3,3,0,5,16,{t:0});
   assert.equal(g.state.lives, 0);
   assert.equal(g.state.phase, 'over', 'game over');
 });
@@ -268,12 +268,54 @@ test('practice: a bomb costs both the shared total and the popping player', () =
   assert.equal(g.getPlayer(1).score, 0, 'the popping player\'s own score docked and floored at 0');
 });
 
-test('the shared life pool costs everyone, regardless of who is playing', () => {
+test('a second player hitting a bomb costs one shared life', () => {
   const g = game();
-  // Two players connected (slot 0 and 1), but a miss is not slot-scoped.
+  // Each blade has its own score, while bomb damage uses one shared life pool.
   g.getPlayer(1);
-  const f = put(g, 0, -FIELD_H / 2 - 2);
-  f.vy = -1;
-  g.update(16, 0.016);
+  put(g,0,0,true);sweepSlot(g,1,-3,3,0,5,16,{t:0});
   assert.equal(g.state.lives, 2, 'one shared life lost');
+});
+
+test('missed fruit never ends a Classic round even with one life remaining',()=>{
+  const g=game();g.state.lives=1;
+  for(let n=0;n<12;n++){const f=put(g,0,-FIELD_H/2-2);f.vy=-1;g.update(16*(n+1),.016);}
+  assert.equal(g.state.phase,'playing');assert.equal(g.state.lives,1);assert.equal(g.fruits.length,0);
+});
+
+test('split lanes confine cursors and cannot cut the other player\'s fruit', () => {
+  const g=game();g.setSplitScreen(true);
+  g.setCursor(3,0,0,0);assert.equal(g.getPlayer(0).cursor.x,0);
+  g.setCursor(-3,0,0,1);assert.equal(g.getPlayer(1).cursor.x,0);
+  const left=put(g,-.62,0);left.lane=0;
+  g.setCursor(1,0,16,1);g.setCursor(0,0,32,1);g.update(32,0);
+  assert.equal(g.fruits.length,1,'a blade touching the divider cannot cut across lanes');
+  g.setCursor(-2,0,48,0);g.setCursor(-.1,0,64,0);g.update(64,0);
+  assert.equal(g.fruits.length,0);assert.ok(g.getPlayer(0).score>0);assert.equal(g.getPlayer(1).score,0);
+});
+
+test('split fruit waves stay inside their assigned lanes and retain the global cap', () => {
+  const g=game();g.setSplitScreen(true);
+  for(let i=0;i<40;i++)g.spawn(false,0,i%2);
+  assert.equal(g.fruits.length,24);
+  for(const f of g.fruits){f.vx=f.lane===0?100:-100;f.y=0;}
+  g.update(16,.05);
+  for(const f of g.fruits){const b=g.laneBounds(f.lane);assert.ok(f.x-f.r>=b.min-.0001&&f.x+f.r<=b.max+.0001);}
+});
+
+test('timer, spawn pacing and combo deadlines exclude pauses without restarting scores', () => {
+  const events=[],g=new FruitNinja({onEvent:e=>events.push(e)});g.setDuration(60);g.start(0);g.state.score=12;g.state.nextSpawn=Infinity;g.getPlayer(0).comboUntil=51000;
+  g.update(50000,0);assert.equal(g.state.remainingMs,10000);
+  g.pause(50000);g.update(200000,0);assert.equal(g.state.remainingMs,10000);
+  g.pause(200000);g.resume(200000);g.resume(200001);
+  assert.equal(g.state.startedAt,150000);assert.equal(g.getPlayer(0).comboUntil,201000);assert.equal(g.state.score,12);
+  g.update(209999,0);assert.equal(g.state.phase,'playing');
+  g.update(210000,0);assert.equal(g.state.phase,'over');assert.equal(g.state.remainingMs,0);
+  assert.equal(events.filter(e=>e.type==='gameover').length,1);assert.equal(events.at(-1).reason,'timer');
+});
+
+test('untimed rounds keep their rules and changing lane layout clears old strokes', () => {
+  const g=practiceGame();g.setDuration(0);g.setCursor(-1,0,0);g.setCursor(1,0,16);
+  g.setSplitScreen(true);assert.equal(g.trail.points.length,0);assert.equal(g.getPlayer(0).cutting,false);
+  g.update(1000000,0);assert.equal(g.state.phase,'playing');
+  assert.throws(()=>g.setDuration(-1));assert.throws(()=>g.setDuration(NaN));
 });

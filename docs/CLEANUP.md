@@ -31,4 +31,12 @@ Archived outside the workspace at:
 
 These moves removed 288 files, approximately 50 MB, from the active folder. `cleanup-manifest.json` in the archive records each moved path, file count and reason. Prior copies of edited guides are in its before-edit/ folder. The archived dist/ contains the complete previous source export and starter.
 
-The workshop entry page now leads to [the final-system target](../workshop/FINAL-SYSTEM.md) and [the participant prompt specification](../workshop/PROMPT-SPEC.md). Existing Air Slice prompts/setup are labelled as reference material. The new platform and participant prompts are planned work, with implementation and checks required before publication.
+The workshop entry page now leads to [the final-system target](../workshop/FINAL-SYSTEM.md) and [the participant prompt specification](../workshop/PROMPT-SPEC.md).
+
+## Implemented controller platform — 24 November 2026
+
+The active entry pages are the neutral ControllerKit dashboard and shared Wii-style remote. The Android BLE app, common state/profile protocol, game registry and Fruit Ninja adapter were implemented and checked. The iPhone bridge/project is supplied with its separate Mac/device verification requirement.
+
+Seven superseded game-specific host/controller UI and audit files were moved outside the workspace to ../workshopNucleus-backup-20261123-184018/retired-ui-20261124-012626-218/. Git history also preserves the original reference. Useful motion/game/transport regression contracts remain.
+
+The new stage prompts and teaching script match the tested ControllerKit sequence. Current outputs use controllerkit-kit/ and controllerkit-workshop/ names. See [verification](VERIFICATION.md) for the observed checks and remaining hardware/model-route checks.

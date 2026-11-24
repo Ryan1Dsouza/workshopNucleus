@@ -46,7 +46,9 @@ export class BladeDisplay {
     const intervals = [...this.intervals].sort((a,b) => a-b);
     this.offset = offsets[0];
     const jitter = offsets[Math.ceil(offsets.length * .9) - 1] - this.offset;
-    this.delay = clamp(intervals[Math.floor((intervals.length - 1) / 2)] + jitter, 8, 32);
+    // Slower BLE connection intervals need enough measured history to span a
+    // packet gap. Fast links retain their short delay; never predict motion.
+    this.delay = clamp(intervals[Math.floor((intervals.length - 1) / 2)] + jitter, 8, 64);
     this.captureAt = captureAt;
     this.points.push({ ...position, t: captureAt, arrivalAt: now });
     if (this.points.length > 16) this.points.shift();

@@ -102,7 +102,7 @@ export class AudioEngine {
     for (const ext of EXTENSIONS) {
       try {
         const res = await fetch(`${this.basePath}/${name}.${ext}`);
-        if (!res.ok) continue;
+        if (!res.ok || res.status === 204) continue;
         const buf = await this.ctx.decodeAudioData(await res.arrayBuffer());
         this.overrides.set(name, buf);
         return buf;

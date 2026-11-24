@@ -94,6 +94,13 @@ export class MotionInput {
     // Neither centering nor a late anchor may harvest fruit along the snap.
     this.pointer.pending = { cutting: false, reset: true };
     this.display.reset(this.pointer.position);
+    if(hasPose(command.pose)){
+      // A newly received captured anchor is fresh input. Seed its measured
+      // timestamp so the first subsequent pose interpolates instead of snapping,
+      // and the watchdog cannot immediately suspend this new calibration.
+      this.lastSampleAt=now;
+      this.display.push(this.pointer.position,captureTime(latest||anchor),now,true);
+    }
     this.lastSensorTime = latest ? captureTime(latest) : anchor ? captureTime(anchor) : null;
     if (!latest) this.lastSample = null;
     if (command.session) this.session = command.session;

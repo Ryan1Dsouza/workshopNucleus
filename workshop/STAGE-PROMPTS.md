@@ -1,172 +1,317 @@
-# Air Slice reference: copy-paste stage prompts
+# ControllerKit — copy-paste OpenCode stage prompts
 
-Scope: the previous Fruit Ninja-focused reference workshop. These prompts rebuild the current Air Slice source. For the new reusable controller target, read [FINAL-SYSTEM.md](FINAL-SYSTEM.md) and [PROMPT-SPEC.md](PROMPT-SPEC.md). Its participant prompts follow implementation and verification of that target.
+Work inside the generated controllerkit-kit/starter/ after [NEW-LAPTOP.md](NEW-LAPTOP.md). The starter begins at Stage 0; the organizer project is already Stage 7.
 
-Use these in the generated `dist/air-slice-kit/starter` folder after `npm ci` and provider setup. Paste one block at a time, in order. The participant app starts at Stage 0; the finished project root is already at Stage 7.
+Start with the setup smoke prompt in [PROMPTS.md](PROMPTS.md). [CONTEXT.md](CONTEXT.md) explains the architecture and reconstruction rules. Each block below reloads this context, verifies its starting checkpoint, inspects the owned source and restores exactly one layer. Use the Resume or Recovery prompts after a model switch, interruption or failed check.
 
-These prompts **reconstruct the supplied source**, rather than asking a model to invent an equivalent renderer. The reference, per-file stage ownership and SHA-256 verification make source equality testable. Hardware behavior still requires the network/phone check.
+All numbered build/test commands use Node/npm and are shared by Windows, macOS and Linux. Prepare the browser/JDK and shell environment using [PLATFORMS.md](PLATFORMS.md) before Stage 1. Report the actual OS and results; source review is not a live run on another OS.
 
-## Stage 1: Server and projector shell
+**Copy only the text inside one fenced block per stage.** The block follows COPY THIS PROMPT — STAGE N and ends before END OF STAGE N PROMPT. Leave the headings, fence markers, explanations and tables out of the pasted prompt.
 
-Suggested time: 10 minutes. Outcome: A running Node server and responsive projector shell, with no game or phone input yet.
+These are exact reconstruction prompts: OpenCode reads the supplied implementation, restores the owned layer and runs checks. The model explains the code and result. It does not invent the supplied renderer/native foundation. A later [extension exercise](EXTENDING-GAMES.md) asks the model to write features in a separate complete export.
 
-```text
-Build Stage 1 only of this Air Slice workshop.
-Read AGENTS.md, workshop/stages.json, docs/ARCHITECTURE.md and the Stage 1 entries in .workshop/manifest.json. Inspect the corresponding frozen files in .workshop/reference before changing the active app.
+The native apps/engine are prepared beforehand. Android has a supplied APK; iPhone installation/build requires Mac/signing and separate device checks. GATT/browser fixtures do not certify physical Bluetooth.
 
-Restore the Node/Express/Socket.IO server and the responsive projector shell. Keep the existing room isolation and health endpoints. The host must load without importing the game, phone transport or Bluetooth receiver. Verify /api/health and /host. There must be no Play button or phone card visible at this checkpoint.
+## Stage 1 — Host and Bluetooth pairing
 
-Reconstruct this layer exactly with:
+**Starting point:** Stage 0. **Suggested build time:** 10 minutes.
+
+**What it builds:** Restore the neutral dashboard, download page/QR and BLE receiver with two isolated device/session slots. The native phone foundation and APK are supplied. At this checkpoint send an empty control profile with motion disabled. Keep the host independent of game/phone-UI modules that arrive later. A disconnect must clear only its own slot.
+
+**What you get:** The neutral host loads; two isolated BLE slots accept assigned phone profiles. APK/native foundations are supplied.
+
+### COPY THIS PROMPT — STAGE 1
+
+~~~text
+Build Stage 1 only of the ControllerKit workshop in this starter folder.
+
+Read AGENTS.md, workshop/CONTEXT.md, workshop/FINAL-SYSTEM.md, docs/ARCHITECTURE.md and docs/CONTROLLER-CONTRACT.md with file tools. Use frozen-source reconstruction, preserving the supplied implementation.
+
+Read .workshop/state.json, .workshop/manifest.json and public/stage.mjs before changing files. If kit metadata is missing, report that this is not the generated starter and stop; do not create metadata or remove organizer source. The installed stage must be 0 to advance, or 1 to resume this stage's checks. For any other checkpoint, report the mismatch and stop.
+
+When starting from Stage 0, run npm run workshop:verify -- 0 before applying this layer. If earlier unit/browser results are unavailable after a new chat, rerun the installed stage's checks as described in workshop/CONTEXT.md. Inspect failures before any restoration; use workshop/PROMPTS.md Recovery if the checkpoint differs.
+
+List the files owned by Stage 1 from the frozen manifest. Read the important text sources under .workshop/reference/, especially server/index.cjs, public/host/hub.mjs, public/core/bluetooth-link.js, public/core/ble-protocol.js, public/core/controller-contract.js and public/core/controller-state.js; inspect the Android/iPhone bridge entry points. Explain briefly how this layer produces the stated behavior. Treat APKs, fonts and bundled native UI as supplied assets; do not read binaries as text or regenerate them.
+
+Read docs/UI-DESIGN.md for the shared visual tokens, player dock, connection dialog and profile-driven remote. Use docs/screenshots/host-dashboard.png and docs/screenshots/phone-portrait.png as the final visual reference. Preserve their layout/style through the supplied source, while keeping later-stage features unavailable at this checkpoint.
+
+Restore the neutral dashboard, download page/QR and BLE receiver with two isolated device/session slots. The native phone foundation and APK are supplied. At this checkpoint send an empty control profile with motion disabled. Keep the host independent of game/phone-UI modules that arrive later. A disconnect must clear only its own slot.
+
+If the installed checkpoint is 0, reconstruct this exact layer with the command below. If it is already 1, do not reinstall or advance; run the checks instead.
 npm run workshop:stage -- 1
 
-This command restores only this stage's files and its feature configuration. Explain the important implementation after inspecting those files. Keep the frozen reference and prior stages byte-for-byte intact. Keep provider credentials out of the game and APK.
+Preserve the frozen reference/manifest, earlier layers and attribution. Keep gateway/provider keys outside the application. Explain the implementation after reading the restored files. This stage must run with later source modules absent.
 
 Then run:
 npm run workshop:verify -- 1
 npm test
 npm run audit:stage -- 1
 
-Do not advance to the next stage in this turn. If a check fails, inspect its cause and restore the affected stage-owned file from the frozen reference; do not weaken assertions. Report the files added, the visible behavior, the commands that actually passed, and any real-device check remaining. A source hash pass alone is not a browser or physical-device pass.
-```
+If JDK 17+ is available, run npm run test:native-protocol. Run node scripts/native/check-ios-package.mjs to check supplied project resources; this is not a Mac compilation or physical iPhone test.
 
-## Stage 2: Fruit Ninja and desktop blade
+If a check fails, inspect the cause and use the Recovery prompt in workshop/PROMPTS.md. Do not weaken checks or alter reference hashes. Read test-results/stages/stage-1.json and inspect stage-1.png when image/browser tools are available. Name unavailable required tools and use the existing terminal audit fallback. Stop after this stage. Report the checkpoint, important source read/restored, visible behavior, actual command exit results, report paths and physical-device checks pending. Do not infer radio or iPhone build readiness from a simulated test.
+~~~
 
-Suggested time: 20 minutes. Outcome: The supplied OpenWii 3D game runs locally; a held mouse drag cuts fruit.
+### END OF STAGE 1 PROMPT
 
-```text
-Build Stage 2 only of this Air Slice workshop.
-Read AGENTS.md, workshop/stages.json, docs/ARCHITECTURE.md and the Stage 2 entries in .workshop/manifest.json. Inspect the corresponding frozen files in .workshop/reference before changing the active app.
+**Check the result:** run the listed checks, then demonstrate the result from [TEACHING-SCRIPT.md](TEACHING-SCRIPT.md). Continue only after the current checkpoint passes.
 
-Restore the supplied MIT OpenWii game, its 3D renderer, the blade overlay, audio and the core motion/visual support modules. Preserve the procedural fruit and wood scene exactly. Activate desktop play only. A held mouse drag must cut fruit; practice mode forgives misses and Classic uses three lives. Phone, Bluetooth and diagnostics controls remain hidden.
+## Stage 2 — Wii-style buttons
 
-Reconstruct this layer exactly with:
+**Starting point:** Stage 1. **Suggested build time:** 10 minutes.
+
+**What it builds:** Expose the shared offline Wii-style interface and Controller Lab. Use the D-pad, A/B, 1/2, plus/minus/Home and large touch targets from the final visual reference. Handle simultaneous pointers, press/release, cancellation, lost capture, keyup and page hiding. The desktop preview and input chips must reflect button state; keep motion disabled until Stage 3.
+
+**What you get:** The shared remote and input lab show multi-touch presses/releases without stuck buttons.
+
+### COPY THIS PROMPT — STAGE 2
+
+~~~text
+Build Stage 2 only of the ControllerKit workshop in this starter folder.
+
+Read AGENTS.md, workshop/CONTEXT.md, workshop/FINAL-SYSTEM.md, docs/ARCHITECTURE.md and docs/CONTROLLER-CONTRACT.md with file tools. Use frozen-source reconstruction, preserving the supplied implementation.
+
+Read .workshop/state.json, .workshop/manifest.json and public/stage.mjs before changing files. If kit metadata is missing, report that this is not the generated starter and stop; do not create metadata or remove organizer source. The installed stage must be 1 to advance, or 2 to resume this stage's checks. For any other checkpoint, report the mismatch and stop.
+
+When starting from Stage 1, run npm run workshop:verify -- 1 before applying this layer. If earlier unit/browser results are unavailable after a new chat, rerun the installed stage's checks as described in workshop/CONTEXT.md. Inspect failures before any restoration; use workshop/PROMPTS.md Recovery if the checkpoint differs.
+
+List the files owned by Stage 2 from the frozen manifest. Read the important text sources under .workshop/reference/, especially public/controller/phone-ui.mjs, public/controller/phone.css and public/games/controller-lab/adapter.mjs. Explain briefly how this layer produces the stated behavior. Treat APKs, fonts and bundled native UI as supplied assets; do not read binaries as text or regenerate them.
+
+Read docs/UI-DESIGN.md for the shared visual tokens, player dock, connection dialog and profile-driven remote. Use docs/screenshots/host-dashboard.png and docs/screenshots/phone-portrait.png as the final visual reference. Preserve their layout/style through the supplied source, while keeping later-stage features unavailable at this checkpoint.
+
+Expose the shared offline Wii-style interface and Controller Lab. Use the D-pad, A/B, 1/2, plus/minus/Home and large touch targets from the final visual reference. Handle simultaneous pointers, press/release, cancellation, lost capture, keyup and page hiding. The desktop preview and input chips must reflect button state; keep motion disabled until Stage 3.
+
+If the installed checkpoint is 1, reconstruct this exact layer with the command below. If it is already 2, do not reinstall or advance; run the checks instead.
 npm run workshop:stage -- 2
 
-This command restores only this stage's files and its feature configuration. Explain the important implementation after inspecting those files. Keep the frozen reference and prior stages byte-for-byte intact. Keep provider credentials out of the game and APK.
+Preserve the frozen reference/manifest, earlier layers and attribution. Keep gateway/provider keys outside the application. Explain the implementation after reading the restored files. This stage must run with later source modules absent.
 
 Then run:
 npm run workshop:verify -- 2
 npm test
 npm run audit:stage -- 2
 
-Do not advance to the next stage in this turn. If a check fails, inspect its cause and restore the affected stage-owned file from the frozen reference; do not weaken assertions. Report the files added, the visible behavior, the commands that actually passed, and any real-device check remaining. A source hash pass alone is not a browser or physical-device pass.
-```
+If a check fails, inspect the cause and use the Recovery prompt in workshop/PROMPTS.md. Do not weaken checks or alter reference hashes. Read test-results/stages/stage-2.json and inspect stage-2.png when image/browser tools are available. Name unavailable required tools and use the existing terminal audit fallback. Stop after this stage. Report the checkpoint, important source read/restored, visible behavior, actual command exit results, report paths and physical-device checks pending. Do not infer radio or iPhone build readiness from a simulated test.
+~~~
 
-## Stage 3: Phone sensors and Center blade
+### END OF STAGE 2 PROMPT
 
-Suggested time: 20 minutes. Outcome: One phone pairs by QR and controls a calibrated blade through the explicitly labeled server relay.
+**Check the result:** run the listed checks, then demonstrate the result from [TEACHING-SCRIPT.md](TEACHING-SCRIPT.md). Continue only after the current checkpoint passes.
 
-```text
-Build Stage 3 only of this Air Slice workshop.
-Read AGENTS.md, workshop/stages.json, docs/ARCHITECTURE.md and the Stage 3 entries in .workshop/manifest.json. Inspect the corresponding frozen files in .workshop/reference before changing the active app.
+## Stage 3 — Motion and centering
 
-Restore the browser controller, SensorStream, calibrated MotionInput and the relay adapter. Activate one phone. Keep this checkpoint on the server relay so the next stage has an observable transport change. Center blade must use a captured pose plus epoch, work on touch/Enter/Space, reject older epochs and preserve the grip when the reliable command arrives late. Small yaw/pitch movements are proportional; centering never creates a cut.
+**Starting point:** Stage 2. **Suggested build time:** 10 minutes.
 
-Reconstruct this layer exactly with:
+**What it builds:** Bind native measured orientation to MotionInput and the common state. Enable wrist-motion controls and captured-pose centering. Preserve the 20-byte motion and 15-byte center formats, capture timestamps, epochs, late-command ordering, held aim and stroke reset. Centering/quiet corrections must never create a slice. Explain that sensors measure wrist rotation, not room position. Expose displayAxes for capture-timed visual interpolation while keeping axes/cutting/reset immediate for collision. Preserve notification-based native controls, fair motion/control scheduling and cached-indication compatibility. Keep extra host input filtering disabled and adapt the presentation buffer to actual packet cadence/jitter (8?64 ms). Keep idle mouse and quiet-phone pointers visible without creating a slice.
+
+**What you get:** Native wrist motion moves a calibrated aim; centering uses a captured pose and never creates a cut.
+
+### COPY THIS PROMPT — STAGE 3
+
+~~~text
+Build Stage 3 only of the ControllerKit workshop in this starter folder.
+
+Read AGENTS.md, workshop/CONTEXT.md, workshop/FINAL-SYSTEM.md, docs/ARCHITECTURE.md and docs/CONTROLLER-CONTRACT.md with file tools. Use frozen-source reconstruction, preserving the supplied implementation.
+
+Read .workshop/state.json, .workshop/manifest.json and public/stage.mjs before changing files. If kit metadata is missing, report that this is not the generated starter and stop; do not create metadata or remove organizer source. The installed stage must be 2 to advance, or 3 to resume this stage's checks. For any other checkpoint, report the mismatch and stop.
+
+When starting from Stage 2, run npm run workshop:verify -- 2 before applying this layer. If earlier unit/browser results are unavailable after a new chat, rerun the installed stage's checks as described in workshop/CONTEXT.md. Inspect failures before any restoration; use workshop/PROMPTS.md Recovery if the checkpoint differs.
+
+List the files owned by Stage 3 from the frozen manifest. Read the important text sources under .workshop/reference/, especially public/core/motion-input.js, public/core/pose-pointer.js, public/core/orientation.js and public/controller/sensors.mjs. Explain briefly how this layer produces the stated behavior. Treat APKs, fonts and bundled native UI as supplied assets; do not read binaries as text or regenerate them.
+
+Read docs/UI-DESIGN.md for the shared visual tokens, player dock, connection dialog and profile-driven remote. Use docs/screenshots/host-dashboard.png and docs/screenshots/phone-portrait.png as the final visual reference. Preserve their layout/style through the supplied source, while keeping later-stage features unavailable at this checkpoint.
+
+Bind native measured orientation to MotionInput and the common state. Enable wrist-motion controls and captured-pose centering. Preserve the 20-byte motion and 15-byte center formats, capture timestamps, epochs, late-command ordering, held aim and stroke reset. Centering/quiet corrections must never create a slice. Explain that sensors measure wrist rotation, not room position. Expose displayAxes for capture-timed visual interpolation while keeping axes/cutting/reset immediate for collision. Preserve notification-based native controls, fair motion/control scheduling and cached-indication compatibility. Keep extra host input filtering disabled and adapt the presentation buffer to actual packet cadence/jitter (8?64 ms). Keep idle mouse and quiet-phone pointers visible without creating a slice.
+
+If the installed checkpoint is 2, reconstruct this exact layer with the command below. If it is already 3, do not reinstall or advance; run the checks instead.
 npm run workshop:stage -- 3
 
-This command restores only this stage's files and its feature configuration. Explain the important implementation after inspecting those files. Keep the frozen reference and prior stages byte-for-byte intact. Keep provider credentials out of the game and APK.
+Preserve the frozen reference/manifest, earlier layers and attribution. Keep gateway/provider keys outside the application. Explain the implementation after reading the restored files. This stage must run with later source modules absent.
 
 Then run:
 npm run workshop:verify -- 3
 npm test
 npm run audit:stage -- 3
 
-Do not advance to the next stage in this turn. If a check fails, inspect its cause and restore the affected stage-owned file from the frozen reference; do not weaken assertions. Report the files added, the visible behavior, the commands that actually passed, and any real-device check remaining. A source hash pass alone is not a browser or physical-device pass.
-```
+If a check fails, inspect the cause and use the Recovery prompt in workshop/PROMPTS.md. Do not weaken checks or alter reference hashes. Read test-results/stages/stage-3.json and inspect stage-3.png when image/browser tools are available. Name unavailable required tools and use the existing terminal audit fallback. Stop after this stage. Report the checkpoint, important source read/restored, visible behavior, actual command exit results, report paths and physical-device checks pending. Do not infer radio or iPhone build readiness from a simulated test.
+~~~
 
-## Stage 4: Direct WebRTC and two players
+### END OF STAGE 3 PROMPT
 
-Suggested time: 20 minutes. Outcome: Two isolated phone sessions use direct WebRTC, reliable commands and relay fallback.
+**Check the result:** run the listed checks, then demonstrate the result from [TEACHING-SCRIPT.md](TEACHING-SCRIPT.md). Continue only after the current checkpoint passes.
 
-```text
-Build Stage 4 only of this Air Slice workshop.
-Read AGENTS.md, workshop/stages.json, docs/ARCHITECTURE.md and the Stage 4 entries in .workshop/manifest.json. Inspect the corresponding frozen files in .workshop/reference before changing the active app.
+## Stage 4 — Profiles and game adapters
 
-Restore the direct WebRTC transport, latest-only motion queue and motion clock. Activate Player 2. Use unordered motion with no retransmission, a separate reliable command channel and explicit Socket.IO relay fallback. Preserve the Stage 3 calibration contract. Both phones must have independent blades/scores; a departure hides only its own blade. Explain why capture time, sequence numbers and backpressure matter.
+**Starting point:** Stage 3. **Suggested build time:** 10 minutes.
 
-Reconstruct this layer exactly with:
+**What it builds:** Restore controller profiles, the game catalog and adapter registry. Labels, supported controls, orientation and actions come from validated profile data. Physical buttons map to shared actions and one-shot action edges. Serialize bounded checksummed BLE profile chunks and require matching acknowledgements. Switching must clear held input and dispose only the previous adapter. Future games remain unavailable until their layers arrive.
+
+**What you get:** Profiles define actions/layouts; adapters share one lifecycle and input contract.
+
+### COPY THIS PROMPT — STAGE 4
+
+~~~text
+Build Stage 4 only of the ControllerKit workshop in this starter folder.
+
+Read AGENTS.md, workshop/CONTEXT.md, workshop/FINAL-SYSTEM.md, docs/ARCHITECTURE.md and docs/CONTROLLER-CONTRACT.md with file tools. Use frozen-source reconstruction, preserving the supplied implementation.
+
+Read .workshop/state.json, .workshop/manifest.json and public/stage.mjs before changing files. If kit metadata is missing, report that this is not the generated starter and stop; do not create metadata or remove organizer source. The installed stage must be 3 to advance, or 4 to resume this stage's checks. For any other checkpoint, report the mismatch and stop.
+
+When starting from Stage 3, run npm run workshop:verify -- 3 before applying this layer. If earlier unit/browser results are unavailable after a new chat, rerun the installed stage's checks as described in workshop/CONTEXT.md. Inspect failures before any restoration; use workshop/PROMPTS.md Recovery if the checkpoint differs.
+
+List the files owned by Stage 4 from the frozen manifest. Read the important text sources under .workshop/reference/, especially public/core/controller-profiles.js, public/core/game-registry.js and public/games/catalog.mjs. Explain briefly how this layer produces the stated behavior. Treat APKs, fonts and bundled native UI as supplied assets; do not read binaries as text or regenerate them.
+
+Read docs/UI-DESIGN.md for the shared visual tokens, player dock, connection dialog and profile-driven remote. Use docs/screenshots/host-dashboard.png and docs/screenshots/phone-portrait.png as the final visual reference. Preserve their layout/style through the supplied source, while keeping later-stage features unavailable at this checkpoint.
+
+Restore controller profiles, the game catalog and adapter registry. Labels, supported controls, orientation and actions come from validated profile data. Physical buttons map to shared actions and one-shot action edges. Serialize bounded checksummed BLE profile chunks and require matching acknowledgements. Switching must clear held input and dispose only the previous adapter. Future games remain unavailable until their layers arrive.
+
+If the installed checkpoint is 3, reconstruct this exact layer with the command below. If it is already 4, do not reinstall or advance; run the checks instead.
 npm run workshop:stage -- 4
 
-This command restores only this stage's files and its feature configuration. Explain the important implementation after inspecting those files. Keep the frozen reference and prior stages byte-for-byte intact. Keep provider credentials out of the game and APK.
+Preserve the frozen reference/manifest, earlier layers and attribution. Keep gateway/provider keys outside the application. Explain the implementation after reading the restored files. This stage must run with later source modules absent.
 
 Then run:
 npm run workshop:verify -- 4
 npm test
 npm run audit:stage -- 4
 
-Do not advance to the next stage in this turn. If a check fails, inspect its cause and restore the affected stage-owned file from the frozen reference; do not weaken assertions. Report the files added, the visible behavior, the commands that actually passed, and any real-device check remaining. A source hash pass alone is not a browser or physical-device pass.
-```
+If a check fails, inspect the cause and use the Recovery prompt in workshop/PROMPTS.md. Do not weaken checks or alter reference hashes. Read test-results/stages/stage-4.json and inspect stage-4.png when image/browser tools are available. Name unavailable required tools and use the existing terminal audit fallback. Stop after this stage. Report the checkpoint, important source read/restored, visible behavior, actual command exit results, report paths and physical-device checks pending. Do not infer radio or iPhone build readiness from a simulated test.
+~~~
 
-## Stage 5: Measurements and smooth motion
+### END OF STAGE 4 PROMPT
 
-Suggested time: 15 minutes. Outcome: Motion check, blade-only mode and measured smoothing comparisons become available.
+**Check the result:** run the listed checks, then demonstrate the result from [TEACHING-SCRIPT.md](TEACHING-SCRIPT.md). Continue only after the current checkpoint passes.
 
-```text
-Build Stage 5 only of this Air Slice workshop.
-Read AGENTS.md, workshop/stages.json, docs/ARCHITECTURE.md and the Stage 5 entries in .workshop/manifest.json. Inspect the corresponding frozen files in .workshop/reference before changing the active app.
+## Stage 5 — Fruit Ninja integration
 
-Restore the Motion check UI, browser/filter/render audits and filtering checks. Expose the One Euro and BladeDisplay support already shared with the engine. Compare Direct/Light filtering separately from visual dot interpolation; neither can predict a slice. Show actual sensor/received/pose rates, echo RTT and frame work. Blade-only mode stops 3D rendering without moving the coordinate system. Run npm run audit:filter in addition to the standard stage checks.
+**Starting point:** Stage 4. **Suggested build time:** 15 minutes.
 
-Reconstruct this layer exactly with:
+**What it builds:** Connect the supplied MIT OpenWii Fruit Ninja renderer/logic through FruitAdapter. Preserve its procedural artwork, audio, scoring, practice/Classic rules and attribution. The embedded game receives normalized common state and opens no second phone/BLE connection. Map profile actions to start, practice, Classic, pause/restart and Home. Measured BLE motion must slice through the actual renderer/game; centering must not. Keep collision input separate from visual blade interpolation. Preserve held-left-mouse slicing even during active phone snapshots. Start Classic by default (each bomb costs one shared life; the third bomb ends the round; dropped fruit costs no life); Practice is explicit with unlimited lives and a 10-point bomb penalty. Two Bluetooth phones enable two split lanes; constrain each pointer and fruit to its lane and prevent cross-lane cuts. Keep separate player scores and shared lives/total. Provide 1/2/3 minute or untimed selection before laptop/phone start or restart. Resume automatically paused rounds after focus returns, exclude paused time from timer/spawn/combo deadlines, and preserve manual pause. Warm Three.js materials/textures during loading before fruit-ready; preserve the renderer and bounded effects. Queue the first Play/Restart while connected phone profiles prepare, then start automatically after acknowledgement; test the first gyro sweep with deliberately slow profile writes. Run the supplied fruit-game browser regressions through the stage audit.
+
+**What you get:** The supplied OpenWii game uses the shared controller for motion slicing, scoring, practice/Classic and restart.
+
+### COPY THIS PROMPT — STAGE 5
+
+~~~text
+Build Stage 5 only of the ControllerKit workshop in this starter folder.
+
+Read AGENTS.md, workshop/CONTEXT.md, workshop/FINAL-SYSTEM.md, docs/ARCHITECTURE.md and docs/CONTROLLER-CONTRACT.md with file tools. Use frozen-source reconstruction, preserving the supplied implementation.
+
+Read .workshop/state.json, .workshop/manifest.json and public/stage.mjs before changing files. If kit metadata is missing, report that this is not the generated starter and stop; do not create metadata or remove organizer source. The installed stage must be 4 to advance, or 5 to resume this stage's checks. For any other checkpoint, report the mismatch and stop.
+
+When starting from Stage 4, run npm run workshop:verify -- 4 before applying this layer. If earlier unit/browser results are unavailable after a new chat, rerun the installed stage's checks as described in workshop/CONTEXT.md. Inspect failures before any restoration; use workshop/PROMPTS.md Recovery if the checkpoint differs.
+
+List the files owned by Stage 5 from the frozen manifest. Read the important text sources under .workshop/reference/, especially public/games/fruit-ninja/adapter.mjs, embedded.mjs, game.js and logic.js; trace common input into the supplied renderer. Explain briefly how this layer produces the stated behavior. Treat APKs, fonts and bundled native UI as supplied assets; do not read binaries as text or regenerate them.
+
+Read docs/UI-DESIGN.md for the shared visual tokens, player dock, connection dialog and profile-driven remote. Use docs/screenshots/host-dashboard.png and docs/screenshots/phone-portrait.png as the final visual reference. Preserve their layout/style through the supplied source, while keeping later-stage features unavailable at this checkpoint.
+
+Connect the supplied MIT OpenWii Fruit Ninja renderer/logic through FruitAdapter. Preserve its procedural artwork, audio, scoring, practice/Classic rules and attribution. The embedded game receives normalized common state and opens no second phone/BLE connection. Map profile actions to start, practice, Classic, pause/restart and Home. Measured BLE motion must slice through the actual renderer/game; centering must not. Keep collision input separate from visual blade interpolation. Preserve held-left-mouse slicing even during active phone snapshots. Start Classic by default (each bomb costs one shared life; the third bomb ends the round; dropped fruit costs no life); Practice is explicit with unlimited lives and a 10-point bomb penalty. Two Bluetooth phones enable two split lanes; constrain each pointer and fruit to its lane and prevent cross-lane cuts. Keep separate player scores and shared lives/total. Provide 1/2/3 minute or untimed selection before laptop/phone start or restart. Resume automatically paused rounds after focus returns, exclude paused time from timer/spawn/combo deadlines, and preserve manual pause. Warm Three.js materials/textures during loading before fruit-ready; preserve the renderer and bounded effects. Queue the first Play/Restart while connected phone profiles prepare, then start automatically after acknowledgement; test the first gyro sweep with deliberately slow profile writes. Run the supplied fruit-game browser regressions through the stage audit.
+
+If the installed checkpoint is 4, reconstruct this exact layer with the command below. If it is already 5, do not reinstall or advance; run the checks instead.
 npm run workshop:stage -- 5
 
-This command restores only this stage's files and its feature configuration. Explain the important implementation after inspecting those files. Keep the frozen reference and prior stages byte-for-byte intact. Keep provider credentials out of the game and APK.
+Preserve the frozen reference/manifest, earlier layers and attribution. Keep gateway/provider keys outside the application. Explain the implementation after reading the restored files. This stage must run with later source modules absent.
 
 Then run:
 npm run workshop:verify -- 5
 npm test
 npm run audit:stage -- 5
 
-Do not advance to the next stage in this turn. If a check fails, inspect its cause and restore the affected stage-owned file from the frozen reference; do not weaken assertions. Report the files added, the visible behavior, the commands that actually passed, and any real-device check remaining. A source hash pass alone is not a browser or physical-device pass.
-```
+If a check fails, inspect the cause and use the Recovery prompt in workshop/PROMPTS.md. Do not weaken checks or alter reference hashes. Read test-results/stages/stage-5.json and inspect stage-5.png when image/browser tools are available. Name unavailable required tools and use the existing terminal audit fallback. Stop after this stage. Report the checkpoint, important source read/restored, visible behavior, actual command exit results, report paths and physical-device checks pending. Do not infer radio or iPhone build readiness from a simulated test.
+~~~
 
-## Stage 6: Android Bluetooth controller
+### END OF STAGE 5 PROMPT
 
-Suggested time: 20 minutes. Outcome: The v1.2 APK supplies direct BLE motion and captured-pose centering; the live Android demonstration is optional.
+**Check the result:** run the listed checks, then demonstrate the result from [TEACHING-SCRIPT.md](TEACHING-SCRIPT.md). Continue only after the current checkpoint passes.
 
-```text
-Build Stage 6 only of this Air Slice workshop.
-Read AGENTS.md, workshop/stages.json, docs/ARCHITECTURE.md and the Stage 6 entries in .workshop/manifest.json. Inspect the corresponding frozen files in .workshop/reference before changing the active app.
+## Stage 6 — Your own game extension
 
-Restore the BLE receiver, documented codecs, complete Android source/wrapper, native checks and the supplied v1.2 APK. Activate Bluetooth controls. The 15-byte Center command carries epoch, capture time and quaternion and must work in either GATT arrival order. Preserve two-player input isolation and the foreground-service camera workflow. Run npm run audit:bluetooth. If a JDK is installed, run npm run test:native-protocol; building Android is optional for participants using the supplied APK. Do not claim physical radio or recording performance from simulated checks.
+**Starting point:** Stage 5. **Suggested build time:** 10 minutes.
 
-Reconstruct this layer exactly with:
+**What it builds:** Restore the working Button Counter extension template. It uses a new landscape profile and the same mount/input/pause/reset/dispose API. The browser audit registers it dynamically and proves that the existing phone app accepts new labels/actions without rebuilding. Keep the baseline catalog and previous files unchanged. Explain how attendees register/customize it in a separate complete export; do not add a full racing game.
+
+**What you get:** A working button-counter adapter template demonstrates adding another profile without rebuilding the phone app.
+
+### COPY THIS PROMPT — STAGE 6
+
+~~~text
+Build Stage 6 only of the ControllerKit workshop in this starter folder.
+
+Read AGENTS.md, workshop/CONTEXT.md, workshop/FINAL-SYSTEM.md, docs/ARCHITECTURE.md and docs/CONTROLLER-CONTRACT.md with file tools. Use frozen-source reconstruction, preserving the supplied implementation.
+
+Read .workshop/state.json, .workshop/manifest.json and public/stage.mjs before changing files. If kit metadata is missing, report that this is not the generated starter and stop; do not create metadata or remove organizer source. The installed stage must be 5 to advance, or 6 to resume this stage's checks. For any other checkpoint, report the mismatch and stop.
+
+When starting from Stage 5, run npm run workshop:verify -- 5 before applying this layer. If earlier unit/browser results are unavailable after a new chat, rerun the installed stage's checks as described in workshop/CONTEXT.md. Inspect failures before any restoration; use workshop/PROMPTS.md Recovery if the checkpoint differs.
+
+List the files owned by Stage 6 from the frozen manifest. Read the important text sources under .workshop/reference/, especially public/games/extension-template/adapter.mjs and workshop/EXTENDING-GAMES.md; inspect the profile and mount/input/pause/reset/dispose methods. Explain briefly how this layer produces the stated behavior. Treat APKs, fonts and bundled native UI as supplied assets; do not read binaries as text or regenerate them.
+
+Read docs/UI-DESIGN.md for the shared visual tokens, player dock, connection dialog and profile-driven remote. Use docs/screenshots/host-dashboard.png and docs/screenshots/phone-portrait.png as the final visual reference. Preserve their layout/style through the supplied source, while keeping later-stage features unavailable at this checkpoint.
+
+Restore the working Button Counter extension template. It uses a new landscape profile and the same mount/input/pause/reset/dispose API. The browser audit registers it dynamically and proves that the existing phone app accepts new labels/actions without rebuilding. Keep the baseline catalog and previous files unchanged. Explain how attendees register/customize it in a separate complete export; do not add a full racing game.
+
+If the installed checkpoint is 5, reconstruct this exact layer with the command below. If it is already 6, do not reinstall or advance; run the checks instead.
 npm run workshop:stage -- 6
 
-This command restores only this stage's files and its feature configuration. Explain the important implementation after inspecting those files. Keep the frozen reference and prior stages byte-for-byte intact. Keep provider credentials out of the game and APK.
+Preserve the frozen reference/manifest, earlier layers and attribution. Keep gateway/provider keys outside the application. Explain the implementation after reading the restored files. This stage must run with later source modules absent.
 
 Then run:
 npm run workshop:verify -- 6
 npm test
 npm run audit:stage -- 6
 
-Do not advance to the next stage in this turn. If a check fails, inspect its cause and restore the affected stage-owned file from the frozen reference; do not weaken assertions. Report the files added, the visible behavior, the commands that actually passed, and any real-device check remaining. A source hash pass alone is not a browser or physical-device pass.
-```
+If a check fails, inspect the cause and use the Recovery prompt in workshop/PROMPTS.md. Do not weaken checks or alter reference hashes. Read test-results/stages/stage-6.json and inspect stage-6.png when image/browser tools are available. Name unavailable required tools and use the existing terminal audit fallback. Stop after this stage. Report the checkpoint, important source read/restored, visible behavior, actual command exit results, report paths and physical-device checks pending. Do not infer radio or iPhone build readiness from a simulated test.
+~~~
 
-## Stage 7: Verify and share the complete build
+### END OF STAGE 6 PROMPT
 
-Suggested time: 10 minutes. Outcome: All source hashes and automated checks pass, then a clean runnable source export is created.
+**Check the result:** run the listed checks, then demonstrate the result from [TEACHING-SCRIPT.md](TEACHING-SCRIPT.md). Continue only after the current checkpoint passes.
 
-```text
-Build Stage 7 only of this Air Slice workshop.
-Read AGENTS.md, workshop/stages.json, docs/ARCHITECTURE.md and the Stage 7 entries in .workshop/manifest.json. Inspect the corresponding frozen files in .workshop/reference before changing the active app.
+## Stage 7 — Verification and packaging
 
-Restore the clean export script and activate the complete build. Run npm run audit:browser and npm run audit:bluetooth once after the standard stage checks. Run npm run export:workshop to a new/empty output folder. Confirm that source, lockfile, licenses and v1.2 APK are included while installed packages, certificates, SDK paths, native build output and workshop reference/state are excluded. Report the automated results and the separate real-phone checks still needed.
+**Starting point:** Stage 6. **Suggested build time:** 10 minutes.
 
-Reconstruct this layer exactly with:
+**What it builds:** Restore final controller audits, clean export and retained regression references. Verify the complete UI/input/game and extension lifecycle, preserve source/lockfile/licenses/APK/native projects and exclude local credentials, SDK paths, installed packages, caches and workshop reference/state from the source export. Report Windows software checks separately from real Android/iPhone and Mac/Xcode checks.
+
+**What you get:** Cumulative checks pass and a clean source export is created; retained transport references are included. Real Android/iPhone checks are reported separately.
+
+### COPY THIS PROMPT — STAGE 7
+
+~~~text
+Build Stage 7 only of the ControllerKit workshop in this starter folder.
+
+Read AGENTS.md, workshop/CONTEXT.md, workshop/FINAL-SYSTEM.md, docs/ARCHITECTURE.md and docs/CONTROLLER-CONTRACT.md with file tools. Use frozen-source reconstruction, preserving the supplied implementation.
+
+Read .workshop/state.json, .workshop/manifest.json and public/stage.mjs before changing files. If kit metadata is missing, report that this is not the generated starter and stop; do not create metadata or remove organizer source. The installed stage must be 6 to advance, or 7 to resume this stage's checks. For any other checkpoint, report the mismatch and stop.
+
+When starting from Stage 6, run npm run workshop:verify -- 6 before applying this layer. If earlier unit/browser results are unavailable after a new chat, rerun the installed stage's checks as described in workshop/CONTEXT.md. Inspect failures before any restoration; use workshop/PROMPTS.md Recovery if the checkpoint differs.
+
+List the files owned by Stage 7 from the frozen manifest. Read the important text sources under .workshop/reference/, especially scripts/workshop/export.mjs, scripts/audit/controller.mjs and the retained regression sources owned by this stage. Explain briefly how this layer produces the stated behavior. Treat APKs, fonts and bundled native UI as supplied assets; do not read binaries as text or regenerate them.
+
+Read docs/UI-DESIGN.md for the shared visual tokens, player dock, connection dialog and profile-driven remote. Use docs/screenshots/host-dashboard.png and docs/screenshots/phone-portrait.png as the final visual reference. Preserve their layout/style through the supplied source, while keeping later-stage features unavailable at this checkpoint.
+
+Restore final controller audits, clean export and retained regression references. Verify the complete UI/input/game and extension lifecycle, preserve source/lockfile/licenses/APK/native projects and exclude local credentials, SDK paths, installed packages, caches and workshop reference/state from the source export. Report Windows software checks separately from real Android/iPhone and Mac/Xcode checks.
+
+If the installed checkpoint is 6, reconstruct this exact layer with the command below. If it is already 7, do not reinstall or advance; run the checks instead.
 npm run workshop:stage -- 7
 
-This command restores only this stage's files and its feature configuration. Explain the important implementation after inspecting those files. Keep the frozen reference and prior stages byte-for-byte intact. Keep provider credentials out of the game and APK.
+Preserve the frozen reference/manifest, earlier layers and attribution. Keep gateway/provider keys outside the application. Explain the implementation after reading the restored files. This stage must run with later source modules absent.
 
 Then run:
 npm run workshop:verify -- 7
 npm test
 npm run audit:stage -- 7
 
-Do not advance to the next stage in this turn. If a check fails, inspect its cause and restore the affected stage-owned file from the frozen reference; do not weaken assertions. Report the files added, the visible behavior, the commands that actually passed, and any real-device check remaining. A source hash pass alone is not a browser or physical-device pass.
-```
+Then run npm run audit:controller and npm run audit:filter. If JDK 17+ is available, run npm run test:native-protocol. Run node scripts/native/check-ios-package.mjs for supplied resources. Read test-results/controller/report.json and review its screenshots when tools support it.
 
-# Optional feature-writing exercise after Stage 7
+After required software checks pass, run npm run export:workshop. The default output is dist/controllerkit-workshop/ and must be new or empty. If resuming with an existing export, verify that export instead of overwriting it; use -- --out dist/controllerkit-workshop-new only if a new copy is needed. Confirm exported source, package/lockfile, licenses, APK and native projects are present and .workshop/, node_modules/, local credentials, SDK paths and test reports are excluded. Do not claim the export is complete if a required check failed.
 
-Copy the completed source export into a separate folder. Ask different models routed through OmniRoute to add one small feature, such as a round timer or fruit-theme toggle, while keeping the existing input/collision tests passing. This is the exercise for comparing generated implementations; the seven reconstruction stages keep the workshop baseline consistent.
+If a check fails, inspect the cause and use the Recovery prompt in workshop/PROMPTS.md. Do not weaken checks or alter reference hashes. Read test-results/stages/stage-7.json and inspect stage-7.png when image/browser tools are available. Name unavailable required tools and use the existing terminal audit fallback. Stop after this stage. Report the checkpoint, important source read/restored, visible behavior, actual command exit results, report paths and physical-device checks pending. Do not infer radio or iPhone build readiness from a simulated test.
+~~~
+
+### END OF STAGE 7 PROMPT
+
+**Check the result:** run the listed checks, then demonstrate the result from [TEACHING-SCRIPT.md](TEACHING-SCRIPT.md). Continue only after the current checkpoint passes.
+
+## After Stage 7
+
+The complete export is starter/dist/controllerkit-workshop/. Make a separate copy for the model-written target-game exercise in [EXTENDING-GAMES.md](EXTENDING-GAMES.md). Keep the staged reference kit for recovery and repeatable teaching.

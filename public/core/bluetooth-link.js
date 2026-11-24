@@ -1,37 +1,80 @@
 import { BLE_SERVICE, BLE_MOTION, BLE_CONTROL, decodeBleFrame, decodeBleCenter, BleTimeline } from './ble-protocol.js';
 import { PeerMetrics, RateWindow } from './diagnostics.js';
+import { decodeButtonFrame, decodeProfileAck, profilePackets } from './controller-contract.js';
 
 export class BluetoothLink {
-  constructor({ onSample, onCommand, onState } = {}) {
-    this.handlers = { onSample, onCommand, onState };
+  constructor({ onSample, onCommand, onState, onButtons } = {}) {
+    this.handlers = { onSample, onCommand, onState, onButtons };
     this.devices = new Map(); this.serial = 0; this.destroyed = false;
+    this.savedIds=[0,1].map(slot=>{try{return globalThis.localStorage?.getItem('controllerkit.ble.player.'+slot)||'';}catch{return '';}});
+    this.grantedDevices=[];this.grantVersion=0;void this.loadGrantedDevices();
     this.probeTimer = setInterval(() => { for (const r of this.devices.values()) void this.ping(r); }, 1000);
   }
   has(slot) { return this.devices.has(slot); }
   connected(slot) { return !!this.devices.get(slot)?.connected; }
+  async loadGrantedDevices(){
+    const version=this.grantVersion;
+    try{const granted=await navigator.bluetooth?.getDevices?.();if(!this.destroyed&&version===this.grantVersion)this.grantedDevices=Array.isArray(granted)?granted:[];}
+    catch{if(version===this.grantVersion)this.grantedDevices=[];}
+  }
+  hasSavedPhone(slot){return !!this.savedIds[slot];}
+  remember(slot,device){
+    this.grantVersion++;
+    this.savedIds[slot]=device.id;
+    if(!this.grantedDevices.some(d=>d.id===device.id))this.grantedDevices.push(device);
+    try{globalThis.localStorage?.setItem('controllerkit.ble.player.'+slot,device.id);}catch{/* A private session can retain the device in memory. */}
+  }
   state(r, text) {
     r.text = text;
-    this.handlers.onState?.({ slot: r.slot, connected: r.connected, name: r.device.name || 'Android phone', text });
+    this.handlers.onState?.({ slot: r.slot, session: r.session, connected: r.connected, name: r.device.name || 'Phone controller', text });
   }
-  async connect(slot) {
+  async connect(slot, {chooseNew = false} = {}) {
     if (this.destroyed) throw new Error('Bluetooth receiver was closed. Reload the host.');
     if (![0, 1].includes(slot)) throw new Error('Choose Player 1 or Player 2.');
     if (!globalThis.isSecureContext) throw new Error('Open the laptop host on localhost or HTTPS for Bluetooth.');
     if (!globalThis.navigator?.bluetooth?.requestDevice) throw new Error('Use desktop Chrome or Edge with Bluetooth LE support. Linux may require the experimental Web Platform flag.');
-    // The picker must run in the user's click task, before any awaited work.
-    const device = await navigator.bluetooth.requestDevice({ filters: [{ services: [BLE_SERVICE] }] });
+    // Reuse this player's previously verified device only while the browser
+    // still grants access. A new choice keeps the picker in the click task.
+    const saved=!chooseNew&&this.grantedDevices.find(d=>d.id===this.savedIds[slot]);
+    const device = saved || await navigator.bluetooth.requestDevice({ filters: [{ services: [BLE_SERVICE] }] });
     if (this.destroyed) return;
     if ([...this.devices.values()].some(r => r.device.id === device.id && r.slot !== slot)) throw new Error('That phone is already assigned to the other player.');
     this.disconnect(slot);
-    const r = { device, slot, connected: false, attempt: 0, generation: 0, disposed: false, listeners: [] };
+    const r = { device, slot, connected: false, attempt: 0, generation: 0, disposed: false, initializing: true, listeners: [] };
     this.devices.set(slot, r);
-    r.onDisconnect = () => this.lost(r);
+    r.onDisconnect = () => {
+      if(r.initializing){
+        r.disconnectedDuringOpen=true;++r.generation;r.connected=false;this.cleanupListeners(r);
+      }else this.lost(r);
+    };
     device.addEventListener('gattserverdisconnected', r.onDisconnect);
-    try { await this.open(r); }
+    try {
+      try { await this.open(r); }
+      catch(error){
+        const nonRetryable=['SecurityError','NotAllowedError','NotFoundError','NotSupportedError'].includes(error?.name);
+        const transient=!nonRetryable&&(error?.name==='NetworkError'||/connection attempt failed|failed to connect|gatt.*disconnected/i.test(error?.message||'')||error?.name==='AbortError'&&r.disconnectedDuringOpen);
+        if(!transient||r.disposed||this.destroyed||this.devices.get(slot)!==r)throw error;
+        // Windows can reject the first GATT attempt after pairing. Reuse the
+        // selected device once, after all discovery/notification work settles.
+        this.cleanupListeners(r);
+        if(device.gatt.connected)device.gatt.disconnect();
+        this.state(r,'Retrying Bluetooth connection…');
+        await new Promise((resolve,reject)=>{
+          const timer=setTimeout(resolve,500);
+          r.cancelInitialRetry=()=>{clearTimeout(timer);reject(new DOMException('Bluetooth connection was cancelled.','AbortError'));};
+        });
+        r.cancelInitialRetry=null;
+        if(r.disposed||this.destroyed||this.devices.get(slot)!==r)throw new DOMException('Bluetooth connection was cancelled.','AbortError');
+        r.disconnectedDuringOpen=false;
+        await this.open(r);
+      }
+    }
     catch (error) {
       if (this.devices.get(slot) === r) this.disconnect(slot);
       throw error;
     }
+    finally {r.initializing=false;r.cancelInitialRetry=null;}
+    this.remember(slot,device);
   }
   open(r) {
     if (r.opening) return r.opening;
@@ -59,6 +102,16 @@ export class BluetoothLink {
         if (!valid() || !r.connected) return;
         const v = e.target.value; if (!v?.byteLength) return;
         const code = v.getUint8(0);
+        if (code === 4) {
+          const buttons = decodeButtonFrame(v);
+          if (buttons) this.handlers.onButtons?.(buttons, r.slot, r.session);
+          return;
+        }
+        if (code === 0x43) {
+          const ack = decodeProfileAck(v);
+          if (ack?.transferId === r.profileTransferId) r.resolveProfileAck?.(ack);
+          return;
+        }
         if (code === 0x90 && v.byteLength === 5 && r.pingAt !== null && v.getUint32(1, true) === r.pingToken) {
           r.metrics.rtt.add(performance.now() - r.pingAt); r.pingAt = null;
         } else if (code === 2) {
@@ -66,7 +119,7 @@ export class BluetoothLink {
           if (command?.pose) command.pose.t = command.pose.poseT = r.timeline.captureTime(command.pose.t);
           if (command) this.handlers.onCommand?.({ ...command, session: r.session }, r.slot);
         } else if (v.byteLength === 1) {
-          const type = ({ 1: 'start', 3: 'suspend' })[code];
+          const type = ({ 1: 'start', 3: 'suspend', 5: 'disconnect' })[code];
           if (type) this.handlers.onCommand?.({ type, session: r.session }, r.slot);
         }
       };
@@ -88,7 +141,7 @@ export class BluetoothLink {
         await characteristic.startNotifications(); check();
       }
       r.connected = true; r.attempt = 0;
-      this.state(r, 'Bluetooth ready · center the blade');
+      this.state(r, 'Bluetooth connected');
     })().finally(() => { r.opening = null; });
     return r.opening;
   }
@@ -98,7 +151,8 @@ export class BluetoothLink {
   }
   lost(r) {
     if (r.disposed || this.devices.get(r.slot) !== r) return;
-    ++r.generation; r.connected = false; r.pingAt = null; r.pendingFeedback = null;
+    ++r.generation; r.connected = false; r.pingAt = null; r.pendingFeedback = null; r.desiredProfile=null;
+    r.resolveProfileAck?.({ok:false,profileEpoch:-1});r.resolveProfileAck=null;
     this.cleanupListeners(r); this.handlers.onCommand?.({ type: 'suspend' }, r.slot);
     if (r.retry) return;
     if (r.attempt >= 2) { this.state(r, 'Bluetooth disconnected · connect again'); return; }
@@ -113,6 +167,8 @@ export class BluetoothLink {
   disconnect(slot) {
     const r = this.devices.get(slot); if (!r) return;
     r.disposed = true; ++r.generation; clearTimeout(r.retry); this.devices.delete(slot);
+    r.cancelInitialRetry?.();r.cancelInitialRetry=null;
+    r.desiredProfile=null;r.resolveProfileAck?.({ok:false,profileEpoch:-1});r.resolveProfileAck=null;
     r.device.removeEventListener('gattserverdisconnected', r.onDisconnect);
     this.cleanupListeners(r); r.pendingFeedback = null;
     r.device.gatt?.disconnect(); r.connected = false; this.state(r, 'Bluetooth disconnected');
@@ -132,7 +188,9 @@ export class BluetoothLink {
     }
   }
   async ping(r) {
-    if (!r.connected || r.writeBusy || (r.pingAt !== null && performance.now() - r.pingAt < 2000)) return;
+    // Live sensor packets already prove liveness. Probe quiet links only so
+    // echo traffic cannot compete with active motion and control edges.
+    if (!r.connected || r.writeBusy || r.profileSync || r.metrics.lastAt!==null&&performance.now()-r.metrics.lastAt<500 || (r.pingAt !== null && performance.now() - r.pingAt < 2000)) return;
     r.pingAt = performance.now(); r.pingToken = (r.pingAt | 0) >>> 0;
     const generation = r.generation;
     const v = new DataView(new ArrayBuffer(5)); v.setUint8(0, 0x10); v.setUint32(1, r.pingToken, true);
@@ -141,7 +199,7 @@ export class BluetoothLink {
   feedback(data) {
     const code = ({ slice: 0x11, bomb: 0x12, miss: 0x13 })[data.type]; if (!code) return;
     for (const r of this.devices.values()) {
-      if (!r.connected || (Number.isInteger(data.slot) && data.slot !== r.slot)) continue;
+      if (!r.connected || r.profileSync || (Number.isInteger(data.slot) && data.slot !== r.slot)) continue;
       const now = performance.now(); if (now - (r.lastFeedback ?? -Infinity) < 50) continue;
       r.lastFeedback = now;
       if (r.writeBusy) r.pendingFeedback = { code, at: now };
@@ -150,6 +208,43 @@ export class BluetoothLink {
   }
   resetMetrics() {
     for (const r of this.devices.values()) { r.metrics = new PeerMetrics(); r.captureRate = new RateWindow(); r.captureAt = null; }
+  }
+  async sendProfile(slot, profile) {
+    const r = this.devices.get(slot);
+    if (!r?.connected) throw new Error('Connect the controller before assigning a profile.');
+    r.desiredProfile = profile;
+    if (r.profileTask) return r.profileTask;
+    const generation = r.generation;
+    const check = () => {
+      if (!r.connected || r.disposed || r.generation !== generation) throw new DOMException('Controller disconnected during profile sync.', 'AbortError');
+    };
+    r.profileSync = true;
+    r.profileTask = (async () => {
+      let ack;
+      while (r.desiredProfile) {
+        const next = r.desiredProfile; r.desiredProfile = null;
+        r.profileTransferId = (++this.serial) & 65535;
+        const packets = profilePackets(next, r.profileTransferId);
+        let timer;
+        const acknowledged = new Promise((resolve, reject) => {
+          r.resolveProfileAck = resolve;
+          timer = setTimeout(() => reject(new Error('The phone did not accept the controls. Install the current controller app.')), 8000);
+        });
+        // Attach a rejection handler immediately while the sequential writes run.
+        void acknowledged.catch(() => {});
+        try {
+          for (const packet of packets) {
+            check();
+            while (r.writeBusy) { await new Promise(resolve => setTimeout(resolve, 5)); check(); }
+            if (!await this.write(r, packet)) throw new Error('Could not send controls. Update the controller app and reconnect.');
+          }
+          ack = await acknowledged; check();
+          if (!ack.ok || ack.profileEpoch !== next.profileEpoch) throw new Error('The phone rejected the controller profile.');
+        } finally { clearTimeout(timer); r.resolveProfileAck = null; }
+      }
+      return ack;
+    })().finally(() => { r.profileSync = false; r.profileTask = null; });
+    return r.profileTask;
   }
   diagnostics(now = performance.now()) {
     return [...this.devices.values()].map(r => ({ slot: r.slot, name: r.device.name || 'Android phone', path: 'bluetooth', connected: r.connected,

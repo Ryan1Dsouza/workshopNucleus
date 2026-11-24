@@ -18,3 +18,11 @@ test('simultaneous missing audio override requests share one fetch sequence', as
   try {await Promise.all(Array.from({length:40},()=>a.loadOverride('missing')));assert.equal(calls,3);assert.equal(a.overrideLoads.size,0);}
   finally{globalThis.fetch=previous;}
 });
+
+test('empty optional audio responses use synthesis without attempting to decode or fetching again',async()=>{
+  const a=new AudioEngine(),previous=globalThis.fetch;let calls=0,decoded=0;
+  a.ensureCtx=()=>true;a.ctx={decodeAudioData(){decoded++;}};
+  globalThis.fetch=async()=>{calls++;return {ok:true,status:204};};
+  try{assert.equal(await a.loadOverride('optional'),null);assert.equal(await a.loadOverride('optional'),null);assert.equal(calls,3);assert.equal(decoded,0);}
+  finally{globalThis.fetch=previous;}
+});
