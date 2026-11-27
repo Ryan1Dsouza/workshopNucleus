@@ -149,6 +149,36 @@ export function onlineLobby({select,inviteOrigin,adapter,current,paired,centerFr
       label.lastChild.value=room.options.drivers[i];
     });
   }
+  function renderPlayers() {
+    const list=$('roomPlayers');
+    while(list.children.length>room.players.length)list.lastElementChild.remove();
+    room.players.forEach((p,i)=>{
+      let row=list.children[i];
+      if(!row){
+        row=document.createElement('li');
+        const info=document.createElement('div');
+        info.append(document.createElement('strong'),document.createElement('small'));
+        row.append(info);list.append(row);
+      }
+      const info=row.firstElementChild;
+      info.firstElementChild.textContent=p.name+(i===slot?' (you)':'')+(i===0?' · Host':'');
+      info.lastElementChild.textContent=(p.ble?'Phone BLE paired':'Phone BLE unpaired')+' · '+(p.ready?'Ready':playing?'Playing':'Not ready');
+      let button=row.querySelector('button');
+      if(slot!==0 || i===0){button?.remove();return;}
+      if(!button){
+        button=document.createElement('button');button.type='button';button.className='text-button remove-player';
+        button.textContent='Remove';row.append(button);
+        button.onclick=()=>{
+          const guest=room?.players.find(player=>player.id===button.dataset.player);
+          if(!guest)return;
+          if(room.match && !window.confirm('Remove '+guest.name+' and end this match for everyone?'))return;
+          void emit('remove',{player:guest.id});
+        };
+      }
+      button.dataset.player=p.id;button.disabled=!!outage;
+      button.setAttribute('aria-label','Remove '+p.name+' from lobby');
+    });
+  }
   function render() {
     document.body.classList.toggle('online-mode',active);
     document.body.classList.toggle('online-game',active && played);
@@ -169,13 +199,7 @@ export function onlineLobby({select,inviteOrigin,adapter,current,paired,centerFr
     if(!room){status(outage?'':notice || (socket?.connected?'Lobby server connected.':'Connecting to lobby server…'));return;}
     $('roomCode').textContent=room.code;$('roomVisibility').textContent=(room.public?'Public lobby':'Private lobby')+' · '+room.players.length+'/'+(room.capacity??2);
     const url=new URL(location.pathname+location.search,inviteOrigin());url.searchParams.set('join',room.code);$('inviteLink').href=url.href;
-    const players=room.players.map((p,i)=>{
-      const li=document.createElement('li'), strong=document.createElement('strong'), detail=document.createElement('small');
-      strong.textContent=p.name+(i===slot?' (you)':'')+(i===0?' · Host':'');
-      detail.textContent=(p.ble?'Phone BLE paired':'Phone BLE unpaired')+' · '+(p.ready?'Ready':playing?'Playing':'Not ready');
-      li.append(strong,detail);return li;
-    });
-    $('roomPlayers').replaceChildren(...players);
+    renderPlayers();
     renderLatency();
     const o=room.options,kart=o.game==='kart-racing';
     for(const [id,value] of Object.entries({roomGame:o.game,roomDuration:o.duration,roomPractice:o.practice,roomLaps:o.laps}))$(id).value=String(value);
@@ -193,10 +217,12 @@ export function onlineLobby({select,inviteOrigin,adapter,current,paired,centerFr
     const blocked=waiting.some(peer=>peer.status==='blocked');
     const retrying=waiting.some(peer=>peer.status==='retrying');
     $('retryPeer').hidden=!waiting.length || !!room.match || !!outage;
-    const hasRelay=[...iceServers,...(socket.iceServers||[])].some(s=>[s.urls].flat().some(url=>url.startsWith('turn:')));
-    const pendingLink=blocked ? (hasRelay?'The laptops could not establish a UDP connection. Try another network and retry.':
+    const urls=[...iceServers,...(socket.iceServers||[])].flatMap(s=>s.urls);
+    const hasRelay=urls.some(url=>/^turns?:/i.test(url));
+    const hasSecureRelay=urls.some(url=>/^turns:/i.test(url));
+    const pendingLink=blocked ? (hasRelay?'The laptops couldn’t connect. Select Retry laptop connection, or try a different network.':
       'No direct connection between laptops. Try the same home Wi-Fi or hotspot. Separate networks may need a TURN relay.')
-      : retrying?'Retrying the connection between laptops…':'Connecting laptops over WebRTC…';
+      : retrying?(hasSecureRelay?'Trying a secure relay…':'Retrying the connection between laptops…'):'Connecting laptops over WebRTC…';
     $('readyPlayer').textContent=me?.ready?'Cancel ready':'Ready';
     $('readyPlayer').setAttribute('aria-pressed',String(!!me?.ready));
     $('readyPlayer').disabled=!!outage||!!room.match||!me?.linked||!loaded||!phonesReady();

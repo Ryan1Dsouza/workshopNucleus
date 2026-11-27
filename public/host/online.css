@@ -20,6 +20,9 @@
 .room-players {display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;list-style:none;padding:0}
 .room-players li,.directory-room {padding:10px 12px;border:1px solid var(--line);background:white;border-radius:9px;overflow-wrap:anywhere}
 .room-players small,.directory-room small {display:block;color:#465b72}
+.room-players li {display:flex;align-items:center;justify-content:space-between;gap:8px}
+.room-players li>div {min-width:0}
+.room-players .remove-player {flex:none;min-height:44px;color:#984034}
 .directory-room {text-align:left;margin:6px 8px 0 0}
 .room-code {align-self:center;font:700 17px ui-monospace,monospace;letter-spacing:.08em}
 #inviteLink {align-self:center}

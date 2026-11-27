@@ -1,4 +1,4 @@
-const {LobbyError, roomCode, newRoom, listing, joinRoom, leaveRoom, changeRoom} = require('./lobby-room.cjs');
+const {LobbyError, roomCode, newRoom, listing, joinRoom, leaveRoom, changeRoom, requireRemovableGuest} = require('./lobby-room.cjs');
 
 function installLobbies(io) {
   const service = io.of('/lobbies'), rooms = new Map();
@@ -53,6 +53,12 @@ function installLobbies(io) {
         } else {
           if (!state) throw new LobbyError('Join a lobby first.');
           if (request.action === 'leave') leave(socket);
+          else if (request.action === 'remove') {
+            requireRemovableGuest(state,socket.id,request.player);
+            const guest=service.sockets.get(request.player);
+            leave(guest);
+            guest.emit('closed','The host removed you from the lobby.');
+          }
           else {
             const before = JSON.stringify(listing(state));
             changeRoom(state, socket.id, request);

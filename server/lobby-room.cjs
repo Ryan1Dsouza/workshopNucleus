@@ -60,6 +60,11 @@ function leaveRoom(state, id) {
   return state;
 }
 
+function requireRemovableGuest({room}, hostId, guestId) {
+  requireRule(room.players[0]?.id===hostId, 'Only the host can remove players.');
+  requireRule(guestId!==hostId && room.players.some(p=>p.id===guestId), 'Choose a guest in this lobby.');
+}
+
 function changeRoom(state, id, request, now = Date.now()) {
   const {room, links} = state;
   const player = room.players.find(p => p.id === id);
@@ -127,4 +132,4 @@ function changeRoom(state, id, request, now = Date.now()) {
   }
 }
 
-module.exports = {LobbyError, roomCode, newRoom, listing, joinRoom, leaveRoom, changeRoom};
+module.exports = {LobbyError, roomCode, newRoom, listing, joinRoom, leaveRoom, changeRoom, requireRemovableGuest};

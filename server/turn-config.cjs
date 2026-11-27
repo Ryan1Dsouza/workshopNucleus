@@ -1,3 +1,10 @@
+function isTurnUrl(url) {
+  return typeof url==='string' && (
+    /^turn:[^/?#@\s]+(?:\?transport=udp)?$/i.test(url) ||
+    /^turns:[^/?#@\s]+:443(?:\?transport=tcp)?$/i.test(url)
+  );
+}
+
 // The provider URL contains an API key. Only its short client configuration is
 // returned to a room member, and only when they create or join a room.
 async function roomIceServers(endpoint=process.env.METERED_ICE_URL) {
@@ -11,9 +18,9 @@ async function roomIceServers(endpoint=process.env.METERED_ICE_URL) {
     const servers=await response.json();
     return servers.flatMap(({urls,username,credential})=>{
       if(typeof username!=='string'||typeof credential!=='string')return [];
-      const udp=[urls].flat().filter(s=>typeof s==='string' && /^turn:[^?#\s]+(?:\?transport=udp)?$/i.test(s));
-      return udp.length?[{urls:udp,username,credential}]:[];
+      const allowed=[urls].flat().filter(isTurnUrl);
+      return allowed.length?[{urls:allowed,username,credential}]:[];
     });
   } catch {return [];}
 }
-module.exports={roomIceServers};
+module.exports={roomIceServers,isTurnUrl};

@@ -4,6 +4,7 @@ import {installFakeBluetooth} from '../../tests/helpers/fake-bluetooth.mjs';
 
 const base=process.env.HOST_URL||'http://localhost:3000';
 const forceRelay=process.env.TEST_FORCE_RELAY==='1';
+const tlsOnly=process.env.TEST_TLS_ONLY==='1';
 const fixture=process.env.TEST_RELAY_URL && {urls:process.env.TEST_RELAY_URL,
   username:process.env.TEST_RELAY_USER,credential:process.env.TEST_RELAY_CREDENTIAL};
 const browser=await chromium.launch({channel:'chrome',headless:true});
@@ -12,20 +13,25 @@ try {
   for(const host of [true,false]){
     const ctx=await browser.newContext({viewport:{width:1366,height:900}});
     await ctx.addInitScript(installFakeBluetooth);
-    await ctx.addInitScript(({host,forceRelay,fixture})=>{
+    await ctx.addInitScript(({host,forceRelay,tlsOnly,fixture})=>{
       const NativePeer=window.RTCPeerConnection;
-      let first=host;
+      let first=host && !tlsOnly;
       window.RTCPeerConnection=class extends NativePeer{
         constructor(config){
-          super({...config,iceServers:fixture?[fixture]:config.iceServers,
-            iceTransportPolicy:forceRelay?'relay':'all'});
+          const servers=fixture?[fixture]:config.iceServers;
+          // Model a network where only TLS relay allocations are reachable.
+          const reachable=tlsOnly?servers.flatMap(server=>{
+            const urls=[server.urls].flat().filter(url=>/^turns:/i.test(url));
+            return urls.length?[{...server,urls}]:[];
+          }):servers;
+          super({...config,iceServers:reachable,iceTransportPolicy:forceRelay||tlsOnly?'relay':'all'});
         }
         async createOffer(options){
           if(first){first=false;return new Promise(()=>{});}
           return super.createOffer(options);
         }
       };
-    },{host,forceRelay,fixture});
+    },{host,forceRelay,tlsOnly,fixture});
     const page=await ctx.newPage();pages.push(page);
     page.on('pageerror',e=>errors.push(e.message));
     page.on('console',e=>{if(e.type()==='error')errors.push(e.text());});
@@ -56,11 +62,13 @@ try {
       const transport=[...stats.values()].find(s=>s.type==='transport'&&s.selectedCandidatePairId);
       const pair=stats.get(transport.selectedCandidatePairId), local=stats.get(pair.localCandidateId);
       return {attempt:peer.generation,local:local.candidateType,protocol:local.protocol,
+        relayProtocol:local.relayProtocol,securePort443:/^turns:[^?]+:443(?:\?|$)/i.test(local.url||''),
         ordered:peer.channel.ordered,retransmits:peer.channel.maxRetransmits};
     });
     assert.ok(path.attempt>=2);
     assert.equal(path.protocol,'udp');assert.equal(path.ordered,false);assert.equal(path.retransmits,0);
-    if(forceRelay)assert.equal(path.local,'relay');
+    if(forceRelay||tlsOnly)assert.equal(path.local,'relay');
+    if(tlsOnly)assert.ok(path.securePort443 && ['tls','tcp'].includes(path.relayProtocol));
     paths.push(path);
   }
   assert.deepEqual(errors,[]);

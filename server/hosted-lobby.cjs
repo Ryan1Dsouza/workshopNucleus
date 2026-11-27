@@ -1,5 +1,5 @@
 const {createHash} = require('node:crypto');
-const {LobbyError, newRoom, listing, joinRoom, leaveRoom, changeRoom} = require('./lobby-room.cjs');
+const {LobbyError, newRoom, listing, joinRoom, leaveRoom, changeRoom, requireRemovableGuest} = require('./lobby-room.cjs');
 
 const LEASE = 120_000;
 const hash = value => createHash('sha256').update(value).digest('hex');
@@ -105,14 +105,22 @@ async function handleLobby(store, secret, q, now = Date.now()) {
       throw new LobbyError('Lobby is unavailable or full.');
     }
     const member = state.room.players.some(p=>p.id===id);
+    if (reads && !member && state.removed?.[id]>now) return {closed:true,removed:true,time:now};
     if (q.action === 'leave' && !member) return {closed:true,time:now};
     if (!reads && state.last[id] !== q.requestId) {
       if (q.action === 'create' || q.action === 'join') {
         if (q.action === 'create' && previous) throw new LobbyError('Room code is already in use. Create again.');
         joinRoom(state,id,q);
+        if(state.removed)delete state.removed[id];
       } else {
         if (!member) throw new LobbyError('Join a lobby first.');
         if (q.action === 'leave') state=remove(state,id);
+        else if (q.action === 'remove') {
+          requireRemovableGuest(state,id,q.player);
+          remove(state,q.player);
+          state.removed=Object.fromEntries(Object.entries(state.removed||{}).filter(([,until])=>until>now));
+          state.removed[q.player]=now+LEASE;
+        }
         else if (q.action === 'signals') acceptSignals(state,id,q.packets,now);
         else {
           changeRoom(state,id,q,now);

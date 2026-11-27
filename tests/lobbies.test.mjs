@@ -56,7 +56,12 @@ test('lobby directory, host permissions, readiness and match identities survive 
   assert.ok((await send(host,'options',{options:{...state.options,game:'fruit-ninja'}})).error);
   const assigned=new Map(state.players.map((p,i)=>[p.id,state.options.drivers[i]]));
   const departed=party.splice(3,1)[0];
-  await afterDirectory(()=>send(departed,'leave'));
+  assert.ok((await send(departed,'remove',{player:host.id})).error);
+  assert.ok((await send(host,'remove',{player:host.id})).error);
+  const removed=once(departed,'closed');
+  await afterDirectory(()=>send(host,'remove',{player:departed.id}));
+  assert.match((await removed)[0],/host removed/);
+  assert.ok((await send(departed,'ready',{value:true})).error);
   assert.equal(list[0].count,7);
   assert.deepEqual(state.options.drivers,state.players.map(p=>assigned.get(p.id)));
   for(const p of party){

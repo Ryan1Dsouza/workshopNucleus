@@ -18,7 +18,13 @@ export class MatchPeer {
   openConnection(generation) {
     this.releaseConnection();
     this.generation=generation;
-    const pc=this.pc=new RTCPeerConnection({iceServers:this.iceServers});
+    // A TURN/TLS allocation still produces a UDP relay ICE candidate. Enable
+    // the TLS hop to the relay on retry while keeping direct UDP candidates.
+    const servers=generation>1 ? this.iceServers : this.iceServers.flatMap(server=>{
+      const urls=[server.urls].flat().filter(url=>!/^turns:/i.test(url));
+      return urls.length?[{...server,urls}]:[];
+    });
+    const pc=this.pc=new RTCPeerConnection({iceServers:servers});
     this.status=this.attempts?'retrying':'connecting';
     this.attempts++;
     this.pending=[];this.gathered=[];this.announced=false;

@@ -81,3 +81,27 @@ test('hosted rooms renew active players, expire abandoned guests, and close afte
   assert.deepEqual((await send(3,{action:'directory'})).directory,[]);
   assert.equal((await send(1,{action:'poll',code})).closed,true);
 });
+
+test('only the host can remove a guest and release their seat and signaling state',async()=>{
+  const db=storage(), send=(i,q)=>hosted.handleLobby(db,secret(i),q);
+  const {room:{code},id:host}=await send(1,request('create',{public:true,game:'kart-racing'}));
+  const {id:guest}=await send(2,request('join',{code}));
+  await assert.rejects(send(2,request('remove',{code,player:host})),/Only the host/);
+  await assert.rejects(send(1,request('remove',{code,player:host})),/Choose a guest/);
+  await send(1,request('signals',{code,packets:[{to:guest,retry:true}]}));
+  for(const [i,peer] of [[1,guest],[2,host]])await send(i,request('links',{code,peers:[peer]}));
+  for(const i of [1,2])await send(i,request('ready',{code,value:true}));
+  await send(1,request('start',{code}));
+  const kick=request('remove',{code,player:guest});
+  for(let i=0;i<2;i++){
+    const {room}=await send(1,kick);
+    assert.deepEqual(room.players.map(p=>p.id),[host]);
+    assert.equal(room.match,null);assert.equal(room.players[0].linked,false);
+  }
+  const result=await send(2,{action:'poll',code});
+  assert.ok(result.closed && result.removed);
+  assert.equal(result.room,undefined);
+  assert.equal((await send(3,{action:'directory'})).directory[0].count,1);
+  await assert.rejects(send(2,request('signals',{code,packets:[{to:host,retry:true}]})),/Join a lobby/);
+  assert.deepEqual((await send(2,request('join',{code}))).signals,[]);
+});
