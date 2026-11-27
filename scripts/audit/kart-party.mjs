@@ -99,7 +99,7 @@ try{
     const axis=(i,a)=>{const h=a*Math.PI/360,q=[0,0,0,Math.cos(h)];q[i]=Math.sin(h);return q;};
     while(performance.now()-started<2400){
       const t=performance.now()-started;
-      const bank=t<1000?4.2*Math.sin(t/90):t<1600?20:t<1800?0:-20;
+      const bank=t<1000?4.2*Math.sin(t/90):t<1600?-20:t<1800?0:20;
       const q=mul(axis(2,30*Math.sin(t/230)),mul(axis(1,bank),mul(axis(0,45+10*Math.sin(t/130)),axis(2,90))));
       const v=new DataView(new ArrayBuffer(20));v.setUint8(0,1);v.setUint8(1,3);
       v.setUint16(2,d.sequence++,true);v.setUint32(4,d.time=base+Math.round(t),true);

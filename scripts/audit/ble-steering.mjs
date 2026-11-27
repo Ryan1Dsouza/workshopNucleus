@@ -117,7 +117,7 @@ try {
         // Interpolate the signed crossing between adjacent observed frames.
         // Skip the initial deadband and first warm-up cycle.
         for(let half=2;400+half*period/2<duration-200;half++){
-          const cross=400+half*period/2,dir=(half%2?-1:1)*(kart?-1:1);
+          const cross=400+half*period/2,dir=half%2?-1:1;
           const k=values.findIndex((v,i)=>i>0 && frames[i]>=cross && frames[i]<cross+400 && v*dir>0 && values[i-1]*dir<=0);
           if(k>0)lag.push(frames[k-1]+(frames[k]-frames[k-1])*Math.abs(values[k-1]/(values[k]-values[k-1]))-cross);
         }

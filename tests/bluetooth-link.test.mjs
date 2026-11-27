@@ -75,6 +75,50 @@ test('reconnect removes old listeners, changes input session and explicit discon
   link.disconnect(0); phone.pose(); assert.equal(samples.length, 2);
   assert.equal(phone.motion.listeners.size, 0); assert.equal(phone.control.listeners.size, 0);
 });
+test('a failed write after the phone consumed a chunk restarts the transfer from byte zero', async t => {
+  const {fake,link}=fixture(t); await link.connect(0);
+  const phone=fake.phones[0], control=phone.control;
+  phone.writeDelay=0;
+  const write=control.writeValueWithResponse.bind(control);
+  let interrupted=false;
+  control.writeValueWithResponse=async packet=>{
+    await write(packet);
+    if(packet[0]===0x41 && !interrupted){
+      interrupted=true;
+      throw new DOMException('GATT operation failed', 'NetworkError');
+    }
+  };
+  const ack=await link.sendProfile(0,{...kartRaceProfile('gyro'),profileEpoch:7,player:1});
+  assert.equal(ack.profileEpoch,7); assert.equal(phone.profile.layout,'kart-gyro');
+  const starts=control.writes.filter(packet=>packet[0]===0x40);
+  assert.equal(starts.length,2); assert.notDeepEqual(starts[0].slice(1,3),starts[1].slice(1,3));
+  assert.equal(control.maxWrites,1); assert.equal(phone.gatt.connects,1);
+});
+test('persistent write failures preserve the browser reason and allow another sync on the same connection',async t=>{
+  const {fake,link}=fixture(t); await link.connect(0);
+  const phone=fake.phones[0], control=phone.control, write=control.writeValueWithResponse.bind(control);
+  phone.writeDelay=0;
+  let attempts=0;
+  control.writeValueWithResponse=async()=>{attempts++;throw new DOMException('GATT busy','NetworkError');};
+  const profile={...kartRaceProfile('dpad'),profileEpoch:8,player:1};
+  await assert.rejects(link.sendProfile(0,profile),{name:'NetworkError',message:'GATT busy'});
+  assert.equal(attempts,3);assert.equal(phone.profile,undefined);
+  control.writeValueWithResponse=write;
+  assert.equal((await link.sendProfile(0,profile)).profileEpoch,8);
+  assert.equal(phone.gatt.connects,1);
+});
+test('a newer profile supersedes a failed transfer during retry backoff',async t=>{
+  const {fake,link}=fixture(t);await link.connect(0);
+  const phone=fake.phones[0],control=phone.control,write=control.writeValueWithResponse.bind(control);
+  phone.writeDelay=0;
+  control.writeValueWithResponse=async()=>{control.writeValueWithResponse=write;throw new DOMException('Busy','NetworkError');};
+  const earlier=link.sendProfile(0,{...kartRaceProfile('gyro'),profileEpoch:3});
+  await wait(10);
+  const current=link.sendProfile(0,{...kartRaceProfile('dpad'),profileEpoch:4});
+  assert.deepEqual((await Promise.all([earlier,current])).map(ack=>ack.profileEpoch),[4,4]);
+  assert.equal(phone.profile.layout,'kart-dpad');
+  assert.equal(control.writes.filter(packet=>packet[0]===0x42).length,1);
+});
 test('disconnect during pending GATT connect cannot reactivate a removed player', async t => {
   const { fake, link } = fixture(t); let resolve;
   fake.phones[0].holdConnect = new Promise(r => { resolve = r; });

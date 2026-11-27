@@ -224,7 +224,9 @@ twoSidedBoards.length = 0;
 let onlineSetup=null, match=null;
 let raceSteering = menu.steering;
 const embedded = window.__controllerEmbedded === true;
-const savedWheelInversion = localStorage.getItem("openwii.chargeInvert2");
+// The host already reports lowering the right edge as positive (ArrowRight).
+// The old shared tray setting had opposite defaults depending on the page.
+const wheelPreference = embedded ? "openwii.kart.bleWheelInverted" : "openwii.chargeInvert2";
 let paused = false,
   race,
   noticeUntil = 0,
@@ -234,9 +236,7 @@ let paused = false,
   resultsShown = false, resultsPresentation = null;
 const audio = new KartAudio(menu.audioEngine),
   wheel = new WheelInput({
-    // BLE supplies a signed host axis. The standalone tray reader already
-    // converts its bank into kart coordinates. Preserve explicit overrides.
-    invert: savedWheelInversion === null ? embedded : savedWheelInversion === "1",
+    invert: localStorage.getItem(wheelPreference) === "1",
   }),
   keys = new Set();
 let captureUntil = performance.now() + 3000,
@@ -575,7 +575,7 @@ function handleKey(e) {
   }
   if (e.code === "KeyI") {
     wheel.invert = !wheel.invert;
-    localStorage.setItem("openwii.chargeInvert2", wheel.invert ? "1" : "0");
+    localStorage.setItem(wheelPreference, wheel.invert ? "1" : "0");
   }
 }
 window.addEventListener("keydown", handleKey);
@@ -1279,7 +1279,7 @@ function frame(now) {
       race.update(dt, input);
     audio.update(race);
     setText($("wheel-status"),usingPhone
-      ? (raceSteering === 'dpad' ? "D-pad steering" : (embedded ? "Gyro steering" : remote.status) + (wheel.invert !== embedded ? " · inverted" : ""))
+      ? (raceSteering === 'dpad' ? "D-pad steering" : (embedded ? "Gyro steering" : remote.status) + (wheel.invert ? " · inverted" : ""))
       : "W/↑/Z gas · S/↓/X brake · A/D steer · Shift drift · Space item");
   }
   draw(dt || 1 / 60, now);

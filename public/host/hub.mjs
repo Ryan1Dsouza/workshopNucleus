@@ -58,16 +58,33 @@ function restoreWithEscape(event){
 }
 document.addEventListener('fullscreenchange',()=>{const ours=document.fullscreenElement===playArea;if(gameFullscreen&&!ours)setExpanded(false);gameFullscreen=ours;});
 const deviceText=['Start Bluetooth on your phone.','A second phone plays independently.'];
+const controlsFailed=[false,false];
 function notice(text,error=false){$('notice').textContent=text;$('notice').classList.remove('pending');$('notice').classList.toggle('error',error);}
 function assignedProfile(slot){return {...profile,player:slot+1,profileEpoch:controllers.profileEpoch};}
 async function syncController(slot){
   if(!ble.connected(slot))return;
+  const session=controllers.player(slot).session, assigned=assignedProfile(slot);
+  const currentRequest=()=>ble.connected(slot) && controllers.player(slot).session===session && controllers.profileEpoch===assigned.profileEpoch;
+  controlsFailed[slot]=false;
+  $('retryControls'+slot).hidden=true;
   deviceText[slot]='Sending the game controls…';
-  try{const ack=await ble.sendProfile(slot,assignedProfile(slot));controllers.markReady(slot,ack.profileEpoch);deviceText[slot]='Controls ready · '+profile.title;flushPendingPlay();if(online?.active)online.render();}
-  catch(error){if(ble.connected(slot)){deviceText[slot]='Update the app or reconnect.';notice(error.message,true);}}
+  try{
+    const ack=await ble.sendProfile(slot,assigned);
+    if(!currentRequest() || ack?.profileEpoch!==assigned.profileEpoch)return;
+    controllers.markReady(slot,ack.profileEpoch);
+    deviceText[slot]='Controls ready · '+profile.title;
+    flushPendingPlay();
+  }catch(error){
+    if(!currentRequest())return;
+    controlsFailed[slot]=true;
+    deviceText[slot]='Controls transfer failed. '+error.message;
+  }
+  renderPlayers(performance.now());
+  if(online?.active)online.render();
 }
 const ble=new BluetoothLink({
   onState:state=>{
+    controlsFailed[state.slot]=false;
     deviceText[state.slot]=state.text;
     if(state.connected){controllers.connect(state.slot,state.session,state.name);void syncController(state.slot);}
     else controllers.disconnect(state.slot);
@@ -187,6 +204,7 @@ function renderLibrary(){ $('gameList').replaceChildren();for(const game of game
 function registerGame(game){if(!registry)throw new Error('Game registration is available from Stage 4.');registry.register(game);games=registry.list();renderLibrary();return registry;}
 renderLibrary();
 for(const slot of [0,1]){
+  $('retryControls'+slot).onclick=()=>syncController(slot);
   $('pair'+slot).disabled=false;
   $('pair'+slot).addEventListener('click',async()=>{
     const button=$('pair'+slot);button.disabled=true;
@@ -213,8 +231,9 @@ function renderPlayers(now){
     $('playerDetail'+slot).textContent=deviceText[slot];
     const button=$('pair'+slot);button.classList.toggle('connected',!!record);button.firstChild.textContent=record?'Disconnect ':'Connect phone ';button.lastElementChild.textContent=record?'−':'+';
     $('choosePhone'+slot).hidden=!!record||!ble.hasSavedPhone(slot);
+    $('retryControls'+slot).hidden=!player.connected||!controlsFailed[slot];
     button.setAttribute('aria-label',(record?'Disconnect':'Connect phone for')+' Player '+(slot+1));
-    $('reading'+slot).textContent=player.connected?(player.ready?(player.motion?.pointer.live?'Wrist motion live':'Buttons ready'):'Preparing controls'):'Waiting for input';
+    $('reading'+slot).textContent=player.connected?(player.ready?(player.motion?.pointer.live?'Wrist motion live':'Buttons ready'):controlsFailed[slot]?'Controls unavailable':'Preparing controls'):'Waiting for input';
     $('latency'+slot).textContent=metric?.rtt?.median!==undefined?Math.round(metric.rtt.median)+' ms RTT':record?'BLE':player.connected?'Desktop':'—';
   }
   const count=controllers.players.filter(player=>player.connected).length;

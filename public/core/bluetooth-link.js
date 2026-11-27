@@ -2,6 +2,9 @@ import { BLE_SERVICE, BLE_MOTION, BLE_CONTROL, decodeBleFrame, decodeBleCenter, 
 import { PeerMetrics, RateWindow } from './diagnostics.js';
 import { decodeButtonFrame, decodeProfileAck, profilePackets } from './controller-contract.js';
 
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+const transientWriteErrors = new Set(['NetworkError','OperationError','UnknownError','TimeoutError','AbortError']);
+
 export class BluetoothLink {
   constructor({ onSample, onCommand, onState, onButtons } = {}) {
     this.handlers = { onSample, onCommand, onState, onButtons };
@@ -92,6 +95,7 @@ export class BluetoothLink {
       r.lastSequence = -1; r.paused = false; r.captureAt = null;
       r.forwardedAt = r.forwardedEpoch = null;
       r.session = `ble:${r.device.id}:${++this.serial}`;
+      r.profileTask = null; r.profileSync = false;
       r.timeline = new BleTimeline(); r.metrics = new PeerMetrics(); r.captureRate = new RateWindow();
       r.writeBusy = false; r.pendingFeedback = null; r.pingAt = null;
       const server = await r.device.gatt.connect(); check();
@@ -180,17 +184,21 @@ export class BluetoothLink {
     this.cleanupListeners(r); r.pendingFeedback = null;
     r.device.gatt?.disconnect(); r.connected = false; this.state(r, 'Bluetooth disconnected');
   }
-  async write(r, bytes) {
+  async write(r, bytes, required = false) {
     if (!r.connected || r.writeBusy) return false;
     const generation = r.generation, control = r.control;
     r.writeBusy = true;
     try { await control.writeValueWithResponse(bytes); return true; }
-    catch { if (r.generation === generation && !r.device.gatt.connected) this.lost(r); return false; }
+    catch (error) {
+      if (r.generation === generation && !r.device.gatt.connected) this.lost(r);
+      if (required) throw error;
+      return false;
+    }
     finally {
       if (r.generation === generation) {
         r.writeBusy = false;
         const pending = r.pendingFeedback; r.pendingFeedback = null;
-        if (pending && performance.now() - pending.at < 150) void this.write(r, new Uint8Array([pending.code]));
+        if (pending && !r.profileSync && performance.now() - pending.at < 150) void this.write(r, new Uint8Array([pending.code]));
       }
     }
   }
@@ -216,44 +224,72 @@ export class BluetoothLink {
   resetMetrics() {
     for (const r of this.devices.values()) { r.metrics = new PeerMetrics(); r.captureRate = new RateWindow(); r.captureAt = null; }
   }
+  async transferProfile(r, profile, check) {
+    const id = r.profileTransferId = (++this.serial) & 65535;
+    const packets = profilePackets(profile, id);
+    let resolveAck, timer;
+    const acknowledged = new Promise(resolve => { resolveAck = resolve; });
+    r.resolveProfileAck = resolveAck;
+    try {
+      for (const packet of packets) {
+        while (r.writeBusy) { await wait(5); check(); }
+        check();
+        if (r.desiredProfile) return;
+        if (!await this.write(r, packet, true)) throw new DOMException('Bluetooth is busy.', 'NetworkError');
+      }
+      // Start the confirmation window after the final acknowledged write.
+      const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new DOMException('The phone did not confirm its controls.', 'TimeoutError')), 8000);
+      });
+      const ack = await Promise.race([acknowledged, timeout]);
+      check();
+      if (r.desiredProfile) return;
+      if (!ack?.ok || ack.profileEpoch !== profile.profileEpoch) throw new Error('The phone rejected these controls.');
+      return ack;
+    } finally {
+      clearTimeout(timer);
+      if (r.resolveProfileAck === resolveAck) r.resolveProfileAck = null;
+    }
+  }
   async sendProfile(slot, profile) {
     const r = this.devices.get(slot);
     if (!r?.connected) throw new Error('Connect the controller before assigning a profile.');
     r.desiredProfile = profile;
-    if (r.profileTask) return r.profileTask;
+    if (r.profileTask) {
+      r.resolveProfileAck?.(null);
+      return r.profileTask;
+    }
     const generation = r.generation;
     const check = () => {
       if (!r.connected || r.disposed || r.generation !== generation) throw new DOMException('Controller disconnected during profile sync.', 'AbortError');
     };
     r.profileSync = true;
     r.profileTask = (async () => {
-      let ack;
-      while (r.desiredProfile) {
-        const next = r.desiredProfile; r.desiredProfile = null;
-        r.profileTransferId = (++this.serial) & 65535;
-        const packets = profilePackets(next, r.profileTransferId);
-        let timer;
-        const acknowledged = new Promise(resolve => { r.resolveProfileAck = resolve; });
-        try {
-          for (const packet of packets) {
+      try {
+        let ack, attempts = 0, previous;
+        while (r.desiredProfile) {
+          check();
+          const next = r.desiredProfile; r.desiredProfile = null;
+          if (previous !== next) attempts = 0;
+          previous = next;
+          try {
+            ack = await this.transferProfile(r, next, check);
+          } catch (error) {
             check();
-            while (r.writeBusy) { await new Promise(resolve => setTimeout(resolve, 5)); check(); }
-            // A new begin packet replaces an unfinished transfer on the phone.
-            if (r.desiredProfile) break;
-            if (!await this.write(r, packet)) throw new Error('Could not send controls. Update the controller app and reconnect.');
+            if (r.desiredProfile) continue;
+            if (!transientWriteErrors.has(error.name) || ++attempts >= 3) throw error;
+            // A write can fail AFTER the phone consumed its chunk. A fresh
+            // transfer ID rewinds the receiver safely, even at a partial offset.
+            r.desiredProfile = next;
+            await wait(attempts * 150);
           }
-          if (r.desiredProfile) continue;
-          // The phone can acknowledge only after receiving the final chunk.
-          // Background scheduling or a slow GATT write must not consume its reply window.
-          const timeout = new Promise((_,reject)=>{
-            timer=setTimeout(()=>reject(new Error('The phone did not accept the controls. Install the current controller app.')),8000);
-          });
-          ack = await Promise.race([acknowledged,timeout]); check();
-          if (!ack.ok || ack.profileEpoch !== next.profileEpoch) throw new Error('The phone rejected the controller profile.');
-        } finally { clearTimeout(timer); r.resolveProfileAck = null; }
+          check();
+        }
+        return ack;
+      } finally {
+        if (r.generation === generation) { r.profileSync = false; r.profileTask = null; }
       }
-      return ack;
-    })().finally(() => { r.profileSync = false; r.profileTask = null; });
+    })();
     return r.profileTask;
   }
   diagnostics(now = performance.now()) {
