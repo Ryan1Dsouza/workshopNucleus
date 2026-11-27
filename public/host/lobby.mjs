@@ -111,6 +111,8 @@ export function onlineLobby({select,inviteOrigin,adapter,current,paired,centerFr
     }
   }
   function signalError(err){notice='Peer connection failed. '+err.message;render();}
+  function noteActivity(){if(room && !room.match)void emit('activity');}
+  function setSteering(mode){adapter()?.api?.setSteeringMode(mode);noteActivity();render();}
   function schedule(match) {
     clearMatch();round=match.id;
     for(const peer of peers.values())peer.begin(round);
@@ -336,7 +338,7 @@ export function onlineLobby({select,inviteOrigin,adapter,current,paired,centerFr
   }
   $('onlineTab').hidden=false;$('onlineTab').onclick=open;
   $('retryLobby').onclick=()=>{if(socket)socket.retry();else {active=false;void open();}};
-  $('retryPeer').onclick=()=>{notice='';for(const peer of peers.values())peer.retry();};
+  $('retryPeer').onclick=()=>{noteActivity();notice='';for(const peer of peers.values())peer.retry();};
   $('outageLocal').onclick=close;
   let lastKartCapacity='8', lastKartBots='true';
   function updateCapacityLabels(select,kart,withBots) {
@@ -391,9 +393,10 @@ export function onlineLobby({select,inviteOrigin,adapter,current,paired,centerFr
     void emit('ready',{value:!room.players[slot].ready});
   };
   $('startMatch').onclick=()=>emit('start');
-  $('roomSteering').onchange=event=>{adapter()?.api?.setSteeringMode(event.target.value);render();};
-  $('confirmRoomSteering').onclick=()=>{const api=adapter()?.api;if(api?.menuStep==='steering')api.confirm();render();};
+  $('roomSteering').onchange=event=>setSteering(event.target.value);
+  $('confirmRoomSteering').onclick=()=>{const api=adapter()?.api;if(api?.menuStep==='steering'){noteActivity();api.confirm();}render();};
   $('copyInvite').onclick=async()=>{
+    noteActivity();
     try{await navigator.clipboard.writeText($('inviteLink').href);status('Invite link copied.');}
     catch{status('Copy the address from Join link.');}
   };
@@ -411,6 +414,6 @@ export function onlineLobby({select,inviteOrigin,adapter,current,paired,centerFr
     const nextBots=nextGame==='kart-racing'?$('roomBots').value!=='false':false;
     await emit('options',{options:{game:nextGame,capacity:nextCapacity,bots:nextBots,duration:+$('roomDuration').value,practice:$('roomPractice').value==='true',laps:+$('roomLaps').value,drivers:chosen}});
   };
-  return {open,close,render,get active(){return active;},get room(){return room;},get slot(){return slot;},get playing(){return playing;},get peer(){return peers.values().next().value;},get peers(){return peers;},
+  return {open,close,render,setSteering,get active(){return active;},get room(){return room;},get slot(){return slot;},get playing(){return playing;},get peer(){return peers.values().next().value;},get peers(){return peers;},
     bluetoothChanged(){if(room && room.players[slot]?.ble!==paired())void emit('ble',{value:paired()});if(active)render();}};
 }

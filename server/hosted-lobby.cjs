@@ -1,5 +1,5 @@
 const {createHash} = require('node:crypto');
-const {LobbyError, newRoom, listing, joinRoom, leaveRoom, changeRoom, requireRemovableGuest} = require('./lobby-room.cjs');
+const {LobbyError, newRoom, listing, joinRoom, leaveRoom, changeRoom, requireRemovableGuest, idleDeadline, idle} = require('./lobby-room.cjs');
 
 const LEASE = 120_000;
 const hash = value => createHash('sha256').update(value).digest('hex');
@@ -22,7 +22,7 @@ redis.call('ZREMRANGEBYSCORE',KEYS[1],'-inf',ARGV[1])
 return redis.call('ZREVRANGE',KEYS[1],0,99)`;
 function lobbyStore(command, prefix = 'ck:{lobbies-v1}:') {
   const directoryKey = prefix + 'directory';
-  const summary = s => s && listing(s) ? JSON.stringify(listing(s)) : '';
+  const summary = s => s?.room && listing(s) ? JSON.stringify(listing(s)) : '';
   return {
     async directory(now) {
       return (await command(['EVAL',readDirectory,1,directoryKey,now])).map(row=>JSON.parse(row));
@@ -34,7 +34,7 @@ function lobbyStore(command, prefix = 'ck:{lobbies-v1}:') {
     async save(code, previous, state) {
       if (state) state.rev = (previous?.rev || 0) + 1;
       return !!await command(['EVAL',commit,2,prefix+code,directoryKey,previous?.rev || 0,
-        summary(previous),summary(state),state ? state.seen[state.room.players[0].id]+LEASE : 0,
+        summary(previous),summary(state),state?.room ? Math.min(state.seen[state.room.players[0].id]+LEASE,idleDeadline(state)) : 0,
         state ? JSON.stringify(state) : '',state?.rev || 0]);
     }
   };
@@ -55,11 +55,11 @@ async function redis(command) {
   return result.result;
 }
 
-function remove(state, id) {
+function remove(state, id, now) {
   delete state.seen[id];
   delete state.last[id];
   state.signals = state.signals.filter(s=>s.from !== id && s.to !== id);
-  return leaveRoom(state,id);
+  return leaveRoom(state,id,now);
 }
 function acceptSignals(state, id, packets, now) {
   if (!Array.isArray(packets) || !packets.length || packets.length > 32) throw new LobbyError('Invalid signaling batch.');
@@ -92,9 +92,23 @@ async function handleLobby(store, secret, q, now = Date.now()) {
   for (let attempt=0; attempt<12; attempt++) {
     const previous = await store.load(code);
     let state = previous && structuredClone(previous), dirty = false;
+    if (state?.room && state.lastActivity == null) {
+      // Give rooms created by the previous deployment a full first idle period.
+      state.lastActivity = now;
+      dirty = true;
+    }
+    if (state?.room && idleDeadline(state) <= now) {
+      // Retain just the reason for members whose next poll arrives later.
+      state = {closedForIdle:true};
+      if (!await store.save(code,previous,state)) continue;
+    }
+    if (state?.closedForIdle) {
+      if (q.action === 'join' || q.action === 'create') throw new LobbyError(idle.message);
+      return {closed:true,message:idle.message,time:now};
+    }
     for (const p of state?.room.players.slice() || []) {
       if (state.seen[p.id] + LEASE > now) continue;
-      state = remove(state,p.id); dirty = true;
+      state = remove(state,p.id,now); dirty = true;
       if (!state) break;
     }
     if (!state && q.action === 'create' && !previous) {
@@ -110,14 +124,14 @@ async function handleLobby(store, secret, q, now = Date.now()) {
     if (!reads && state.last[id] !== q.requestId) {
       if (q.action === 'create' || q.action === 'join') {
         if (q.action === 'create' && previous) throw new LobbyError('Room code is already in use. Create again.');
-        joinRoom(state,id,q);
+        joinRoom(state,id,q,now);
         if(state.removed)delete state.removed[id];
       } else {
         if (!member) throw new LobbyError('Join a lobby first.');
-        if (q.action === 'leave') state=remove(state,id);
+        if (q.action === 'leave') state=remove(state,id,now);
         else if (q.action === 'remove') {
           requireRemovableGuest(state,id,q.player);
-          remove(state,q.player);
+          remove(state,q.player,now);
           state.removed=Object.fromEntries(Object.entries(state.removed||{}).filter(([,until])=>until>now));
           state.removed[q.player]=now+LEASE;
         }

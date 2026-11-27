@@ -52,7 +52,7 @@ class HostedLobby {
     if (!this.connected) {this.connected=true;this.notify('connect');}
     if (result.closed) {
       this.resetRoom();
-      if (action!=='leave') this.notify('closed',result.removed?'The host removed you from the lobby.':'The lobby has closed.');
+      if (action!=='leave') this.notify('closed',result.message || (result.removed?'The host removed you from the lobby.':'The lobby has closed.'));
     }
     if (result.directory) this.notify('directory',result.directory);
     if (!result.room) return;

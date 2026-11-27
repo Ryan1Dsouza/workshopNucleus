@@ -15,11 +15,58 @@ function storage() {
       else rows.delete(code);
       return true;
     },
-    async directory(now){return [...rows.values()].filter(r=>r.seen[r.room.players[0].id]+120000>now).map(rules.listing).filter(Boolean);}
+    async directory(now){return [...rows.values()].filter(r=>r.room && r.seen[r.room.players[0].id]+120000>now && rules.idleDeadline(r)>now).map(rules.listing).filter(Boolean);}
   };
 }
 const secret=i=>String(i).padStart(64,'0');
 const request=(action,data={})=>({action,requestId:randomUUID(),...data});
+
+for(const isPublic of [true,false])test((isPublic?'public':'private')+' hosted room expires despite continuous presence and signaling',async()=>{
+  const db=storage();let now=1_000_000;
+  const send=(i,q)=>hosted.handleLobby(db,secret(i),q,now);
+  const {room:{code}}=await send(1,request('create',{public:isPublic,name:'Host',game:'kart-racing'}));
+  const guest=await send(2,request('join',{code,name:'Guest'}));
+  const browse=async()=>(await send(3,{action:'directory'})).directory;
+  for(let minute=1;minute<=5;minute++){
+    now+=60000;
+    await send(1,{action:'poll',code});
+    await send(2,request('links',{code,peers:[]}));
+    if(minute===1)await send(2,request('activity',{code}));
+    await send(1,request('signals',{code,packets:[{to:guest.id,retry:true}]}));
+  }
+  now+=59999;
+  assert.equal((await browse()).length,isPublic?1:0);
+  assert.equal((await send(2,{action:'poll',code})).room.code,code);
+  ++now;
+  assert.equal((await browse()).length,0);
+  await assert.rejects(send(3,request('join',{code,name:'Late'})),/5 minutes/);
+  const result=await send(1,request('activity',{code}));
+  assert.ok(result.closed);assert.match(result.message,/5 minutes/);
+  assert.equal((await send(2,{action:'poll',code})).message,result.message);
+  assert.equal((await db.load(code)).room,undefined);
+});
+
+test('hosted matches outlast the setup timer and finishing starts a fresh idle window',async()=>{
+  const db=storage();let now=1_000_000;
+  const send=(i,q)=>hosted.handleLobby(db,secret(i),q,now);
+  const {room:{code},id:host}=await send(1,request('create',{name:'Host'}));
+  const {id:guest}=await send(2,request('join',{code,name:'Guest'}));
+  for(const [i,peer] of [[1,guest],[2,host]])await send(i,request('links',{code,peers:[peer]}));
+  for(const i of [1,2])await send(i,request('ready',{code,value:true}));
+  const {room:{match}}=await send(1,request('start',{code}));
+  const poll=i=>send(i,{action:'poll',code});
+  for(let minute=0;minute<6;minute++){
+    now+=60000;
+    for(const i of [1,2])assert.equal((await poll(i)).room.match.id,match.id);
+  }
+  for(const i of [1,2])await send(i,request('finish',{code,match:match.id}));
+  for(let minute=0;minute<4;minute++){
+    now+=60000;
+    for(const i of [1,2])assert.equal((await poll(i)).room.match,null);
+  }
+  now+=60000;
+  assert.equal((await poll(1)).closed,true);
+});
 
 test('the production API distinguishes an exhausted allowance from a temporary storage outage',async t=>{
   const variable='KV_REST_API_URL', credential='KV_REST_API_TOKEN';

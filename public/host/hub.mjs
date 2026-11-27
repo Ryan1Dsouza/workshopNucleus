@@ -76,8 +76,7 @@ function receiveButtons(frame,slot,session,applied) {
       const api=adapter.api;
       const mode=(pressed & BUTTON_BITS.left)?'dpad':(pressed & BUTTON_BITS.right)?'gyro':null;
       if(mode && mode!==api.steeringMode || pressed & BUTTON_BITS.minus && !applied.layout){
-        api.setSteeringMode(mode || (api.steeringMode==='gyro'?'dpad':'gyro'));
-        online.render();
+        online.setSteering(mode || (api.steeringMode==='gyro'?'dpad':'gyro'));
       }else if(!mode && (pressed & (BUTTON_BITS.a|BUTTON_BITS.two)) && api.menuStep==='steering'){
         $('confirmRoomSteering').click();
       }
@@ -88,7 +87,7 @@ function receiveButtons(frame,slot,session,applied) {
   }
   controllers.buttons(slot,frame,session);
 }
-function notice(text,error=false){$('notice').textContent=text;$('notice').classList.remove('pending');$('notice').classList.toggle('error',error);}
+function notice(text,error=false){$('notice').textContent=text;$('notice').classList.remove('pending','room-expired');$('notice').classList.toggle('error',error);}
 function assignedProfile(slot){return {...controllers.player(slot).profile,player:slot+1,profileEpoch:controllers.profileEpoch};}
 async function syncController(slot){
   if(!ble.connected(slot))return;
@@ -294,8 +293,7 @@ function frame(now){
         // Both race layouts have a D-pad. It selects the local mode in the room.
         const mode = state.pressed.left ? 'dpad' : state.pressed.right ? 'gyro' : null;
         if(state.pressedActions['steering-mode'] || mode && mode!==api.steeringMode){
-          api.setSteeringMode(mode || (api.steeringMode==='gyro'?'dpad':'gyro'));
-          online.render();
+          online.setSteering(mode || (api.steeringMode==='gyro'?'dpad':'gyro'));
         }
       }
       continue;
@@ -528,7 +526,7 @@ if(lobbyMod) {
 }
 if(features.fruit && games.some(g=>g.id==='kart-racing')){
   const {localKartRoom}=await import('./local-kart-room.mjs');
-  couch=localKartRoom({ble,controllers,adapter:()=>adapter,setCurrentProfile,syncController,
+  couch=localKartRoom({ble,controllers,adapter:()=>adapter,setCurrentProfile,syncController,onExpire:text=>{notice(text);$('notice').classList.add('room-expired');},
     status:slot=>controlsFailed[slot]?deviceText[slot]:null});
 }
 const joiningOnline=!!online && new URLSearchParams(location.search).has('join');

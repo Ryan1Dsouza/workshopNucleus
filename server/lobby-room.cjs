@@ -1,5 +1,10 @@
 const { randomBytes, randomInt, randomUUID } = require('node:crypto');
 const drivers = require('../public/core/kart-roster.json').map(driver => driver.id);
+const idle = require('../public/core/lobby-idle.json');
+const idleDeadline = state => state.room.match ? Infinity : state.lastActivity + idle.timeoutMs;
+function recordActivity(state, now) {
+  state.lastActivity = Math.max(state.lastActivity ?? now, now);
+}
 const capacity = game => game === 'kart-racing' ? drivers.length : 2;
 const parseCapacity = (game, value) => {
   if (game !== 'kart-racing') return 2;
@@ -39,23 +44,24 @@ function updateLinks({room, links}) {
   }
 }
 
-function joinRoom(state, id, request) {
+function joinRoom(state, id, request, now = Date.now()) {
   const {room, links} = state;
   requireRule(!room.match && room.players.length < room.capacity, 'Lobby is unavailable or full.');
   requireRule(!room.players.some(p => p.id === id), 'Already in this lobby.');
-  if (room.players.length === room.options.drivers.length)
-    room.options.drivers.push(drivers.find(d => !room.options.drivers.includes(d)));
-  for (const p of room.players) p.ready = false;
   const name = String(request.name || '').trim().slice(0, 32);
   requireRule(name.length > 0, 'Enter your name first.');
   requireRule(!room.players.some(p => p.name.toLowerCase() === name.toLowerCase()), 'That name is already taken in this lobby.');
+  if (room.players.length === room.options.drivers.length)
+    room.options.drivers.push(drivers.find(d => !room.options.drivers.includes(d)));
+  for (const p of room.players) p.ready = false;
   room.players.push({id, name, ble: !!request.ble, linked: false, ready: false, finished: false});
   links[id] = [];
   updateLinks(state);
+  recordActivity(state, now);
 }
 
 // Removing the host closes the room. Other departures preserve each remaining driver's seat.
-function leaveRoom(state, id) {
+function leaveRoom(state, id, now = Date.now()) {
   const {room, links} = state;
   const index = room.players.findIndex(p => p.id === id);
   if (index === 0) return null;
@@ -70,6 +76,7 @@ function leaveRoom(state, id) {
     links[p.id] = links[p.id].filter(other => other !== id);
   }
   updateLinks(state);
+  recordActivity(state, now);
   return state;
 }
 
@@ -83,8 +90,14 @@ function changeRoom(state, id, request, now = Date.now()) {
   const player = room.players.find(p => p.id === id);
   requireRule(player, 'Join a lobby first.');
   const host = room.players[0] === player;
+  const inMatch = !!room.match;
   switch (request.action) {
+    case 'activity':
+      requireRule(!inMatch, 'The match has already started.');
+      recordActivity(state, now);
+      break;
     case 'ble':
+      if (player.ble !== !!request.value) recordActivity(state, now);
       player.ble = !!request.value;
       break;
     case 'linked': {
@@ -128,10 +141,12 @@ function changeRoom(state, id, request, now = Date.now()) {
       const bots = o.game === 'kart-racing' ? (o.bots !== undefined ? o.bots !== false : (room.options.game === 'kart-racing' ? room.options.bots !== false : true)) : false;
       room.options = {game:o.game, duration:o.duration, practice:!!o.practice, laps:o.laps, bots, drivers:[...o.drivers]};
       for (const p of room.players) p.ready = false;
+      recordActivity(state, now);
       break;
     }
     case 'ready':
       requireRule(!room.match && player.linked && room.players.length > 1, 'Wait for the peer connection.');
+      if (player.ready !== !!request.value) recordActivity(state, now);
       player.ready = !!request.value;
       break;
     case 'start':
@@ -147,6 +162,7 @@ function changeRoom(state, id, request, now = Date.now()) {
     default:
       throw new LobbyError('Unknown lobby action.');
   }
+  if (inMatch && !room.match) recordActivity(state, now);
 }
 
-module.exports = {LobbyError, roomCode, newRoom, listing, joinRoom, leaveRoom, changeRoom, requireRemovableGuest};
+module.exports = {LobbyError, roomCode, newRoom, listing, joinRoom, leaveRoom, changeRoom, requireRemovableGuest, idleDeadline, idle};

@@ -1,13 +1,36 @@
 import drivers from '../core/kart-roster.json' with {type:'json'};
+import idle from '../core/lobby-idle.json' with {type:'json'};
 import {MARIO_KART_PROFILE, kartRaceProfile} from '../core/controller-profiles.js';
 
 const $=id=>document.getElementById(id);
 const setText=(el,text)=>{if(el.textContent!==text)el.textContent=text;};
 
-export function localKartRoom({ble,controllers,adapter,setCurrentProfile,syncController,status}) {
+export function localKartRoom({ble,controllers,adapter,setCurrentProfile,syncController,status,onExpire}) {
   let active=false, playing=false, capacity=2, finished=false;
   let entries=[];
+  let deadline=0, idleTimer;
   const panel=$('localKartRoom'), grid=$('localDrivers'), bar=$('localMatchBar');
+  function expireIfIdle(){
+    if(!deadline || Date.now()<deadline)return false;
+    if(playing)back();
+    close();
+    onExpire(idle.message);
+    $('createLocalRoom').focus();
+    return true;
+  }
+  function startIdleTimer(){
+    clearTimeout(idleTimer);
+    deadline=Date.now()+idle.timeoutMs;
+    idleTimer=setTimeout(expireIfIdle,idle.timeoutMs);
+  }
+  function stopIdleTimer(){clearTimeout(idleTimer);deadline=0;}
+  function interact(event){
+    if(expireIfIdle()){event.stopPropagation();return;}
+    if(active && !playing && event.target.closest('button,select'))startIdleTimer();
+  }
+  panel.addEventListener('click',interact,true);
+  panel.addEventListener('change',interact,true);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)expireIfIdle();});
   for(let n=2;n<=drivers.length;n++)$('localCapacity').add(new Option(String(n),String(n)));
   function screen(){
     document.body.classList.toggle('local-room',active);
@@ -85,6 +108,7 @@ export function localKartRoom({ble,controllers,adapter,setCurrentProfile,syncCon
     if(adapter().api.race.state!=='ready')adapter().api.endLocalRoom();
     adapter().api.audio.unlock();
     active=true;finished=false;setText($('backLocalRoom'),'Return to room');screen();resize(2);$('localCapacity').focus();
+    startIdleTimer();
   }
   function back(){
     if(!playing)return;
@@ -92,9 +116,11 @@ export function localKartRoom({ble,controllers,adapter,setCurrentProfile,syncCon
     adapter().api.endLocalRoom();
     for(const seat of entries)seat.ready=false;
     setCurrentProfile(MARIO_KART_PROFILE);screen();render();$('localCapacity').focus();
+    startIdleTimer();
   }
   function close(){
     if(!active)return;
+    stopIdleTimer();
     active=playing=false;screen();
     entries=[];grid.replaceChildren();
     for(const slot of [...ble.devices.keys()])if(slot>=2)ble.disconnect(slot);
@@ -103,6 +129,7 @@ export function localKartRoom({ble,controllers,adapter,setCurrentProfile,syncCon
     render();
     if(!active || playing || $('startLocalMatch').disabled)return;
     const modes=entries.map(seat=>seat.steering.value);
+    stopIdleTimer();
     playing=true;screen();
     adapter().api.startLocalRoom({drivers:entries.map(seat=>seat.driver.value),modes,
       names:entries.map((_,i)=>'P'+(i+1)),laps:Number($('localLaps').value),bots:$('localBots').value==='true'});
@@ -112,12 +139,16 @@ export function localKartRoom({ble,controllers,adapter,setCurrentProfile,syncCon
   }
   function results(){
     finished=true;setCurrentProfile(MARIO_KART_PROFILE);setText($('backLocalRoom'),'Return for rematch');
+    startIdleTimer();
   }
   function input(slot,state){
     if(playing){adapter()?.api?.setControllerState(slot,state);return;}
     const seat=entries[slot];
     if(!seat || !state.ready || !ble.connected(slot))return;
-    if(state.pressed.a || state.pressed.two){seat.ready=!seat.ready;render();}
+    if(state.pressed.a || state.pressed.two){
+      if(expireIfIdle())return;
+      startIdleTimer();seat.ready=!seat.ready;render();
+    }
   }
   $('localCapacity').onchange=e=>resize(Number(e.target.value));
   $('createLocalRoom').onclick=open;$('startLocalMatch').onclick=start;

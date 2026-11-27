@@ -1,0 +1,4 @@
+{
+  "timeoutMs": 300000,
+  "message": "Room closed after 5 minutes of inactivity."
+}

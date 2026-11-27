@@ -101,3 +101,30 @@ test('lobby directory, host permissions, readiness and match identities survive 
   assert.equal(state.options.bots,false);
   assert.deepEqual(list,[{name:'NoBotHost',code:state.code,game:'kart-racing',count:1,capacity:2,bots:false}]);
 });
+
+test('Socket.IO closes an idle room for every member and lets them create again',async t=>{
+  const server=workshop.createWorkshopServer();
+  await new Promise(resolve=>server.servers[0].listen(0,'127.0.0.1',resolve));
+  const url='http://127.0.0.1:'+server.servers[0].address().port+'/lobbies';
+  const clients=[0,1,2].map(()=>io(url,{autoConnect:false,transports:['websocket']}));
+  t.after(async()=>{for(const client of clients)client.disconnect();await new Promise(resolve=>server.io.close(resolve));});
+  await Promise.all(clients.map(s=>{const ready=once(s,'directory');s.connect();return ready;}));
+  const [host,guest,observer]=clients;
+  const send=(s,action,data={})=>s.emitWithAck('lobby',{action,...data});
+  // Advance the lobby clock while Socket.IO retains real transport timers.
+  t.mock.timers.enable({apis:['Date'],now:1_000_000});
+  const created=once(host,'room');
+  await send(host,'create',{public:true,name:'Host',game:'kart-racing'});
+  const [{code}]=await created;
+  await send(guest,'join',{code,name:'Guest'});
+  t.mock.timers.tick(240000);
+  await send(guest,'activity');
+  t.mock.timers.tick(299999);
+  assert.ok((await send(host,'links',{peers:[]})).ok);
+  const closures=[once(host,'closed'),once(guest,'closed')], directory=once(observer,'directory');
+  t.mock.timers.tick(1);
+  for(const [message] of await Promise.all(closures))assert.match(message,/5 minutes/);
+  assert.deepEqual((await directory)[0],[]);
+  assert.ok((await send(observer,'join',{code,name:'Late'})).error);
+  assert.ok((await send(guest,'create',{name:'New host'})).ok);
+});
