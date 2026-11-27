@@ -19,15 +19,19 @@ try{
   assert.equal(await host.title(),'ControllerKit · Play anything');
   assert.equal(await host.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   const setup=host.locator('#playerGuide');
+  const hasSetupArrow=()=>host.locator('#controllersTab').evaluate(button=>getComputedStyle(button,'::before').content!=='none');
   assert.equal(await setup.isVisible(),true);
+  assert.equal(await hasSetupArrow(),true);
   const [apk]=await Promise.all([
     host.waitForEvent('download'),setup.getByRole('link',{name:'Download Android APK'}).click(),
   ]);
   assert.equal(apk.suggestedFilename(),'air-slice-ble.apk');
   assert.equal(await apk.failure(),null);
   await setup.getByRole('button',{name:'Close setup guide'}).click();
+  assert.equal(await hasSetupArrow(),false);
   await host.reload();await host.waitForFunction(()=>window.__controllerkit);
   assert.equal(await setup.isVisible(),false);
+  assert.equal(await hasSetupArrow(),false);
   pass('first visit offers the Android APK and returning players go straight to the Channel Menu');
   await host.screenshot({path:path.join(output,'host-dashboard.png'),fullPage:true});
   assert.deepEqual(await host.locator('#gameList strong').allTextContents(),['Mario Kart','Fruit Ninja','Controller Lab','Online Play']);
@@ -97,27 +101,22 @@ try{
   await host.evaluate(()=>__fakeBle.phones[0].buttons(16));await host.waitForFunction(()=>__controllerkit.adapter().api.game.paused===false);
   await host.evaluate(()=>__fakeBle.phones[0].buttons(0));
   const game=host.frames().find(frame=>frame.url().includes('/games/fruit-ninja/index.html'));
-  await game.evaluate(async()=>{const {FRUIT_TYPES}=await import('/games/fruit-ninja/logic.js');const game=__openwii.game;game.state.nextSpawn=Infinity;game.fruits=[{id:80001,x:-game.w/4,y:0,vx:0,vy:0,r:.62,rot:0,spin:0,spinAxis:{x:1,y:0,z:0},kind:FRUIT_TYPES[3],lane:0}];});
-  await game.waitForFunction(()=>__openwii.meshes.has(80001));
-  const before=await game.evaluate(()=>__openwii.game.state.score),box=await host.locator('iframe[title="Fruit Ninja game"]').boundingBox();
-  await game.evaluate(()=>{window.__pointerEvents=[];for(const name of ['pointerdown','pointermove','pointerup'])document.getElementById('game').addEventListener(name,event=>__pointerEvents.push({name,x:event.clientX,y:event.clientY,t:performance.now(),points:__openwii.game.getPlayer(0).trail.points.length,reset:__openwii.pointer.pending.reset,fruitY:__openwii.game.fruits[0]?.y}));});
-  const target=()=>game.evaluate(()=>{const fruit=__openwii.game.fruits.find(f=>f.id===80001);return fruit?__openwii.toScreen(fruit.x,fruit.y):null;});
-  const initial=await target();await host.mouse.move(box.x+box.width*.12,box.y+initial.y);await host.mouse.down();
-  // Wait for real input consumption before releasing: a fixed sleep can miss
-  // the last movement on a cold renderer or a slower workshop laptop.
-  for(let step=1;step<=8;step++){
-    const point=await target();if(!point)break;
-    const position={x:box.width*(.12+.26*step/8),y:point.y};
-    await host.mouse.move(box.x+position.x,box.y+position.y);
-    await game.waitForFunction(({x,y})=>{
-      const cursor=__openwii.game.getPlayer(0).cursor;if(!cursor.active)return false;
-      const screen=__openwii.toScreen(cursor.x,cursor.y);
-      return Math.abs(screen.x-x)<3&&Math.abs(screen.y-y)<3;
-    },position,{timeout:2000});
-  }
-  await host.mouse.up();
-  try{await game.waitForFunction(score=>__openwii.game.state.score>score,before,{timeout:5000});}
-  catch(error){console.error('Mouse trace:',await game.evaluate(()=>({events:__pointerEvents,paused:__openwii.game.paused,cursor:__openwii.game.getPlayer(0).cursor,input:__openwii.pointer.position,live:__openwii.pointer.live,state:__openwii.game.state})));throw error;}
+  const box=await host.locator('iframe[title="Fruit Ninja game"]').boundingBox();
+  const before=await game.evaluate(async()=>{
+    const {FRUIT_TYPES}=await import('/games/fruit-ninja/logic.js'),g=__openwii.game;
+    g.fruits=[];g.state.nextSpawn=Infinity;
+    // Launch at mouse-down so the fruit is in reach for the real swipe,
+    // regardless of how long the browser takes to position the pointer.
+    document.getElementById('game').addEventListener('pointerdown',()=>{
+      const {x,y}=__openwii.toWorld(.25,.5);
+      g.fruits=[{id:80001,x,y,vx:0,vy:3,r:.62,rot:0,spin:0,spinAxis:{x:1,y:0,z:0},kind:FRUIT_TYPES[3],lane:0}];
+    },{once:true});
+    return g.state.score;
+  });
+  const sweepY=box.y+box.height*.5;
+  await host.mouse.move(box.x+box.width*.12,sweepY);await host.mouse.down();
+  await host.mouse.move(box.x+box.width*.38,sweepY,{steps:2});await host.mouse.up();
+  await game.waitForFunction(score=>__openwii.game.state.score>score,before,{timeout:5000});
   await host.screenshot({path:path.join(output,'fruit-ninja.png'),fullPage:true});
   pass('native A starts the actual supplied game and a desktop sweep slices real fruit');
   await game.waitForFunction(()=>__openwii.visuals.get(0).screen.active&&!__openwii.game.getPlayer(0).cutting);

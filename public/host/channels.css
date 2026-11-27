@@ -13,6 +13,26 @@
 .topbar button,.system-button {min-height:44px;padding:6px 18px;border:1px solid #b5c6cd;border-radius:25px;background:linear-gradient(#fff,#f0f5f7);color:#324e5c;font-weight:700}
 .topbar button:hover,.system-button:hover {border-color:#3689ac;background:#fff}
 body[data-view="channels"]:not(.online-mode) #playTab {display:none}
+/* The inline guide already tracks a first visit and moves into the setup dialog when opened. */
+body[data-view="channels"]:not(.online-mode):has(.library > #playerGuide:not([hidden])) #controllersTab {
+  position:relative;
+  color:white;
+  border-color:#086487;
+  background:linear-gradient(#147b9f,#09688e);
+  box-shadow:0 0 0 3px #b5e5f3;
+  &::before {
+    content:"";
+    position:absolute;
+    right:calc(100% + 10px);
+    top:50%;
+    width:30px;
+    height:20px;
+    transform:translateY(-50%);
+    background:var(--setup-arrow-color,var(--blue));
+    clip-path:polygon(0 37%,62% 37%,62% 0,100% 50%,62% 100%,62% 63%,0 63%);
+    pointer-events:none;
+  }
+}
 .workspace {max-width:1160px;margin:0 auto;padding:18px 30px 34px}
 .library {max-width:960px;margin:auto}
 .menu-title {margin:6px 0 18px;font:750 clamp(23px,3.2vw,36px)/1.2 var(--heading-font);letter-spacing:-1.2px;color:#465b66}
@@ -116,4 +136,5 @@ body[data-view="channels"]:not(.online-mode) #playTab {display:none}
 }
 @media (forced-colors:active) {
   .channel-kart strong {width:auto;height:auto;color:ButtonText}
+  #controllersTab::before {--setup-arrow-color:ButtonText;forced-color-adjust:none}
 }
