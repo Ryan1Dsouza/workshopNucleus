@@ -540,8 +540,8 @@ if(!joiningOnline){
   }catch{playerGuide.hidden=false;}
 }
 if(joiningOnline)void online.open();
-else if(games.length)void select('remote');
-else{notice('The Bluetooth host is ready. Install the app, then connect a player.');$('gameList').textContent='Connect your phone to get started.';}
+else if(!games.length){notice('The Bluetooth host is ready. Install the app, then connect a player.');$('gameList').textContent='Connect your phone to get started.';}
+else if(!selection)void select('remote');
 window.__controllerkit={controllers,ble,online,couch,registry,registerGame,profile:()=>profile,current:()=>current,adapter:()=>adapter,select,play,togglePause,enableDemo,stage,features};
 try{
   const info=staticSite?{}:await fetch('/connection-info').then(response=>response.json()),origins=downloadOrigins(info,location);
