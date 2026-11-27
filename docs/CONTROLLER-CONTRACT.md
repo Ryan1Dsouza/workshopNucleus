@@ -28,6 +28,7 @@ After a successful verified connection, the host remembers that phone's id for i
 | Profile chunk | ≤20 | code 0x41; transfer id u16; exact byte offset u16; up to 15 data bytes |
 | End profile | 3 | code 0x42; transfer id u16 |
 | Profile acknowledgement | 6 | code 0x43; transfer id u16; status u8 (0 accepted); profile epoch u16 |
+| Android wheel display rotation (optional) | 4 | opcode 0x44, Surface rotation u8 (0 through 3), profile epoch u16 |
 | Ping / pong | 5 | code 0x10 / 0x90; echoed timestamp token u32 |
 
 Quaternion components use ±32767 and are normalized on decode. Speed uses 0.01 degrees/second. Motion flags bit 0 means active and bit 1 means fresh gyro. Capture clocks and sequence numbers unwrap independently.
@@ -79,7 +80,7 @@ Allowed orientations are portrait/landscape; motion modes are none/aim/steer. Co
 
 The actual button objects include every supported id. Action objects use the selected profile's mappings. Multiple buttons mapped to one action remain held until all release. Edges survive short taps and are consumed once. x/y are normalized aim; steer is −1..1 measured grip rotation. A game must respect ready, cutting and reset rather than manufacturing a swipe.
 
-displayAxes supplies capture-timed, interpolated coordinates for visible dots and blade tips. Its buffer adapts from 8 to 64 ms to the actual packet interval and arrival jitter; normal fast links retain a short delay. It holds the last measured endpoint during silence. The host disables extra input filtering: axes/cutting/reset remain immediate measured collision input, and only presentation interpolates. Centering and session changes clear the display buffer. Missing button heartbeats release held buttons without suspending a fresh gyro stream. Adapters without displayAxes can fall back to axes.
+displayAxes supplies capture-timed, interpolated coordinates for visible dots and blade tips. Its buffer adapts from 8 to 64 ms to the actual packet interval and arrival jitter; normal fast links retain a short delay. It holds the last measured endpoint during silence. Aim profiles also supply motionPath, an ordered batch of measured x/y positions with capture time poseTime, age in milliseconds, and per-vertex cutting/reset flags. Consume each batch once for collision. Wheel profiles supply displayAxes.steer with a maximum 36 ms interpolation delay and axes.steer with the latest measured steering. Centering and session changes clear the display buffer. Missing button heartbeats release held buttons without suspending a fresh gyro stream. Adapters without displayAxes can fall back to axes.
 
 ## Game entry and lifecycle
 

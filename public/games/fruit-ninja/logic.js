@@ -137,7 +137,7 @@ export class FruitNinja {
 
   /** A phone's blade position in world units. `slot` defaults to the lone
    *  single-player controller. */
-  setCursor(x, y, now, slot = 0, { cutting = true, reset = false } = {}) {
+  setCursor(x, y, now, slot = 0, { cutting = true, reset = false, captureAt = now } = {}) {
     const p = this.getPlayer(slot);
     if (reset) p.trail.clear();
     const bounds = this.laneBounds(slot);
@@ -147,7 +147,13 @@ export class FruitNinja {
     p.cursor.active = true;
     p.lastActiveAt = now;
     p.cutting = cutting;
-    p.trail.push(x, y, now);
+    const queued = p.trail.segments.length;
+    p.trail.push(x, y, captureAt, true);
+    if (p.trail.segments.length > queued) {
+      if (!cutting || p.trail.speed() <= MIN_SLICE_SPEED) p.trail.segments.pop();
+      else p.trail.segments[queued].at = now;
+    }
+    if (p.trail.segments.length > 32) p.trail.segments.shift();
   }
 
   start(now) {
@@ -158,6 +164,7 @@ export class FruitNinja {
       remainingMs: this.durationMs,
     });
     this.fruits.length = 0;
+    this.spawnNumber = 0;
     this.halves.length = 0;
     this.particles.length = 0;
     // Fresh round for every player who's ever connected — scores and combos
@@ -181,8 +188,10 @@ export class FruitNinja {
 
   spawn(isBomb, now, lane = 0) {
     // Skip an overcrowded wave instead of queueing it for a catch-up burst.
-    if (this.fruits.length >= MAX_ACTIVE_FRUIT) return false;
-    const kind = FRUIT_TYPES[(Math.random() * FRUIT_TYPES.length) | 0];
+    if (!this.network && this.fruits.length >= MAX_ACTIVE_FRUIT) return false;
+    const random = this.spawnRandom || Math.random;
+    const rand = (a,b)=>a+(b-a)*random();
+    const kind = FRUIT_TYPES[(random() * FRUIT_TYPES.length) | 0];
     const bounds = this.laneBounds(lane);
     const radius = isBomb ? 0.6 : kind.r;
     const inset = Math.min(radius + .1, (bounds.max - bounds.min) / 2);
@@ -200,7 +209,7 @@ export class FruitNinja {
       spinAxis: { x: rand(-1, 1), y: rand(-1, 1), z: rand(-1, 1) },
       bomb: !!isBomb,
       kind,
-      id: FruitNinja.nextId++,
+      id: this.network ? -(++this.spawnNumber) : FruitNinja.nextId++,
       lane: this.splitScreen ? lane : undefined,
     });
     this.onEvent({ type: 'launch', bomb: !!isBomb });
@@ -276,31 +285,26 @@ export class FruitNinja {
     this.state.remainingMs = Math.max(0, this.durationMs - (now - this.state.startedAt));
     if (this.durationMs && !this.state.remainingMs) { this.end(now, 'timer'); return; }
 
-    if (now >= this.state.nextSpawn) {
-      const roll = Math.random();
+    while (now >= this.state.nextSpawn) {
+      const at = this.network ? this.state.nextSpawn : now;
+      const random = this.spawnRandom || Math.random;
+      const roll = random();
       const burst = roll < 0.15 ? 4 : roll < 0.35 ? 3 : roll < 0.62 ? 2 : 1;
       for (let i = 0; i < burst; i += 1) {
-        for (const lane of this.splitScreen ? [0, 1] : [0]) this.spawn(Math.random() < this.bombChance(now), now, lane);
+        for (const lane of this.splitScreen ? [0, 1] : [0]) this.spawn(random() < this.bombChance(at), at, lane);
       }
-      this.state.nextSpawn = now + this.spawnInterval(now);
+      this.state.nextSpawn = at + this.spawnInterval(at);
     }
 
     const floor = -this.h / 2 - 1.2;
 
-    // Only blades that are actually moving (and recently — see lastActiveAt
-    // below) can cut. Computed once per frame, same as the old single-blade
-    // version, just fanned out across however many phones are connected.
+    // Consume each speed-qualified, measured segment once. Expire a queued
+    // swing if the display stalls or the player leaves during delivery.
     const activeBlades = [];
     for (const p of this.players.values()) {
-      // A staleness cutoff on top of the speed gate: without it, a player who
-      // disconnects (or whose game.js stops calling setCursor) mid-swing
-      // leaves their last real segment frozen in place forever — trail.speed()
-      // keeps reporting that final swing's speed because nothing ages it
-      // without a fresh push(). A "ghost blade" that never goes cold would
-      // keep slicing anything that happens to drift across its last position.
-      const segments = p.trail.segments.splice(0);
-      if (!p.cutting || now - p.lastActiveAt > 100) continue;
-      if (p.trail.speed() > MIN_SLICE_SPEED && segments.length > 0) activeBlades.push({ player: p, segments });
+      const segments = p.trail.segments.splice(0).filter(segment => now - segment.at <= 100);
+      if (this.network && p.slot !== this.network.slot) continue;
+      if (segments.length) activeBlades.push({ player: p, segments });
     }
 
     for (let i = this.fruits.length - 1; i >= 0; i -= 1) {
@@ -331,12 +335,13 @@ export class FruitNinja {
       }
 
       if (cutBy) {
+        if(this.network)this.network.cut(f,cutSeg);
         this.fruits.splice(i, 1);
         if (f.bomb) {
           this.explode(f);
           if (this.infiniteLives) {
             // Practice: the blast costs points, not the run.
-            this.state.score = Math.max(0, this.state.score - BOMB_PENALTY);
+            this.state.score = Math.max(0, this.state.score - (this.network ? Math.min(cutBy.score,BOMB_PENALTY) : BOMB_PENALTY));
             cutBy.score = Math.max(0, cutBy.score - BOMB_PENALTY);
             cutBy.combo = 0;
             this.state.combo = 0;

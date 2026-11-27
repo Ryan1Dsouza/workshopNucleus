@@ -19,3 +19,26 @@ export const RACING_PROFILE = Object.freeze({ id: 'kart-racing', title: 'Pocket 
     { id:'one', label:'Restart', action:'restart' }, { id:'two', label:'Restart', action:'restart' },
     { id:'plus', label:'Pause', action:'pause' }, { id:'minus', label:'Restart', action:'restart' }, { id:'home', label:'Games', action:'home' }
   ] });
+
+export const MARIO_KART_PROFILE = Object.freeze({ id: 'kart-racing', title: 'Mario Kart', orientation: 'landscape', motion: 'none',
+  instruction: 'Choose a driver with the D-pad. Press A to confirm, then A again to race. Use − to switch steering.', centerLabel: 'Center steering',
+  controls: [
+    ...['left','right','up','down'].map(id => ({id, label:id, action:id})),
+    {id:'a',label:'Confirm',action:'confirm'}, {id:'two',label:'OK',action:'confirm'},
+    {id:'b',label:'Back',action:'back'}, {id:'one',label:'Back',action:'back'},
+    {id:'minus',label:'Steering',action:'steering-mode'}, {id:'home',label:'Games',action:'home'}
+  ] });
+
+export function kartRaceProfile(mode) {
+  const gyro = mode === 'gyro';
+  return {...MARIO_KART_PROFILE, layout:gyro ? 'kart-gyro' : 'kart-dpad', motion:gyro ? 'steer' : 'none',
+    instruction:gyro ? 'Tilt to steer. Hold Drift through a turn and release for a mini-turbo.' : 'Use left and right to steer. Hold Drift through a turn and release for a mini-turbo.',
+    controls:[
+      {id:'up',label:'Accelerate',action:'accelerate'}, {id:'down',label:'Brake',action:'brake'},
+      {id:'left',label:'Left',action:gyro?'left':'steer-left'}, {id:'right',label:gyro?'Use item':'Right',action:gyro?'item':'steer-right'},
+      {id:'a',label:'Drift',action:'drift'}, {id:'b',label:gyro?'Accelerate':'Use item',action:gyro?'accelerate':'item'},
+      {id:'one',label:'Brake',action:'brake'}, {id:'two',label:'Accelerate',action:'accelerate'},
+      {id:'plus',label:'Pause',action:'pause'}, {id:'home',label:'Games',action:'home'},
+      ...(gyro?[{id:'minus',label:'Recenter',action:'recenter'}]:[])
+    ]};
+}

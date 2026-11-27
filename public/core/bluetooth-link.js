@@ -90,6 +90,7 @@ export class BluetoothLink {
       r.connected = false; this.state(r, 'Connecting Bluetooth…');
       this.cleanupListeners(r);
       r.lastSequence = -1; r.paused = false; r.captureAt = null;
+      r.forwardedAt = r.forwardedEpoch = null;
       r.session = `ble:${r.device.id}:${++this.serial}`;
       r.timeline = new BleTimeline(); r.metrics = new PeerMetrics(); r.captureRate = new RateWindow();
       r.writeBusy = false; r.pendingFeedback = null; r.pingAt = null;
@@ -107,6 +108,10 @@ export class BluetoothLink {
           if (buttons) this.handlers.onButtons?.(buttons, r.slot, r.session);
           return;
         }
+        if (code === 0x44 && v.byteLength === 4 && v.getUint8(1) <= 3) {
+          this.handlers.onCommand?.({type:'wheel-rotation',rotation:v.getUint8(1),profileEpoch:v.getUint16(2,true),session:r.session},r.slot);
+          return;
+        }
         if (code === 0x43) {
           const ack = decodeProfileAck(v);
           if (ack?.transferId === r.profileTransferId) r.resolveProfileAck?.(ack);
@@ -117,7 +122,7 @@ export class BluetoothLink {
         } else if (code === 2) {
           const command = decodeBleCenter(v);
           if (command?.pose) command.pose.t = command.pose.poseT = r.timeline.captureTime(command.pose.t);
-          if (command) this.handlers.onCommand?.({ ...command, session: r.session }, r.slot);
+          if (command) this.handlers.onCommand?.({ ...command, source:'bluetooth-native', session: r.session }, r.slot);
         } else if (v.byteLength === 1) {
           const type = ({ 1: 'start', 3: 'suspend', 5: 'disconnect' })[code];
           if (type) this.handlers.onCommand?.({ type, session: r.session }, r.slot);
@@ -133,6 +138,8 @@ export class BluetoothLink {
           if (!r.paused) this.handlers.onCommand?.({ type: 'suspend' }, r.slot);
           r.paused = true; return;
         }
+        if (r.forwardedAt===sample.poseT && r.forwardedEpoch===sample.epoch) return;
+        r.forwardedAt=sample.poseT; r.forwardedEpoch=sample.epoch;
         r.paused = false; this.handlers.onSample?.({ ...sample, session: r.session }, r.slot);
       };
       for (const [characteristic, listener] of [[control, onControl], [motion, onMotion]]) {
@@ -226,19 +233,19 @@ export class BluetoothLink {
         r.profileTransferId = (++this.serial) & 65535;
         const packets = profilePackets(next, r.profileTransferId);
         let timer;
-        const acknowledged = new Promise((resolve, reject) => {
-          r.resolveProfileAck = resolve;
-          timer = setTimeout(() => reject(new Error('The phone did not accept the controls. Install the current controller app.')), 8000);
-        });
-        // Attach a rejection handler immediately while the sequential writes run.
-        void acknowledged.catch(() => {});
+        const acknowledged = new Promise(resolve => { r.resolveProfileAck = resolve; });
         try {
           for (const packet of packets) {
             check();
             while (r.writeBusy) { await new Promise(resolve => setTimeout(resolve, 5)); check(); }
             if (!await this.write(r, packet)) throw new Error('Could not send controls. Update the controller app and reconnect.');
           }
-          ack = await acknowledged; check();
+          // The phone can acknowledge only after receiving the final chunk.
+          // Background scheduling or a slow GATT write must not consume its reply window.
+          const timeout = new Promise((_,reject)=>{
+            timer=setTimeout(()=>reject(new Error('The phone did not accept the controls. Install the current controller app.')),8000);
+          });
+          ack = await Promise.race([acknowledged,timeout]); check();
           if (!ack.ok || ack.profileEpoch !== next.profileEpoch) throw new Error('The phone rejected the controller profile.');
         } finally { clearTimeout(timer); r.resolveProfileAck = null; }
       }

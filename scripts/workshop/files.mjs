@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-export const sourceEntries = ['public', 'server', 'native', 'licenses', 'tests', 'scripts', 'workshop', 'docs', '.agents', 'skills-lock.json', 'AGENTS.md', 'README.md', '.gitignore', 'package.json', 'package-lock.json'];
+export const sourceEntries = ['public', 'server', 'native', 'licenses', 'tests', 'scripts', 'workshop', 'docs', '.agents', 'skills-lock.json', 'AGENTS.md', 'vercel.json', 'README.md', '.gitignore', 'package.json', 'package-lock.json'];
 export const sha256 = content => createHash('sha256').update(content).digest('hex');
 export const json = value => JSON.stringify(value, null, 2) + '\n';
 export function inside(folder, relative) {

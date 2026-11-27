@@ -64,12 +64,29 @@ Outputs are dist/controllerkit-kit/ and dist/controllerkit-workshop/. Share the 
 | scripts/ | Audits, native preparation, kit creation and reconstruction tools |
 | workshop/, docs/, licenses/ | Teaching material, contracts, visual reference and attribution |
 
+## Local and online play
+
+Run `npm ci` and `npm start`, then open `http://localhost:3000/host/` in Chrome. Local play works without internet once the dependencies and phone app are installed. Pair either one phone for solo play or two phones on the same laptop for Fruit Ninja split-screen.
+
+For LAN invites from localhost, the Node host uses its local HTTPS address. Trust the development certificate on the second laptop. For internet play, use the deployed HTTPS frontend below.
+
+For online play each person opens the host on their own laptop and pairs their phone under Player 1. Choose **Online**, enter a name, and create a public or private lobby. Guests can select a public listing, enter the room code, or open the invite link. Mario Kart supports 2–8 people. The host assigns a different driver to each player and CPUs fill the grid. Fruit Ninja supports two players. Everyone chooses **Ready**, then the host starts. Online play continues when someone presses Pause. For straight driving, center the phone in your usual landscape grip. Mario Kart ignores up to 4.5° of hand tilt to either side and eases into a turn as you tilt farther. Ready up again after the results for a rematch. Leaving or losing the host closes the match.
+
+### Deploy the frontend and signaling service
+
+1. Deploy this repository to a persistent Node 22 web service on Render, Fly.io or Railway. Install with `npm ci --omit=dev`, start with `node server/index.cjs`, and set `LOCAL_HTTPS=0` behind the provider's HTTPS proxy. Enable WebSocket upgrades and use one service instance. Rooms live in memory and expire on host disconnect or server restart.
+2. Import the repository into Vercel. The supplied configuration builds with `npm run build` and publishes `dist/web`. Set `SIGNAL_URL` to the HTTPS origin of the Node service. On the service, set `LOBBY_ORIGINS` to the comma-separated frontend origins. Redeploy after changing these values.
+3. Set Vercel's `ICE_SERVERS` build variable to a JSON array such as `[{"urls":"stun:stun.example.org:3478"},{"urls":"turn:turn.example.org:3478?transport=udp","username":"player","credential":"temporary-password"}]`. The default supplies a public STUN server. For restrictive NATs, supply a working UDP TURN relay. These values are visible to browsers. Use client-scoped TURN credentials and rotate them before expiry.
+
+The lobby socket carries discovery, setup, SDP and ICE. Every pair of laptops exchanges live game frames over an unordered WebRTC data channel with zero retransmits. A selected TURN candidate relays the encrypted WebRTC traffic over UDP. Networks that block UDP cannot start an online match.
+
 ## Checks
 
 ~~~sh
 npm test
 npm run audit:stage -- 7
 npm run audit:controller
+node scripts/audit/multiplayer.mjs
 npm run audit:filter
 npm run test:native-protocol
 ~~~

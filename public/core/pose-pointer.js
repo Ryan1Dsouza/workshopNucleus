@@ -1,4 +1,4 @@
-import { axesFromSample, clamp, cross, dot, length, scale, DEG } from './orientation.js';
+import { axesFromSample, clamp, cross, dot, length, scale, DEG, sweepRates } from './orientation.js';
 import { OneEuroFilter } from './one-euro.js';
 
 const unit = vector => scale(vector, 1 / Math.max(length(vector), 1e-9));
@@ -23,11 +23,12 @@ export class PosePointer {
   get display() { return this.pos; }
   get position() { return this.pos; }
   get pixels() { return { x: this.pos.x * this.w, y: this.pos.y * this.h }; }
-  setViewport(w, h) { this.w = Math.max(1, w); this.h = Math.max(1, h); }
+  setViewport(w, h) { this.w = Math.max(1, w); this.h = Math.max(1, h); this.aspect = this.h / this.w; }
   describeMap() { return 'calibrated angle · no prediction'; }
   setSmoothing(value) { this.smoothing=!!value;Object.assign(this.pos,this.rawPosition);this.filterYaw.reset();this.filterPitch.reset();this.pending={cutting:false,reset:true}; }
   project(yaw,pitch,time,reset=false) {
-    const position=(a,b)=>({x:clamp(.5+a*this.sensitivity*(this.invertX?-1:1)/this.degPerScreen,0,1),y:clamp(.5-b*this.sensitivity*(this.invertY?-1:1)/(this.degPerScreen*this.aspect),0,1)});
+    const pitchSpan = this.degPerScreen * clamp(this.aspect, .55, 1.25);
+    const position=(a,b)=>({x:clamp(.5+a*this.sensitivity*(this.invertX?-1:1)/this.degPerScreen,0,1),y:clamp(.5-b*this.sensitivity*(this.invertY?-1:1)/pitchSpan,0,1)});
     this.rawPosition=position(yaw,pitch);
     if(reset){this.filterYaw.reset(yaw,time);this.filterPitch.reset(pitch,time);}
     const a=this.smoothing?this.filterYaw.filter(yaw,time):yaw,b=this.smoothing?this.filterPitch.filter(pitch,time):pitch;
@@ -78,7 +79,7 @@ export class PosePointer {
     if (delta < this.noiseDegrees) {
       this.rateDps = { yaw: 0, pitch: 0 };
       // Filter settling is aiming only; it cannot arm a new collision stroke.
-      if(this.smoothing && newPose && !this.pending.cutting)this.project(this.yaw,this.pitch,poseTime);
+      if(newPose && !this.pending.cutting)this.project(this.yaw,this.pitch,poseTime);
       return true;
     }
     const seconds = Number.isFinite(dt) && dt > 0 ? dt : 1 / 60;
@@ -92,12 +93,21 @@ export class PosePointer {
       && direction.x * this.lastDirection.x + direction.y * this.lastDirection.y > 0.7;
     this.poseStreak = coherent ? this.poseStreak + 1 : 1;
     this.lastDirection = direction; this.lastChangeAt = now;
-    const physical = rates ? gyroFresh && Math.hypot(rates.rx || 0, rates.ry || 0, rates.rz || 0) > 1
+    const gyroSpeed = rates ? Math.hypot(rates.rx || 0, rates.ry || 0, rates.rz || 0) : 0;
+    const physical = rates ? gyroFresh && gyroSpeed > 1
       : this.poseStreak >= 2 && angularSpeed < 300 && delta < 8;
     const discontinuity = angularSpeed > 1000 || delta > 25;
     this.yaw = yaw; this.pitch = pitch;
     this.rateDps = { yaw: dYaw / seconds, pitch: dPitch / seconds };
-    this.project(yaw,pitch,poseTime,discontinuity || this.pending.reset);
+    let correctedYaw = yaw, correctedPitch = pitch;
+    if (newPose && physical && !discontinuity && !this.pending.reset && angularSpeed > 210 && gyroSpeed > 210) {
+      const velocity = sweepRates(sample, axes, beam, ref, dYaw, dPitch);
+      if (velocity && velocity[0]*dYaw + velocity[1]*dPitch > 0) {
+        correctedYaw += .25 * clamp(velocity[0]*seconds-dYaw, -2, 2);
+        correctedPitch += .25 * clamp(velocity[1]*seconds-dPitch, -2, 2);
+      }
+    }
+    this.project(correctedYaw,correctedPitch,poseTime,discontinuity || this.pending.reset);
     this.pending = { cutting: physical && !discontinuity && !this.pending.reset, reset: discontinuity || this.pending.reset };
     return true;
   }

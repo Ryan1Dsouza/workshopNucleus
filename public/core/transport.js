@@ -7,6 +7,67 @@ import { features } from '../stage.mjs';
 export { roomCode } from './room.js';
 const safeParse = text => { try { return JSON.parse(text); } catch { return null; } };
 
+// Laptop-to-laptop gameplay. Signaling handles only SDP and ICE.
+export class MatchPeer {
+  constructor({initiator,iceServers=[],signal,onLink,onFrame,onLatency}) {
+    this.pc=new RTCPeerConnection({iceServers});
+    this.signal=signal;this.onLink=onLink;this.onFrame=onFrame;this.onLatency=onLatency;
+    this.pending=[];this.sequence=0;this.closed=false;this.lastSequence=-1;
+    this.pc.onicecandidate=({candidate})=>{
+      if(candidate?.protocol==='udp')signal({candidate:candidate.toJSON()});
+    };
+    this.pc.onconnectionstatechange=()=>{
+      if(['failed','disconnected'].includes(this.pc.connectionState))onLink(false);
+      else if(this.pc.connectionState==='connected' && this.channel?.readyState==='open')onLink(true);
+    };
+    this.pc.ondatachannel=({channel})=>this.attach(channel);
+    if(initiator)this.attach(this.pc.createDataChannel('match',{ordered:false,maxRetransmits:0}));
+  }
+  async describe(offer) {
+    const sdp=offer?await this.pc.createOffer():await this.pc.createAnswer();
+    if(this.closed)return;
+    await this.pc.setLocalDescription(sdp);
+    // SDP may already contain gathered candidates in an answer or ICE restart.
+    const udpOnly = sdp.sdp.split('\r\n').filter(line=>!/^a=candidate:/i.test(line)||/ udp /i.test(line)).join('\r\n');
+    if(!this.closed)this.signal({description:{type:sdp.type,sdp:udpOnly}});
+  }
+  async receive({description,candidate}) {
+    if(this.closed)return;
+    if(description){
+      await this.pc.setRemoteDescription(description);
+      for(const c of this.pending.splice(0))await this.pc.addIceCandidate(c);
+      if(description.type==='offer')await this.describe(false);
+    }else if(candidate && / udp /i.test(candidate.candidate)){
+      if(this.pc.remoteDescription)await this.pc.addIceCandidate(candidate);
+      else this.pending.push(candidate);
+    }
+  }
+  attach(channel) {
+    if(channel.label!=='match' || channel.ordered || channel.maxRetransmits!==0){channel.close();return;}
+    this.channel=channel;
+    channel.onopen=()=>{
+      this.onLink(true);
+      this.ping=setInterval(()=>this.send({ping:performance.now()}),800);
+    };
+    channel.onclose=()=>{clearInterval(this.ping);if(!this.closed)this.onLink(false);};
+    channel.onmessage=({data})=>{
+      if(typeof data!=='string' || data.length>64000)return;
+      const p=safeParse(data);if(!p)return;
+      if(Number.isFinite(p.ping)){this.send({pong:p.ping});return;}
+      if(Number.isFinite(p.pong)){this.onLatency(Math.round(Math.max(0,performance.now()-p.pong)));return;}
+      if(this.match && p.match===this.match && Number.isSafeInteger(p.seq) && p.seq>this.lastSequence){
+        this.lastSequence=p.seq;this.onFrame(p.frame);
+      }
+    };
+  }
+  begin(match){this.match=match;this.lastSequence=-1;this.sequence=0;}
+  send(data){
+    if(this.channel?.readyState==='open' && this.channel.bufferedAmount<64000)this.channel.send(JSON.stringify(data));
+  }
+  frame(frame){if(this.match)this.send({match:this.match,seq:++this.sequence,frame});}
+  close(){this.closed=true;clearInterval(this.ping);this.channel?.close();this.pc.close();}
+}
+
 export class MotionLink {
   constructor({ role, room, slot = 0, onSample, onCommand, onPresence, onFeedback, onStatus, onReset } = {}) {
     this.role = role; this.room = room; this.slot = slot;

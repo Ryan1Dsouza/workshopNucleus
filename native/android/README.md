@@ -1,6 +1,6 @@
 # ControllerKit Android app
 
-ControllerKit 2.0.2 (versionCode 6) keeps application id workshop.airslice.ble so the APK can update the existing installation. It restores the notification-based control path, supports cached indication subscriptions, and gives fresh gyro motion a turn between queued controls. After updating the APK, reload the laptop host and reconnect. The UI remains a shared Wii-style remote with game-selected controls.
+ControllerKit 2.0.5 (versionCode 9) keeps application id workshop.airslice.ble so the APK can update the existing installation. Mario Kart switches from character selection to dedicated D-pad or gyro controls at the countdown. After updating the APK, reload the laptop host and reconnect.
 
 MainActivity hosts an offline WebView. MotionService owns Bluetooth, fused orientation and a user-started foreground service. The existing camera/notification workflow is retained; buttons release when the activity hides. Phones without the required motion sensors can use buttons.
 

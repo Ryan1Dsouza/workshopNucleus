@@ -28,6 +28,20 @@ test('Bluetooth isolates two players, rejects duplicate phone assignment and mal
   fake.phones[0].control.emit([2]); assert.equal(commands.at(-1).c.type, 'recentre');
   assert.notEqual(samples[0].s.session, samples[1].s.session);
 });
+test('display hints stay tied to the BLE slot and an inactive dispatch permits only a fresh recovered capture',async t=>{
+  const {fake,link,samples,commands}=fixture(t);
+  fake.next=1;await link.connect(1);
+  const d=fake.phones[1];d.pose();
+  d.control.emit([0x44,3,0x34,0x12]);d.control.emit([0x44,7,0x34,0x12]);d.control.emit([0x44,0]);
+  assert.deepEqual(commands,[{slot:1,c:{type:'wheel-rotation',rotation:3,profileEpoch:0x1234,session:samples[0].s.session}}]);
+  d.pose(0,0,false);
+  d.time-=32;d.pose(); // a new sequence number repeats the pre-suspend pose
+  assert.equal(samples.length,1);
+  d.time-=8;d.pose(); // a fresh capture between the previous pose and inactive dispatch
+  assert.equal(samples.length,2);assert.equal(samples[1].s.poseT-samples[0].s.poseT,8);
+  assert.equal(link.diagnostics()[0].captureToSendMs.count,0);
+});
+
 test('GATT writes serialize ping and one newest feedback rather than creating a backlog', async t => {
   const { fake, link } = fixture(t); await link.connect(0);
   const r = link.devices.get(0), pending = link.ping(r);

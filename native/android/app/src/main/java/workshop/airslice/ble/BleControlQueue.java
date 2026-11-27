@@ -16,7 +16,7 @@ public final class BleControlQueue {
         var iterator=pending.iterator();
         while(iterator.hasNext()){
             byte[] frame=iterator.next();
-            if(frame.length>0&&(frame[0]==2||(frame[0]&255)==0x43)){iterator.remove();lastWasControl=true;return frame;}
+            if(frame.length>0&&(frame[0]==2||(frame[0]&255)==0x43||(frame[0]&255)==0x44)){iterator.remove();lastWasControl=true;return frame;}
         }
         if(motionDue&&lastWasControl){lastWasControl=false;return null;}
         byte[] frame=pending.pollFirst();lastWasControl=frame!=null;return frame;

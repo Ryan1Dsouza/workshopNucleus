@@ -1,5 +1,7 @@
 # Verification — ControllerKit 2.0
 
+The Android 2.0.3 steering audit includes a timed Chrome replay, a signed APK build and the physical-device verification boundary. [BLE steering audit](BLE-STEERING-AUDIT.md)
+
 ## Observed software results
 
 A fresh Stage 0 starter installed its pinned dependencies and advanced sequentially through all seven checkpoints. Source equality, units and the staged browser checks passed at each layer.
@@ -22,7 +24,7 @@ Chrome DevTools traced empty, eight-fruit and maximum-load rendering (24 fruits,
 
 The redesigned interface follows [UI-DESIGN.md](UI-DESIGN.md). Its native HTML rendered from a local file with both embedded fonts, an enabled Center action and no browser errors, failed requests or external stylesheet links. The connected remote fits the checked 390 × 844 viewport. The APK's controller asset matches the current native source exactly.
 
-Android assembleDebug and lintDebug passed. The packaged APK has versionName 2.0.2, versionCode 6, minimum SDK 26 and target SDK 35. Java/JavaScript checks passed for motion, center, buttons, bounded UTF-8 transfer, malformed data and fair bounded native motion/control scheduling. iOS project/resources and the matching UI bundle passed the packaging check; Xcode compilation remains a Mac check.
+Android assembleDebug and lintDebug passed. The APK used in that workshop rehearsal had versionName 2.0.2, versionCode 6, minimum SDK 26 and target SDK 35. Java/JavaScript checks passed for motion, center, buttons, bounded UTF-8 transfer, malformed data and fair bounded native motion/control scheduling. iOS project/resources and the matching UI bundle passed the packaging check; Xcode compilation remains a Mac check.
 
 The Bluetooth reliability update prefers control notifications (cached indications remain supported), skips idle button refreshes and live-link echo probes, and removes the extra host input filter. The display buffer adapts to uneven 25 Hz delivery. Playwright/DevTools MCP measured zero stationary animation frames during a steady simulated sweep where the previous buffer paused repeatedly; a standard 60 Hz run also retained smooth presentation and safe centering. The user reported successful automatic connection and smoother motion on their Android setup; occasional pauses and first-Play behavior were subsequently addressed and remain part of the device follow-up. Simulated results do not establish performance on other phones. Initial-connection regressions cover one successful retry with no second picker, repeated failure, permission rejection, cancellation, and a disconnect during notification setup. The staged browser audits inject that first failure and verify profile switches do not reconnect the devices.
 

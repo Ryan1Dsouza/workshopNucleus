@@ -13,7 +13,7 @@ const run = (name, args) => {
   return r.stdout.trim();
 };
 try {
-  run('javac', ['-d', dir, 'native/android/app/src/main/java/workshop/airslice/ble/FrameCodec.java','native/android/app/src/main/java/workshop/airslice/ble/ProfileTransfer.java','native/android/app/src/main/java/workshop/airslice/ble/BleControlQueue.java', 'native/android/protocol-test/CodecGolden.java']);
+  run('javac', ['-d', dir, 'native/android/app/src/main/java/workshop/airslice/ble/SensorClock.java', 'native/android/app/src/main/java/workshop/airslice/ble/FrameCodec.java','native/android/app/src/main/java/workshop/airslice/ble/ProfileTransfer.java','native/android/app/src/main/java/workshop/airslice/ble/BleControlQueue.java', 'native/android/protocol-test/CodecGolden.java']);
   const profile=validateProfile({id:'demo',title:'Café controller',orientation:'portrait',motion:'none',controls:[{id:'a',label:'Jump',action:'jump'}],player:1,profileEpoch:42});
   const packets=profilePackets(profile,65535).map(packet=>Buffer.from(packet).toString('hex'));
   const [hex, centerHex, buttonHex, profileHex] = run('java', ['-cp', dir, 'CodecGolden',...packets]).split(/\r?\n/);

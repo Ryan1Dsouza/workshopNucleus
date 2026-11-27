@@ -22,6 +22,10 @@ export function validateProfile(value) {
   const profile = { id: value.id, title: value.title.trim(), orientation: value.orientation, motion: value.motion,
     controls, instruction: typeof value.instruction === 'string' ? value.instruction.slice(0, 160) : '',
     centerLabel: typeof value.centerLabel === 'string' ? value.centerLabel.slice(0, 24) : 'Center motion' };
+  if (value.layout !== undefined) {
+    if (value.id !== 'kart-racing' || !['kart-gyro','kart-dpad'].includes(value.layout)) throw new Error('Invalid racing layout.');
+    profile.layout = value.layout;
+  }
   if (value.player !== undefined) {
     if (![1, 2].includes(value.player)) throw new Error('Invalid player assignment.');
     profile.player = value.player;

@@ -1,10 +1,19 @@
 import workshop.airslice.ble.FrameCodec;
+import workshop.airslice.ble.SensorClock;
 import workshop.airslice.ble.ProfileTransfer;
 import workshop.airslice.ble.BleControlQueue;
 import java.nio.charset.StandardCharsets;
 public class CodecGolden {
     public static void main(String[] args) {
         checkMotionScheduling();
+        long now=1_000_000_000L, start=now-500_000_000L, last=now-30_000_000L;
+        if(SensorClock.capture(now-10_000_000L,now,start,last)!=now-10_000_000L ||
+           SensorClock.capture(now+1_000_000L,now,start,last)!=now ||
+           SensorClock.capture(now+100_000_000L,now,start,last)!=0 ||
+           SensorClock.capture(last,now,start,last)!=0 ||
+           SensorClock.capture(start-1,now,start,0)!=0 ||
+           SensorClock.capture(now-101_000_000L,now,start,0)!=0 ||
+           SensorClock.fresh(now+1,now,450_000_000L))throw new AssertionError("Invalid sensor time accepted");
         byte[] bytes=FrameCodec.encode(3,65535,0xfffffff0L,new float[]{0,0,1,1},123.45,65535);
         if(bytes.length!=20)throw new AssertionError("Frame exceeds default ATT payload");
         StringBuilder hex=new StringBuilder();for(byte value:bytes)hex.append(String.format("%02x",value&255));System.out.println(hex);

@@ -30,16 +30,24 @@ export function decodeBleCenter(view) {
 }
 
 export class BleTimeline {
-  constructor(){this.last=null;this.time=0;this.sequence=0;}
-  captureTime(time) { return this.last ? this.time + ((time - this.last.t) | 0) : time; }
+  constructor(){this.last=null;this.clock=null;this.time=0;this.lastPose=null;this.sequence=0;}
+  captureTime(raw) {
+    // A calibration can establish the clock immediately before a u32 rollover.
+    if(this.clock===null){this.clock=raw;this.time=raw;}
+    return this.time + ((raw-this.clock)|0);
+  }
   accept(frame) {
     if(!frame)return null;
-    if(this.last){
-      const delta=(frame.sequence-this.last.sequence+65536)%65536,dt=(frame.t-this.last.t)>>>0;
-      if(delta===0 || delta>32768 || dt>0x7fffffff)return null;
-      this.time+=dt;this.sequence+=delta;
-    } else {this.time=frame.t;this.sequence=frame.sequence;}
+    const delta=this.last?(frame.sequence-this.last.sequence)&65535:0;
+    if(this.last && (!delta || delta>=32768))return null;
+    const capture=this.captureTime(frame.t);
+    // Inactive frames contain dispatch time. A queued sensor reading can have
+    // been captured before that dispatch while still being the newest pose.
+    if(frame.active && this.lastPose!==null && capture<this.lastPose)return null;
+    if(frame.active)this.lastPose=capture;
+    if(capture>=this.time){this.time=capture;this.clock=frame.t;}
+    this.sequence=this.last?this.sequence+delta:frame.sequence;
     this.last=frame;
-    return {...frame,t:this.time,poseT:this.time,sequence:this.sequence};
+    return {...frame,t:capture,poseT:capture,sequence:this.sequence};
   }
 }

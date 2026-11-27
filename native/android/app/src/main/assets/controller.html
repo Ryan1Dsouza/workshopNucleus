@@ -160,6 +160,62 @@ details .bluetooth-button { margin-top: 12px; }
 .is-preview .remote-footer { display: none; }
 .is-preview .instruction { margin-bottom: 0; }
 
+.remote-shell[data-layout^="kart-"] .remote-body {
+  display: grid;
+  grid-template-columns: auto auto minmax(4px,1fr) auto auto;
+  grid-template-areas: "dpad drift . item gas" "dpad drift . brake gas" "utility utility utility utility utility";
+  align-items: center;
+  gap: 8px clamp(6px,1.6vw,22px);
+}
+.remote-shell[data-layout="kart-gyro"] .remote-body {
+  grid-template-columns: auto auto minmax(132px,1fr) auto auto;
+  grid-template-areas: "drift item . brake gas" "drift item dpad brake gas" "utility utility utility utility utility";
+  grid-template-rows: 26px auto auto;
+}
+.remote-shell[data-layout^="kart-"] :is(.action-zone,.number-zone) { display: contents; }
+.remote-shell[data-layout^="kart-"] .direction-zone { grid-area: dpad; justify-self: center; }
+.remote-shell[data-layout="kart-dpad"] { --kart-direction-size: clamp(56px, min(18vw, 18dvh), 72px); }
+.remote-shell[data-layout^="kart-"] .dpad {
+  grid-template-columns: repeat(3, var(--kart-direction-size, 44px));
+  grid-template-rows: repeat(3, var(--kart-direction-size, 44px));
+}
+.remote-shell[data-layout="kart-dpad"] .direction { font-size: calc(var(--kart-direction-size) * .38); }
+.remote-shell[data-layout^="kart-"] [data-face="drift"] { grid-area: drift; }
+.remote-shell[data-layout^="kart-"] [data-face="item"] { grid-area: item; }
+.remote-shell[data-layout^="kart-"] [data-face="brake"] { grid-area: brake; }
+.remote-shell[data-layout^="kart-"] [data-face="accelerate"] { grid-area: gas; }
+@media (min-width:544px) and (orientation:landscape) {
+  .remote-shell[data-layout="kart-gyro"] [data-face] { align-self: start; margin-top: 16px; }
+}
+.remote-shell[data-layout^="kart-"] .utility-zone { grid-area: utility; justify-self: center; gap: 20px; }
+.remote-shell[data-layout^="kart-"] .utility-zone .control-wrap { flex-direction: row; gap: 6px; }
+.remote-shell[data-layout^="kart-"] .utility { width: 44px; height: 44px; }
+.remote-shell[data-layout^="kart-"] [data-face] button {
+  width: clamp(72px,10vw,98px); height: 64px; margin: 0; border-radius: 18px;
+  font: 800 16px/1.1 var(--heading-font); padding: 4px; text-align: center;
+}
+.remote-shell[data-layout^="kart-"] [data-face="accelerate"] button {
+  width: clamp(98px,14vw,142px); height: 88px; color: white; background: var(--blue);
+  box-shadow: 0 4px 0 #194785;
+}
+.remote-shell[data-layout^="kart-"] [data-face] button.is-held { background: #183b70; color: white; transform: translateY(3px); box-shadow: 0 1px 0 #112441; }
+@media (max-width:543px), (max-width:619px) and (orientation:portrait) {
+  .remote-shell[data-layout^="kart-"] { width: 100%; }
+  .remote-shell[data-layout="kart-dpad"] .remote-body {
+    grid-template-columns: auto auto 1fr;
+    grid-template-areas: "dpad drift gas" "dpad item brake" "utility utility utility";
+  }
+  .remote-shell[data-layout="kart-gyro"] .remote-body {
+    grid-template-columns: 1fr 1fr auto;
+    grid-template-areas: "drift item gas" ". dpad brake" "utility utility utility";
+    grid-template-rows: auto auto auto;
+  }
+  .remote-shell[data-layout^="kart-"] [data-face] button { width: 62px; height: 52px; font-size: 13px; }
+  .remote-shell[data-layout^="kart-"] [data-face="accelerate"] button { width: 76px; height: 64px; }
+  .remote-shell[data-layout^="kart-"] .remote-body { column-gap: 4px; }
+  .remote-shell[data-layout^="kart-"] .utility-zone { gap: 8px; flex-wrap: wrap; }
+}
+
 @media (max-height: 820px) and (orientation: portrait) {
   .remote-shell { padding: 18px 22px 16px; }
   .assignment { margin: 18px 0 14px; }
@@ -168,6 +224,12 @@ details .bluetooth-button { margin-top: 12px; }
   .action-a { width: 78px; height: 78px; }
   .action-b { width: 68px; height: 68px; }
   .instruction { margin-top: 12px; margin-bottom: 12px; }
+}
+@media (orientation: portrait) {
+  .remote-shell[data-layout="kart-dpad"] .remote-body {
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "dpad drift" "dpad gas" "item brake" "utility utility";
+  }
 }
 @media (max-width: 350px) {
   body { padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); }
@@ -201,6 +263,20 @@ details .bluetooth-button { margin-top: 12px; }
   details { margin: 0; }
   .is-preview .remote-footer { display: none; }
 }
+@media (orientation:landscape) and (max-height:460px) {
+  .remote-shell[data-layout^="kart-"] { padding: 8px 16px; row-gap: 4px; }
+  .remote-shell[data-layout^="kart-"] .remote-body { margin: 0; row-gap: 4px; }
+  .remote-shell[data-layout^="kart-"] .motion-zone { padding: 4px 8px; }
+  .remote-shell[data-layout^="kart-"] .remote-footer { padding-top: 2px; justify-content: flex-end; }
+  .remote-shell[data-layout^="kart-"] :is(.instruction,#status) { display: none; }
+}
+@media (min-width:544px) and (max-width:619px) and (orientation:landscape) {
+  .remote-shell[data-layout^="kart-"] { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; width: 100%; margin: auto; }
+  .remote-shell[data-layout^="kart-"] .assignment { margin: 0; }
+  .remote-shell[data-layout^="kart-"] .remote-header { justify-content: flex-start; }
+  .remote-shell[data-layout^="kart-"] :is(.remote-body,.motion-zone,.remote-footer) { grid-column: 1 / -1; }
+  .remote-shell[data-layout^="kart-"] .motion-hint { display: none; }
+}
 </style>
 </head>
 <body>
@@ -224,8 +300,8 @@ details .bluetooth-button { margin-top: 12px; }
       </div>
     </section>
     <section class="action-zone" aria-label="Action buttons">
-      <div class="control-wrap"><button data-control="a" class="action action-a"><span>A</span></button><span data-label="a" class="control-caption">A</span></div>
-      <div class="control-wrap"><button data-control="b" class="action action-b"><span>B</span></button><span data-label="b" class="control-caption">B</span></div>
+      <div class="control-wrap" data-face="drift"><button data-control="a" class="action action-a"><span>A</span></button><span data-label="a" class="control-caption">A</span></div>
+      <div class="control-wrap" data-face="item"><button data-control="b" class="action action-b"><span>B</span></button><span data-label="b" class="control-caption">B</span></div>
     </section>
     <section class="utility-zone" aria-label="Menu buttons">
       <div class="control-wrap"><button data-control="minus" class="utility" aria-label="Minus">−</button><span data-label="minus" class="control-caption">Minus</span></div>
@@ -233,8 +309,8 @@ details .bluetooth-button { margin-top: 12px; }
       <div class="control-wrap"><button data-control="plus" class="utility" aria-label="Plus">+</button><span data-label="plus" class="control-caption">Plus</span></div>
     </section>
     <section class="number-zone" aria-label="Secondary buttons">
-      <div class="control-wrap"><button data-control="one" class="number">1</button><span data-label="one" class="control-caption">1</span></div>
-      <div class="control-wrap"><button data-control="two" class="number">2</button><span data-label="two" class="control-caption">2</span></div>
+      <div class="control-wrap" data-face="brake"><button data-control="one" class="number">1</button><span data-label="one" class="control-caption">1</span></div>
+      <div class="control-wrap" data-face="accelerate"><button data-control="two" class="number">2</button><span data-label="two" class="control-caption">2</span></div>
     </section>
   </div>
   <section class="motion-zone" id="motionZone">
@@ -276,6 +352,10 @@ function validateProfile(value) {
   const profile = { id: value.id, title: value.title.trim(), orientation: value.orientation, motion: value.motion,
     controls, instruction: typeof value.instruction === 'string' ? value.instruction.slice(0, 160) : '',
     centerLabel: typeof value.centerLabel === 'string' ? value.centerLabel.slice(0, 24) : 'Center motion' };
+  if (value.layout !== undefined) {
+    if (value.id !== 'kart-racing' || !['kart-gyro','kart-dpad'].includes(value.layout)) throw new Error('Invalid racing layout.');
+    profile.layout = value.layout;
+  }
   if (value.player !== undefined) {
     if (![1, 2].includes(value.player)) throw new Error('Invalid player assignment.');
     profile.player = value.player;
@@ -381,6 +461,11 @@ const buttons = new ButtonStore(mask => {
 function renderProfile(value) {
   profile = validateProfile(value); buttons.clear();
   const controls = new Map(profile.controls.map(control=>[control.id,control]));
+  const shell = document.querySelector('.remote-shell');
+  shell.dataset.layout = profile.layout || '';
+  // The gyro layout gives the existing right-pad item shortcut its own face.
+  // Both touch targets use the same held bit, including simultaneous fingers.
+  document.querySelector('[data-face="item"] button').dataset.control = profile.layout === 'kart-gyro' ? 'right' : 'b';
   document.documentElement.dataset.orientation = profile.orientation;
   $('gameTitle').textContent = profile.title;
   $('centerLabel').textContent = profile.centerLabel;
@@ -391,10 +476,17 @@ function renderProfile(value) {
     button.hidden = !control;
     if (wrap) wrap.hidden = !control;
     button.setAttribute('aria-label', control ? id.toUpperCase() + ': ' + control.label : id);
-    const label = document.querySelector('[data-label="'+id+'"]');
+    const label = wrap?.querySelector('[data-label]');
     if (label && control) {
       label.textContent = control.label;
-      label.hidden = control.label === ({a:'A',b:'B',one:'1',two:'2'})[id];
+      const symbol = ({a:'A',b:'B',one:'1',two:'2'})[label.dataset.label];
+      label.hidden = control.label === symbol;
+      if (wrap.dataset.face) {
+        const racing = !!profile.layout;
+        (button.firstElementChild || button).textContent = racing ? control.label : symbol;
+        if (racing) button.setAttribute('aria-label', control.label);
+        label.hidden ||= racing;
+      }
     }
   }
   $('dpad').hidden = !['up','right','down','left'].some(id=>controls.has(id));
@@ -453,8 +545,7 @@ const keyControls = {ArrowUp:'up',ArrowRight:'right',ArrowDown:'down',ArrowLeft:
 window.addEventListener('keydown', event => {
   const id = keyControls[event.key];
   if (!id || event.repeat || !native.connected || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
-  const button = document.querySelector('[data-control="'+id+'"]');
-  if (!button || button.hidden || button.disabled) return;
+  if (!native.running || !profile.controls.some(control=>control.id===id)) return;
   event.preventDefault(); buttons.press(id,'key:'+event.key);
 });
 window.addEventListener('keyup',event=>buttons.release('key:'+event.key));

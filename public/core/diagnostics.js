@@ -31,9 +31,10 @@ export class PeerMetrics {
     this.lastAt=now; this.arrivals.add(now); this.received++;
     if(previousSequence>=0)this.sequenceGaps+=Math.max(0,sample.sequence-previousSequence-1);
     const poseTime=Number.isFinite(sample.poseT)?sample.poseT:sample.t;
-    if(poseTime!==this.lastPose){this.poses.add(now);this.lastPose=poseTime;}
+    if(sample.active!==false && poseTime!==this.lastPose){this.poses.add(now);this.lastPose=poseTime;}
     const age=sample.t-poseTime;
-    if(age>=0 && age<60000)this.dispatchAge.add(age);
+    // BLE v1 carries capture time only; dispatch latency is unobservable.
+    if(sample.source!=='bluetooth-native' && age>=0 && age<60000)this.dispatchAge.add(age);
     if(sample.sensorStats && typeof sample.sensorStats==='object')this.sensorStats=sample.sensorStats;
     this.source=sample.source || 'unknown';
   }

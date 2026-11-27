@@ -10,6 +10,36 @@
 export const DEG = Math.PI / 180;
 export const TAU = Math.PI * 2;
 
+// Bank only: lifting, yawing or moving the whole wheel doesn't command a turn.
+// Ease out of the neutral zone, joining the normal steering curve at 9 degrees.
+export const KART_NEUTRAL_DEGREES = 4.5;
+export function kartWheelSteer(bank, fullLock = 38) {
+  const degrees = Math.abs(bank);
+  if (degrees <= KART_NEUTRAL_DEGREES) return 0;
+  const t = Math.min(1,(degrees-KART_NEUTRAL_DEGREES)/(9-KART_NEUTRAL_DEGREES));
+  const gain = t*t*(3-2*t);
+  return Math.sign(bank)*gain*Math.min(1,(degrees-2.5)/(fullLock-2.5));
+}
+
+// Velocity of the pointing beam in its calibrated yaw/pitch coordinates.
+// Browser rotationRate is in device axes. Native BLE v1 carries only speed;
+// its gravity-referenced quaternion supplies the measured sweep direction.
+export function sweepRates(sample, axes, beam, reference, dx, dy) {
+  const rate = sample.motion;
+  if (!rate || sample.motionAge >= 80) return null;
+  if (sample.source === 'bluetooth-native') {
+    const distance = Math.hypot(dx, dy);
+    return distance ? [rate.rx * dx / distance, rate.rx * dy / distance] : null;
+  }
+  const omega = {};
+  for (const k of ['x','y','z']) omega[k] = axes.x[k]*rate.rx + axes.y[k]*rate.ry + axes.z[k]*rate.rz;
+  const velocity = cross(omega, beam);
+  const x = dot(beam, reference.right), z = dot(beam, reference.forward);
+  const horizontal = Math.max(.1, Math.hypot(x,z));
+  return [(z*dot(velocity,reference.right)-x*dot(velocity,reference.forward))/(horizontal*horizontal),
+    dot(velocity,reference.up)/horizontal];
+}
+
 export const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 
 // ── Vector helpers ─────────────────────────────────────────────────────────

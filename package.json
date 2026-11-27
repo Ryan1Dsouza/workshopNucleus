@@ -8,6 +8,7 @@
     "node": ">=22"
   },
   "scripts": {
+    "build": "node scripts/build-web.mjs",
     "start": "node server/index.cjs",
     "dev": "node --watch server/index.cjs",
     "test": "node --test tests/*.test.mjs",

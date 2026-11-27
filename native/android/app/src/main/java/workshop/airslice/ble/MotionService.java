@@ -8,6 +8,9 @@ import android.bluetooth.le.*;
 import android.content.*;
 import android.content.pm.PackageManager;
 import android.hardware.*;
+import android.hardware.display.DisplayManager;
+import android.graphics.Point;
+import android.view.Display;
 import android.os.*;
 import java.nio.*;
 import java.util.*;
@@ -20,7 +23,27 @@ public class MotionService extends Service implements SensorEventListener {
     static final UUID CONTROL=UUID.fromString("4d1a0003-9cf1-4ee3-a71b-9438ef5d3400");
     static final UUID CCCD=UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
     final Handler handler=new Handler(Looper.getMainLooper());
-    final float[] q={0,0,0,1};
+    final float[] q={0,0,0,1}, androidQ=new float[4];
+    final Point displaySize=new Point();
+    DisplayManager displays;
+    int lastWheelRotation=-1;
+    boolean inFlightMotion, inFlightRotation;
+    boolean wheelProfile=false;
+    final DisplayManager.DisplayListener displayListener=new DisplayManager.DisplayListener(){
+        public void onDisplayAdded(int id){}
+        public void onDisplayRemoved(int id){}
+        public void onDisplayChanged(int id){if(id==Display.DEFAULT_DISPLAY)sendWheelRotation();}
+    };
+    void sendWheelRotation(){
+        if(!wheelProfile||profile==null||!controlEnabled||central==null)return;
+        Display display=displays.getDisplay(Display.DEFAULT_DISPLAY);
+        if(display==null)return;
+        display.getRealSize(displaySize);
+        int rotation=display.getRotation();
+        if(displaySize.x<=displaySize.y || lastWheelRotation==rotation)return;
+        lastWheelRotation=rotation;
+        enqueue(new byte[]{0x44,(byte)rotation,(byte)profileEpoch,(byte)(profileEpoch>>8)});
+    }
     final BleControlQueue controls=new BleControlQueue();
     final ProfileTransfer profileTransfer=new ProfileTransfer();
     JSONObject profile;int buttonMask=0,buttonSequence=0,profileEpoch=0;long buttonsSentAt=0;
@@ -59,14 +82,17 @@ public class MotionService extends Service implements SensorEventListener {
         if(!wanted)return;
         if(central==null){message="Connect this phone from the laptop first.";refresh();return;}
         epoch=(epoch+1)&65535;
-        boolean fresh=poseAt>0&&SystemClock.elapsedRealtimeNanos()-poseAt<=150000000L;
+        boolean fresh=SensorClock.fresh(poseAt,SystemClock.elapsedRealtimeNanos(),150000000L);
         enqueue(fresh?FrameCodec.encodeCenter(epoch,poseAt/1000000L,q):new byte[]{2,(byte)epoch,(byte)(epoch>>8)});
         message=fresh?"Centered in your current grip.":"Waiting for a motion reading to center.";
         refresh();
     }
     public void playGame(){if(central!=null)enqueue(new byte[]{1});else{message="Connect this phone from the laptop first.";refresh();}}
     @Override public void onCreate(){
-        super.onCreate();sensors=(SensorManager)getSystemService(SENSOR_SERVICE);
+        super.onCreate();
+        displays=(DisplayManager)getSystemService(DISPLAY_SERVICE);
+        displays.registerDisplayListener(displayListener,handler);
+        sensors=(SensorManager)getSystemService(SENSOR_SERVICE);
         rotation=sensors.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR);gyro=sensors.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
         NotificationManager nm=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);
         nm.createNotificationChannel(new NotificationChannel(CHANNEL,"Bluetooth motion controller",NotificationManager.IMPORTANCE_LOW));
@@ -180,34 +206,51 @@ public class MotionService extends Service implements SensorEventListener {
             if(!supported.contains(id)||!ids.add(id)||label.trim().isEmpty()||label.length()>20||!action.matches("[a-z][a-z0-9.-]{0,39}"))throw new IllegalArgumentException("Invalid control");
         }
         profile=next;profileEpoch=revision;buttonMask=0;
+        wheelProfile=mode.equals("steer")&&orientation.equals("landscape");lastWheelRotation=-1;handler.removeCallbacks(retryRotation);
         byte[] ack=ByteBuffer.allocate(6).order(ByteOrder.LITTLE_ENDIAN).put((byte)0x43).putShort((short)transferred.id).put((byte)0).putShort((short)revision).array();
         setMotion(!mode.equals("none"));
+        // If already in landscape, the captured grip belongs to this display.
+        // A later portrait-to-landscape rotation establishes a level horizon.
+        sendWheelRotation();
         if(gyroWanted)centerBlade();
         enqueue(ack);sendButtons();
         message="Player "+assigned+" · "+next.getString("title")+". Controls are ready.";refresh();
     }
     void flush(){
         if(busy||central==null||gatt==null)return;
-        long now=SystemClock.elapsedRealtimeNanos();boolean active=sensing&&poseAt!=0&&now-poseAt<100000000L;
-        boolean motionDue=motionEnabled&&(active?poseAt!=lastSentPose&&now-lastMotionAt>=16000000L:!stoppedFrame);
+        long now=SystemClock.elapsedRealtimeNanos();
+        boolean active=sensing && SensorClock.fresh(poseAt,now,100000000L);
+        boolean expired=!sensing || !SensorClock.fresh(poseAt,now,wheelProfile?450000000L:150000000L);
+        boolean motionDue=motionEnabled && (active ? poseAt!=lastSentPose && now-lastMotionAt>=16000000L : expired && !stoppedFrame);
         byte[] queued=controlEnabled?controls.poll(motionDue):null;
         if(queued!=null){notify(control,queued);return;}
-        if(!motionEnabled)return;
-        if(!active&&stoppedFrame)return;if(active&&poseAt==lastSentPose)return;
-        if(active&&now-lastMotionAt<16000000L)return;
-        int flags=active?1:0;boolean fresh=gyroAt!=0&&now-gyroAt<80000000L;if(fresh)flags|=2;
+        if(!motionDue)return;
+        int flags=active?1:0;
+        boolean fresh=active && SensorClock.fresh(gyroAt,now,80000000L) && Math.abs(gyroAt-poseAt)<80000000L;
+        if(fresh)flags|=2;
         byte[] bytes=FrameCodec.encode(flags,sequence++,(active?poseAt:now)/1000000L,q,fresh?speed:0,epoch);
-        lastSentPose=poseAt;lastMotionAt=now;stoppedFrame=!active;notify(motion,bytes);
+        if(notify(motion,bytes)){lastSentPose=poseAt;lastMotionAt=now;stoppedFrame=!active;}
     }
-    void notify(BluetoothGattCharacteristic characteristic,byte[] bytes){
-        if(gatt==null||central==null)return;busy=true;inFlightAt=SystemClock.elapsedRealtime();boolean ok;
+    boolean notify(BluetoothGattCharacteristic characteristic,byte[] bytes){
+        if(gatt==null||central==null)return false;
+        busy=true;inFlightAt=SystemClock.elapsedRealtime();boolean ok;
+        inFlightMotion=characteristic==motion;
+        inFlightRotation=characteristic==control && bytes[0]==0x44;
         boolean confirm=characteristic==control&&controlIndications;
         try {if(Build.VERSION.SDK_INT>=33)ok=gatt.notifyCharacteristicChanged(central,characteristic,confirm,bytes)==BluetoothStatusCodes.SUCCESS;
         else{characteristic.setValue(bytes);ok=gatt.notifyCharacteristicChanged(central,characteristic,confirm);}}
         catch(SecurityException e){ok=false;permissionLost();}
         catch(RuntimeException e){ok=false;message="Bluetooth send failed. Stop Bluetooth and start again.";refresh();}
-        if(!ok){busy=false;drops++;}else if(characteristic==motion)sentCount++;
+        if(!ok){busy=false;drops++;if(inFlightRotation)retryWheelRotation();}
+        else if(characteristic==motion)sentCount++;
+        return ok;
     }
+    void retryWheelRotation(){
+        lastWheelRotation=-1;
+        handler.removeCallbacks(retryRotation);
+        handler.postDelayed(retryRotation,100);
+    }
+    final Runnable retryRotation=this::sendWheelRotation;
     final BluetoothGattServerCallback callbacks=new BluetoothGattServerCallback(){
         @Override public void onServiceAdded(int status,BluetoothGattService service){handler.post(()->{if(gatt==null||service.getCharacteristic(MOTION)!=motion)return;if(status==BluetoothGatt.GATT_SUCCESS)advertise();else fail("Bluetooth service setup failed ("+status+").");});}
         @Override public void onConnectionStateChange(BluetoothDevice d,int status,int state){handler.post(()->{
@@ -239,7 +282,13 @@ public class MotionService extends Service implements SensorEventListener {
             else result=BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED;
             if(response)respond(d,id,result,0,null);
         });}
-        @Override public void onNotificationSent(BluetoothDevice d,int status){handler.post(()->{if(!same(d))return;busy=false;if(status!=BluetoothGatt.GATT_SUCCESS)drops++;flush();});}
+        @Override public void onNotificationSent(BluetoothDevice d,int status){handler.post(()->{if(!same(d))return;busy=false;
+            if(status!=BluetoothGatt.GATT_SUCCESS){
+                drops++;
+                if(inFlightMotion){lastSentPose=0;stoppedFrame=false;}
+                if(inFlightRotation)retryWheelRotation();
+            }
+            flush();});}
     };
     final Runnable tick=new Runnable(){public void run(){
         long now=SystemClock.elapsedRealtime();
@@ -250,13 +299,22 @@ public class MotionService extends Service implements SensorEventListener {
         if(wanted)handler.postDelayed(this,16);
     }};
     @Override public void onSensorChanged(SensorEvent e){
-        if(!sensing||e.timestamp<sensorsStartedAt)return;
-        if(e.values.length<3)return;
-        if(e.sensor.getType()==Sensor.TYPE_GAME_ROTATION_VECTOR){float[] androidQ=new float[4];SensorManager.getQuaternionFromVector(androidQ,e.values);for(float v:androidQ)if(!Float.isFinite(v))return;q[0]=androidQ[1];q[1]=androidQ[2];q[2]=androidQ[3];q[3]=androidQ[0];poseAt=e.timestamp;poseCount++;flush();}
-        else if(e.sensor.getType()==Sensor.TYPE_GYROSCOPE){double measured=Math.sqrt(e.values[0]*e.values[0]+e.values[1]*e.values[1]+e.values[2]*e.values[2])*180/Math.PI;if(!Double.isFinite(measured))return;speed=measured;gyroAt=e.timestamp;gyroCount++;}
+        if(!sensing||e.values.length<3)return;
+        boolean attitude=e.sensor.getType()==Sensor.TYPE_GAME_ROTATION_VECTOR;
+        long capture=SensorClock.capture(e.timestamp,SystemClock.elapsedRealtimeNanos(),sensorsStartedAt,attitude?poseAt:gyroAt);
+        if(capture==0)return;
+        if(attitude){
+            SensorManager.getQuaternionFromVector(androidQ,e.values);
+            float norm=0;
+            for(float v:androidQ)norm+=v*v;
+            if(!(norm>=.81f && norm<=1.21f))return;
+            q[0]=androidQ[1];q[1]=androidQ[2];q[2]=androidQ[3];q[3]=androidQ[0];
+            poseAt=capture;poseCount++;flush();
+        }
+        else if(e.sensor.getType()==Sensor.TYPE_GYROSCOPE){double measured=Math.sqrt(e.values[0]*e.values[0]+e.values[1]*e.values[1]+e.values[2]*e.values[2])*180/Math.PI;if(!Double.isFinite(measured))return;speed=measured;gyroAt=capture;gyroCount++;}
     }
     @Override public void onAccuracyChanged(Sensor s,int accuracy){}
     void fail(String value){message=value;shutdown();stopSelf();refresh();}
     void shutdown(){wanted=false;handler.removeCallbacks(tick);stopSensors();if(advertising)stopAdvertising();if(gatt!=null){try{gatt.close();}catch(SecurityException ignored){}gatt=null;}central=null;motionEnabled=controlEnabled=busy=false;controls.clear();releaseCpu();if(foreground){stopForeground(STOP_FOREGROUND_REMOVE);foreground=false;}refresh();}
-    @Override public void onDestroy(){shutdown();if(receiverRegistered)unregisterReceiver(bluetoothState);handler.removeCallbacksAndMessages(null);listener=null;super.onDestroy();}
+    @Override public void onDestroy(){displays.unregisterDisplayListener(displayListener);shutdown();if(receiverRegistered)unregisterReceiver(bluetoothState);handler.removeCallbacksAndMessages(null);listener=null;super.onDestroy();}
 }

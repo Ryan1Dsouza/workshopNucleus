@@ -1,6 +1,8 @@
 import * as THREE from '/vendor/three/three.module.js';
 import { FruitNinja, FRUIT_TYPES, FIELD_H, MAX_JUICE_PARTICLES } from './logic.js';
+import { fruitMatch } from './online.js';
 import { MotionInput } from '../../core/motion-input.js';
+import { laneAim as projectLane } from './lane-aim.js';
 import { saveSensitivity } from '../../core/preferences.js';
 import { AudioEngine } from '../../core/audio.js';
 import { createGameLink, createBluetoothLink } from '../../core/input-links.js';
@@ -434,6 +436,7 @@ for (const name of Object.keys(RIND_PAINTERS)) {
 }
 
 const game = new FruitNinja({ aspect: 16 / 9, onEvent: handleEvent, infiniteLives: PRACTICE });
+const localSlot = () => game.network?.slot ?? 0;
 
 // ── Meshes ─────────────────────────────────────────────────────────────────
 const sphereGeo = new THREE.SphereGeometry(1, 28, 20);
@@ -759,13 +762,14 @@ visualFor(0);
 function drawTrail(now = performance.now()) {
   for (const [slot, player] of game.players) {
     const v = visualFor(slot), inp = inputs.get(slot);
-    const mousePreview=slot===0&&mouse.visible&&(mouse.active||!inp?.pointer.live);
+    const mousePreview=slot===localSlot()&&mouse.visible&&(mouse.active||!inp?.pointer.live);
     const externalAim=!mousePreview?inp?.externalAim:null;
     const localAim = mousePreview?{x:mouse.x,y:mouse.y}:inp && (externalAim || (smoothBlade ? inp.display.sampleAt(now) : inp.pointer.position));
-    const aim = localAim && laneAim(slot, localAim, mousePreview);
+    const opponent = game.network && slot !== localSlot();
+    const aim = opponent ? game.network.remoteAim : localAim && laneAim(slot, localAim, mousePreview);
     const p = aim ? toWorld(aim.x, aim.y) : player.cursor;
     Object.assign(v.cursor, p, { active: player.cursor.active });
-    if (!player.cursor.active || inp && !inp.pointer.live && !(slot === 0 && mouse.active)) v.trail.clear();
+    if (!player.cursor.active || !opponent && inp && !inp.pointer.live && !(slot === localSlot() && mouse.active)) v.trail.clear();
     else v.trail.push(p.x, p.y, now);
     const visible=player.cursor.active||mousePreview||bluetooth.devices.has(slot);
     v.screen.aim(aim || {x: .5, y: .5}, visible);
@@ -872,7 +876,7 @@ function inputFor(slot) {
   let inp = inputs.get(slot);
   if (!inp) {
     inp = new MotionInput({ sensitivity: 1, smoothing, aspect: window.innerHeight / window.innerWidth });
-    inp.pointer.setViewport(window.innerWidth, window.innerHeight);
+    inp.pointer.setViewport(window.innerWidth / (game.splitScreen ? 2 : 1), window.innerHeight);
     inputs.set(slot, inp);
   }
   return inp;
@@ -887,10 +891,10 @@ function resize() {
   viewportSize = { w, h };
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25, Math.sqrt(1920 * 1080 / (w * h))) * renderBudget.scale);
   renderer.setSize(w, h, false);
-  camera.aspect = w / h;
+  camera.aspect = game.network ? 16 / 9 : w / h;
   camera.updateProjectionMatrix();
   game.setAspect(camera.aspect);
-  for (const inp of inputs.values()) { inp.pointer.setViewport(w, h); inp.pointer.aspect = h / w; }
+  for (const inp of inputs.values()) inp.pointer.setViewport(w / (game.splitScreen ? 2 : 1), h);
   if (remapped) {
     // Reprojecting the play surface starts a fresh stroke without recalibrating.
     for (const [slot, inp] of inputs) {
@@ -914,9 +918,7 @@ function toWorld(nx, ny) {
 // Phone axes cover their own lane. Mouse coordinates already address the
 // whole canvas, so clamp them to Player 1's lane instead of compressing them.
 function laneAim(slot, aim, screenSpace = false) {
-  if (!game.splitScreen) return {x:clamp(aim.x,0,1),y:clamp(aim.y,0,1)};
-  const inset = Math.min(7 / innerWidth, .05), min = slot === 0 ? 0 : .5, max = min + .5;
-  return {x:clamp(screenSpace ? aim.x : min + clamp(aim.x,0,1) * .5, min + inset, max - inset),y:clamp(aim.y,0,1)};
+  return projectLane(game.splitScreen, slot, aim, screenSpace);
 }
 
 function configureRound({splitScreen = game.splitScreen, durationSeconds = game.durationMs / 1000} = {}) {
@@ -924,6 +926,10 @@ function configureRound({splitScreen = game.splitScreen, durationSeconds = game.
   game.setSplitScreen(splitScreen); game.setDuration(durationSeconds);
   document.body.classList.toggle('split-screen',game.splitScreen);
   if (changed) {
+    for (const inp of inputs.values()) {
+      inp.pointer.setViewport(innerWidth / (game.splitScreen ? 2 : 1), innerHeight);
+      inp.center({freshGrip:true},performance.now());
+    }
     mouse.active = false;
     for (const [slot,inp] of inputs) { inp.externalReset = true; inp.pointer.pending = {cutting:false,reset:true}; visualFor(slot).trail.clear(); }
   }
@@ -972,7 +978,7 @@ function recentreSlot(slot, command = {}) {
   visualFor(slot).trail.clear();
   const player = game.getPlayer(slot);
   player.trail.clear(); player.cutting = false;
-  if (player.cursor.active) Object.assign(player.cursor, toWorld(inp.pointer.position.x, inp.pointer.position.y));
+  if (player.cursor.active) {const aim=laneAim(slot,inp.pointer.position);Object.assign(player.cursor,toWorld(aim.x,aim.y));}
   flash(controllerCount() > 1 ? `P${slot + 1} re-centred` : 're-centred');
 }
 
@@ -983,6 +989,12 @@ function suspendSlot(slot) {
   // Cursor visibility follows connection state; freshness only gates cuts.
 }
 
+function measuredCursor(slot, point, observedAt, reset = false) {
+  const mapped = laneAim(slot, point), world = toWorld(mapped.x, mapped.y);
+  game.setCursor(world.x, world.y, observedAt, slot, {
+    captureAt: point.poseTime, reset: reset || point.reset, cutting: point.cutting && !reset && !game.paused,
+  });
+}
 function receiveOrientation(sample, slot) {
     const now = performance.now();
     const inp = inputFor(slot);
@@ -993,7 +1005,12 @@ function receiveOrientation(sample, slot) {
       player.trail.clear(); player.cutting = false;
       visualFor(slot).trail.clear();
     }
-    if (!smoothBlade && !game.paused) visualFor(slot).screen.aim(inp.pointer.position, true);
+    const movement = inp.pointer.consumeMovement();
+    if (!(slot===localSlot() && mouse.active)) {
+      inp.packetCursor = true;
+      measuredCursor(slot, {...inp.pointer.position,...movement,poseTime:inp.lastSensorTime},inp.lastSampleAt,result.reset);
+    }
+    if (!smoothBlade && !game.paused) visualFor(slot).screen.aim(laneAim(slot,inp.pointer.position), true);
 }
 function receiveCommand(cmd, slot) {
     if (cmd.type === 'calibrate' || cmd.type === 'recentre') recentreSlot(slot, cmd);
@@ -1159,7 +1176,7 @@ function handleEvent(e) {
     localStorage.setItem('fn.best', String(best));
     showOverlay(`<h1 class="gameover">${e.reason === 'timer' ? 'TIME UP' : 'GAME OVER'}</h1>
       <div id="final">score <b>${e.score}</b> · best <b>${best}</b></div>
-      <div class="cta"><strong>Space</strong> to play again</div>`);
+      <div class="cta">${game.network?'Ready up in the lobby to play again':'<strong>Space</strong> to play again'}</div>`);
   }
   syncHud();
 }
@@ -1211,19 +1228,20 @@ function syncTimer() {
   if(timer.textContent !== text)timer.textContent = text;
 }
 
-function startGame() {
+function startGame(now = performance.now()) {
   $('setup').classList.add('hide');
   mouse.active = false;
   if(embedded)clearStrokes();
-  else for (const [slot, inp] of inputs) { recentreSlot(slot); inp.externalReset = true; }
+  else for (const [slot, inp] of inputs) { recentreSlot(slot,{freshGrip:true}); inp.externalReset = true; }
   hideOverlay();
-  game.start(performance.now());
+  game.start(now);
   if (bladeOnly) bladeOnlySince = performance.now();
   syncHud();
   reportState();
 }
 
 function beginPlay() {
+  if(game.network)return;
   audio.unlock();
   if(embedded&&game.state.phase!=='playing'){parent.postMessage({type:'fruit-request-play'},location.origin);return;}
   if (game.state.phase !== 'playing') startGame();
@@ -1231,6 +1249,7 @@ function beginPlay() {
 }
 
 function pauseGame() {
+  if (game.network) return;
   game.pause(performance.now());
   mouse.active = false;
   $('setup').classList.remove('hide');
@@ -1252,7 +1271,7 @@ function setControllerState(slot,state) {
   const inp=inputFor(slot), player=game.getPlayer(slot), now=performance.now();
   inp.latestController=state;
   const wasConnected=bluetooth.devices.has(slot);
-  const mouseOwns=slot===0&&mouse.active;
+  const mouseOwns=slot===localSlot()&&mouse.active;
   if(!state.connected){
     bluetooth.devices.delete(slot);
     if(!mouseOwns && wasConnected){inp.externalAim=null;inp.externalSession=null;suspendSlot(slot);player.cursor.active=false;visualFor(slot).screen.aim(laneAim(slot,inp.pointer.position),false);}
@@ -1265,7 +1284,8 @@ function setControllerState(slot,state) {
   inp.lastSampleAt=now;inp.session=state.session;inp.pointer.lastSeen=now;
   inp.pointer.source='bluetooth-native';inp.pointer.live=state.motionLive&&state.ready;
   inp.pointer.setFromMouse(state.axes.x,state.axes.y);
-  const reset=state.reset||inp.externalReset||inp.externalSession!==state.session||inp.pointer.pending.reset;
+  const boundary=inp.externalReset || inp.externalSession!==state.session;
+  const reset=state.reset||boundary||inp.pointer.pending.reset;
   inp.externalReset=false;inp.externalSession=state.session;
   inp.pointer.pending={cutting:(state.cutting||inp.pointer.pending.cutting)&&!game.paused&&!reset,reset};
   // The host already interpolates these presentation coordinates from sensor
@@ -1276,7 +1296,21 @@ function setControllerState(slot,state) {
   if(!inp.externalAim)inp.display.push(inp.pointer.position,now,now,reset);
   // Present the host's already-interpolated aim now, without a second rAF wait.
   visualFor(slot).screen.aim(laneAim(slot,inp.externalAim||inp.pointer.position),state.connected);
-  if(reset){player.trail.clear();player.cutting=false;visualFor(slot).trail.clear();}
+  inp.packetCursor = Array.isArray(state.motionPath);
+  if (inp.packetCursor) {
+    const path = state.motionPath;
+    if (boundary || !inp.pointer.live || (state.reset && !path.length)) player.trail.clear();
+    if (inp.pointer.live) {
+      for (const [i,point] of path.entries())
+        measuredCursor(slot,point,now-point.age,boundary && i===0);
+      if (!path.length && (boundary || state.reset || !player.cursor.active)) {
+        const aim=laneAim(slot,state.axes);
+        Object.assign(player.cursor,toWorld(aim.x,aim.y),{active:true});
+      }
+    }
+    inp.pointer.consumeMovement();
+  } else if (reset) player.trail.clear();
+  if(reset){player.cutting=false;visualFor(slot).trail.clear();}
   if(newlyConnected)syncHud();
 }
 let automaticPause=false;
@@ -1334,24 +1368,33 @@ function frame(now) {
   }
 
   // Mouse fallback only ever stands in for slot 0 — there's one mouse.
-  const in0 = inputFor(0);
+  const in0 = inputFor(localSlot());
   if (mouse.active) { in0.pointer.setFromMouse(mouse.x, mouse.y); in0.display.reset(in0.pointer.position); }
 
   // Collision positions are immediate. The separate visual trail interpolates
   // measured endpoints; it never submits a collision or invents extra travel.
   for (const [slot, inp] of inputs) {
+    if(game.network && slot!==localSlot())continue;
     if (inp.pointer.live && now - inp.pointer.lastSeen > 150) suspendSlot(slot);
-    if (inp.pointer.live || (slot === 0 && mouse.active)) {
+    if ((inp.pointer.live && !inp.packetCursor) || (slot === localSlot() && mouse.active)) {
       const aim = inp.pointer.sampleAt(now);
-      const mapped=laneAim(slot,aim,slot===0&&mouse.active),p = toWorld(mapped.x,mapped.y);
+      const mapped=laneAim(slot,aim,slot===localSlot()&&mouse.active),p = toWorld(mapped.x,mapped.y);
       const movement = inp.pointer.consumeMovement();
-      const mouseOwns=slot===0&&mouse.active;
+      const mouseOwns=slot===localSlot()&&mouse.active;
       game.setCursor(p.x, p.y, now, slot, { cutting: !game.paused&&(mouseOwns || movement.cutting), reset: mouseOwns?mouse.reset:movement.reset });
       if(mouseOwns)mouse.reset=false;
     }
   }
 
-  if (!game.paused && !document.hidden && !bladeOnly) game.update(now, dt);
+  if (game.network) {
+    // Identical fixed-step waves on both displays, independent of render rate.
+    // Drain a background backlog over several frames so the peer channel and
+    // input handlers still run while this display catches up.
+    for(let steps=0;steps<32 && game.network.simTime+1000/120<=now && game.state.phase==='playing';steps++) {
+      game.network.simTime += 1000/120;
+      game.update(game.network.simTime, 1/120);
+    }
+  } else if (!game.paused && !document.hidden && !bladeOnly) game.update(now, dt);
   syncTimer();
   syncScene(now);
 
@@ -1372,7 +1415,7 @@ canvas.addEventListener('pointerleave',()=>{if(!mouse.active)mouse.visible=false
 canvas.addEventListener('pointerdown', (e) => {
   if (game.paused || e.button !== 0) return;
   canvas.setPointerCapture(e.pointerId); mouse.active = true;mouse.reset=true;mousePosition(e);
-  const inp = inputFor(0); inp.pointer.live = false;inp.pointer.pending={cutting:false,reset:false};game.getPlayer(0).trail.clear();visualFor(0).trail.clear();
+  const inp = inputFor(localSlot()); inp.pointer.live = false;inp.pointer.pending={cutting:false,reset:false};game.getPlayer(localSlot()).trail.clear();visualFor(localSlot()).trail.clear();
   mouse.x = e.clientX / window.innerWidth;
   mouse.y = e.clientY / window.innerHeight;
 });
@@ -1383,9 +1426,9 @@ for (const event of ['pointerup', 'pointercancel', 'lostpointercapture']) canvas
   if(!mouse.active)return;
   if(event==='pointercancel')mouse.visible=false;
   else if(event==='pointerup')mouse.visible=e.clientX>=0&&e.clientX<=innerWidth&&e.clientY>=0&&e.clientY<=innerHeight;
-  mouse.active = false; game.getPlayer(0).cursor.active = false;game.getPlayer(0).cutting=false;game.getPlayer(0).trail.clear();
-  const inp=inputFor(0);inp.externalReset=true;inp.pointer.pending={cutting:false,reset:true};visualFor(0).trail.clear();
-  if(inp.latestController)setControllerState(0,inp.latestController);
+  mouse.active = false; game.getPlayer(localSlot()).cursor.active = false;game.getPlayer(localSlot()).cutting=false;game.getPlayer(localSlot()).trail.clear();
+  const inp=inputFor(localSlot());inp.externalReset=true;inp.pointer.pending={cutting:false,reset:true};visualFor(localSlot()).trail.clear();
+  if(inp.latestController)setControllerState(localSlot(),{...inp.latestController,motionPath:[],cutting:false,reset:true});
 });
 window.addEventListener('pointerdown', () => audio.unlock());
 
@@ -1395,7 +1438,7 @@ window.addEventListener('keydown', (e) => {
   audio.unlock();
   const p0 = inputFor(0).pointer;
   switch (e.key.toLowerCase()) {
-    case 'escape': pauseGame(); break;
+    case 'escape': if(!game.network)pauseGame(); break;
     case ' ': e.preventDefault(); beginPlay(); break;
     case 'r':
     case 'c': recentreSlot(0); break;
@@ -1472,6 +1515,28 @@ requestAnimationFrame(frame);
 // per-slot map for multiplayer-aware verification.
 window.__openwii = {
   startGame, pauseGame, resumeGame, setControllerState, configureRound, laneAim,
+  startMatch({slot,seed,options,elapsed}) {
+    game.network=fruitMatch(game,slot,seed);
+    resize();
+    game.infiniteLives=options.practice;
+    configureRound({splitScreen:true,durationSeconds:options.duration});
+    game.network.simTime=performance.now()-elapsed;
+    startGame(game.network.simTime);
+  },
+  matchFrame:()=>game.network?.snapshot(),
+  receiveMatch(frame) {
+    if(!game.network)return;
+    const {score,lives}=game.state;
+    game.network.receive(frame,performance.now());
+    if(game.state.score!==score || game.state.lives!==lives){
+      syncHud();
+      if(game.state.phase==='over' && $('final')){
+        const total=game.state.score,best=Math.max(total,Number(localStorage.getItem('fn.best')||0));
+        localStorage.setItem('fn.best',String(best));
+        const values=$('final').querySelectorAll('b');values[0].textContent=total;values[1].textContent=best;
+      }
+    }
+  },
   game, pointer: inputFor(0).pointer, inputs, audio, link, bluetooth, toWorld, toScreen,
   scene, camera, renderer, meshes, splats, visuals, particleBatch,
   rendererWarmup,

@@ -1,0 +1,7 @@
+{
+  "framework": null,
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist/web",
+  "redirects": [{"source": "/", "destination": "/host/", "permanent": false}],
+  "trailingSlash": true
+}

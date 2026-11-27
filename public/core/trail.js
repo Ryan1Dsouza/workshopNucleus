@@ -11,12 +11,15 @@ export class Trail {
     this.segments = [];   // segments added on the last push, for hit tests
   }
 
-  push(x, y, now) {
+  push(x, y, now, accumulate = false) {
     const last = this.points[this.points.length - 1];
-    this.segments = [];
+    if (!accumulate) this.segments.length = 0;
     if (!last || Math.hypot(x - last.x, y - last.y) > this.minStep) {
       if (last) this.segments.push({ x1: last.x, y1: last.y, x2: x, y2: y });
       this.points.push({ x, y, t: now });
+    } else if (accumulate && now - last.t >= this.speedWindowMs) {
+      // Preserve a recent stationary endpoint for the first following cut.
+      last.t = now;
     }
     while (this.points.length && now - this.points[0].t > this.lifetimeMs) this.points.shift();
   }

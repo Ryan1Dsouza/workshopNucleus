@@ -25,6 +25,11 @@ const buttons = new ButtonStore(mask => {
 function renderProfile(value) {
   profile = validateProfile(value); buttons.clear();
   const controls = new Map(profile.controls.map(control=>[control.id,control]));
+  const shell = document.querySelector('.remote-shell');
+  shell.dataset.layout = profile.layout || '';
+  // The gyro layout gives the existing right-pad item shortcut its own face.
+  // Both touch targets use the same held bit, including simultaneous fingers.
+  document.querySelector('[data-face="item"] button').dataset.control = profile.layout === 'kart-gyro' ? 'right' : 'b';
   document.documentElement.dataset.orientation = profile.orientation;
   $('gameTitle').textContent = profile.title;
   $('centerLabel').textContent = profile.centerLabel;
@@ -35,10 +40,17 @@ function renderProfile(value) {
     button.hidden = !control;
     if (wrap) wrap.hidden = !control;
     button.setAttribute('aria-label', control ? id.toUpperCase() + ': ' + control.label : id);
-    const label = document.querySelector('[data-label="'+id+'"]');
+    const label = wrap?.querySelector('[data-label]');
     if (label && control) {
       label.textContent = control.label;
-      label.hidden = control.label === ({a:'A',b:'B',one:'1',two:'2'})[id];
+      const symbol = ({a:'A',b:'B',one:'1',two:'2'})[label.dataset.label];
+      label.hidden = control.label === symbol;
+      if (wrap.dataset.face) {
+        const racing = !!profile.layout;
+        (button.firstElementChild || button).textContent = racing ? control.label : symbol;
+        if (racing) button.setAttribute('aria-label', control.label);
+        label.hidden ||= racing;
+      }
     }
   }
   $('dpad').hidden = !['up','right','down','left'].some(id=>controls.has(id));
@@ -97,8 +109,7 @@ const keyControls = {ArrowUp:'up',ArrowRight:'right',ArrowDown:'down',ArrowLeft:
 window.addEventListener('keydown', event => {
   const id = keyControls[event.key];
   if (!id || event.repeat || !native.connected || /INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
-  const button = document.querySelector('[data-control="'+id+'"]');
-  if (!button || button.hidden || button.disabled) return;
+  if (!native.running || !profile.controls.some(control=>control.id===id)) return;
   event.preventDefault(); buttons.press(id,'key:'+event.key);
 });
 window.addEventListener('keyup',event=>buttons.release('key:'+event.key));

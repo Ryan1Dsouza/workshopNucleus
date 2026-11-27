@@ -11,6 +11,8 @@
  * a calm register — not transcriptions of anything.
  */
 
+import { audioFiles } from '../host/online-config.js';
+
 const EXTENSIONS = ['mp3', 'wav', 'ogg'];
 
 /**
@@ -101,7 +103,9 @@ export class AudioEngine {
   async fetchOverride(name) {
     for (const ext of EXTENSIONS) {
       try {
-        const res = await fetch(`${this.basePath}/${name}.${ext}`);
+        const path = `${this.basePath}/${name}.${ext}`;
+        if(audioFiles && !audioFiles.includes(path))continue;
+        const res = await fetch(path);
         if (!res.ok || res.status === 204) continue;
         const buf = await this.ctx.decodeAudioData(await res.arrayBuffer());
         this.overrides.set(name, buf);

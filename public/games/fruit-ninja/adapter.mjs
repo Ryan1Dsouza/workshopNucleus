@@ -34,17 +34,19 @@ export class FruitAdapter {
       const options=actions.classic?{practice:false}:actions.practice?{practice:true}:{};
       if(this.context.requestPlay)this.context.requestPlay(options);else this.reset(options);
     }
-    this.api.setControllerState(slot,state);
+    this.api.setControllerState(slot,(initialStart||actions.practice||actions.classic||actions.restart)?{...state,motionPath:[],reset:true,cutting:false}:state);
   }
   pause(value=true){this.paused=value;if(!this.api)return;if(value)this.api.pauseGame();else this.api.resumeGame();this.context.onState?.({paused:value});}
   configure(options={}){
+    const changed = options.splitScreen !== undefined && options.splitScreen !== this.options.splitScreen;
     for(const [key,value]of Object.entries(options))if(value!==undefined)this.options[key]=value;
     if(this.api){this.api.game.infiniteLives=this.options.practice;this.api.configureRound(this.options);}
     this.context.onOptions?.(this.options);
+    if(changed)this.context.centerFruit?.(this.options.splitScreen);
   }
   reset(options={}){
-    if(!this.api)return;this.configure({...this.context.roundOptions?.(),...options});this.api.audio.unlock();this.api.startGame();
-    for(const [slot,state]of this.snapshots)this.api.setControllerState(slot,{...state,reset:true,cutting:false});
+    if(!this.api)return;this.configure({...this.context.roundOptions?.(),...options});this.context.centerFruit?.(this.options.splitScreen);this.api.audio.unlock();this.api.startGame();
+    for(const [slot,state]of this.snapshots)this.api.setControllerState(slot,{...state,motionPath:[],axes:{...state.axes,x:.5,y:.5},displayAxes:{x:.5,y:.5},reset:true,cutting:false});
     this.paused=false;this.context.onState?.({paused:false});
     if(document.hasFocus()&&!document.hidden)this.frame.contentWindow.focus();
   }

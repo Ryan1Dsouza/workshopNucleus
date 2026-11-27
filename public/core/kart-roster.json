@@ -1,0 +1,10 @@
+[
+  { "id": "mario", "name": "Mario", "color": "#ed303b", "skill": 0.96 },
+  { "id": "luigi", "name": "Luigi", "color": "#31bf5a", "skill": 0.94 },
+  { "id": "peach", "name": "Peach", "color": "#ff8abe", "skill": 0.93 },
+  { "id": "yoshi", "name": "Yoshi", "color": "#83dc38", "skill": 0.99 },
+  { "id": "toad", "name": "Toad", "color": "#428cfa", "skill": 0.92 },
+  { "id": "bowser", "name": "Bowser", "color": "#ffae26", "skill": 1.01 },
+  { "id": "donkey-kong", "name": "Donkey Kong", "color": "#a86335", "skill": 0.97 },
+  { "id": "koopa", "name": "Koopa", "color": "#f0d449", "skill": 0.91 }
+]

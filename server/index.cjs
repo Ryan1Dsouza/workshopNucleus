@@ -10,10 +10,13 @@ const root = path.resolve(__dirname, '..');
 function createWorkshopServer() {
   const app = express(), servers = [http.createServer(app)], rooms = new Map();
   const io = new Server({ transports: ['websocket'], maxHttpBufferSize: 32768 });
+  require('./lobbies.cjs').installLobbies(io);
   const publicDir = path.join(root, 'public');
+  app.use('/assets/mario-kart', express.static(path.join(publicDir, 'assets/mario-kart'), { maxAge: '1d' }));
   app.use(express.static(publicDir, { maxAge: 0 }));
   app.use('/workshop', express.static(path.join(root, 'workshop'), { index: false, maxAge: 0 }));
   app.use('/vendor/three', express.static(path.join(root, 'node_modules/three/build')));
+  app.use('/vendor/three-examples', express.static(path.join(root, 'node_modules/three/examples/jsm')));
   // Optional audio overrides are probed once; absent files use synthesis.
   // Static files above still take precedence when an override is supplied.
   app.get(/^\/audio\/[\w-]+\.(mp3|wav|ogg)$/, (_, res) => res.status(204).end());
@@ -26,7 +29,7 @@ function createWorkshopServer() {
     const score = name => /wi-?fi|wlan/i.test(name) ? 0 : /virtual|vethernet|vpn|loopback/i.test(name) ? 2 : 1;
     const addresses = [...new Set(Object.entries(os.networkInterfaces()).sort((a,b)=>score(a[0])-score(b[0]))
       .flatMap(([, entries])=>entries || []).filter(n => n && n.family === 'IPv4' && !n.internal && !n.address.startsWith('169.254.')).map(n => n.address))];
-    res.set('Cache-Control', 'no-store').json({ addresses, port: req.socket.localPort, httpsPort: Number(process.env.HTTPS_PORT || 3443) });
+    res.set('Cache-Control', 'no-store').json({ addresses, port: req.socket.localPort, httpsPort: servers.find(server=>server instanceof https.Server && server.listening)?.address()?.port || null });
   });
   io.attach(servers[0]);
   function presence(room) {

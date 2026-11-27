@@ -3,7 +3,8 @@ import { clamp } from './orientation.js';
 // A short presentation buffer, never a velocity predictor. Collisions continue
 // to use the immediate measured pose. Only known endpoints can be displayed.
 export class BladeDisplay {
-  constructor() {
+  constructor(maxDelay = 64) {
+    this.maxDelay = maxDelay;
     this.points = [];
     this.position = { x: .5, y: .5 };
     this.delay = 16;
@@ -48,7 +49,7 @@ export class BladeDisplay {
     const jitter = offsets[Math.ceil(offsets.length * .9) - 1] - this.offset;
     // Slower BLE connection intervals need enough measured history to span a
     // packet gap. Fast links retain their short delay; never predict motion.
-    this.delay = clamp(intervals[Math.floor((intervals.length - 1) / 2)] + jitter, 8, 64);
+    this.delay = clamp(intervals[Math.floor((intervals.length - 1) / 2)] + jitter, 8, this.maxDelay);
     this.captureAt = captureAt;
     this.points.push({ ...position, t: captureAt, arrivalAt: now });
     if (this.points.length > 16) this.points.shift();

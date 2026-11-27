@@ -3,9 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="icon" href="data:,">
   <meta name="theme-color" content="#e9eef3">
   <title>ControllerKit · Play anything</title>
   <link rel="stylesheet" href="./host.css">
+  <link rel="stylesheet" href="./online.css">
 </head>
 <body>
   <header class="topbar">
@@ -14,7 +16,8 @@
       <span>ControllerKit<small>Phone-powered play</small></span>
     </a>
     <nav aria-label="Workspace">
-      <button class="nav-item active" id="playTab" aria-current="page">Play</button>
+      <button class="nav-item active" id="playTab" aria-current="page">Local play</button>
+      <button class="nav-item" id="onlineTab" hidden>Online</button>
       <button class="nav-item" id="workshopTab">Workshop</button>
     </nav>
     <div class="top-actions">
@@ -38,6 +41,33 @@
     </aside>
 
     <section class="play-area" aria-label="Selected game">
+      <section class="online-panel" id="onlinePanel" aria-labelledby="onlineTitle" hidden>
+        <div class="online-heading"><h2 id="onlineTitle">Online multiplayer</h2><button class="text-button" id="leaveRoom" hidden>Leave lobby</button></div>
+        <div id="lobbyBrowser">
+          <div class="create-lobby"><label class="online-field">Your name<input id="onlineName" maxlength="32" autocomplete="nickname" placeholder="Player"></label>
+          <div class="online-row">
+            <label class="online-field">Game<select id="createGame"><option value="fruit-ninja">Fruit Ninja</option><option value="kart-racing">Mario Kart</option></select></label>
+            <label class="online-field">Visibility<select id="visibility"><option value="public">Public</option><option value="private">Private</option></select></label>
+            <button class="primary-button" id="createRoom">Create lobby</button>
+          </div>
+          <form class="online-row" id="joinForm"><label class="online-field">Room code<input id="joinCode" maxlength="10" autocomplete="off" required></label><button class="secondary-button">Join lobby</button></form>
+          </div><div class="public-directory"><h3>Available players / lobbies online</h3><div id="directory"></div></div>
+        </div>
+        <div id="roomSetup" hidden>
+          <div class="online-row"><span id="roomVisibility"></span><strong class="room-code" id="roomCode"></strong><a id="inviteLink">Join link</a><button class="text-button" id="copyInvite">Copy link</button></div>
+          <ul class="room-players" id="roomPlayers"></ul>
+          <p id="peerLatency" class="lobby-status"></p>
+          <fieldset class="online-row" id="matchOptions"><legend>Match options</legend>
+            <label class="online-field">Game<select id="roomGame"><option value="fruit-ninja">Fruit Ninja</option><option value="kart-racing">Mario Kart</option></select></label>
+            <label class="online-field fruit-option">Split-screen mode<select id="roomPractice"><option value="true">Practice</option><option value="false">Classic</option></select></label>
+            <label class="online-field fruit-option">Timer<select id="roomDuration"><option value="30">30 seconds</option><option value="60">1 minute</option><option value="120">2 minutes</option></select></label>
+            <label class="online-field kart-option">Laps<select id="roomLaps"><option>1</option><option>3</option></select></label>
+            <div id="roomDrivers" class="kart-option online-drivers"></div>
+          </fieldset>
+          <div class="online-row"><label class="online-field kart-option">Your phone steering<select id="roomSteering"><option value="dpad">D-pad</option><option value="gyro">Gyro</option></select></label><button class="secondary-button" id="readyPlayer">Ready</button><button class="primary-button" id="startMatch">Start match</button></div>
+        </div>
+        <p id="lobbyStatus" class="lobby-status" role="status"></p>
+      </section>
       <div class="play-heading">
         <div><h1 id="selectedTitle">Your phone. Every game.</h1><p id="selectedDescription">Connect a controller to get started.</p></div>
         <div class="play-meta"><span class="mode-badge" id="modeBadge">Ready to pair</span><span class="game-category" id="gameCategory">Controller workspace</span><span class="expanded-hint" id="expandedHint" hidden>Esc to restore</span></div>

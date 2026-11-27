@@ -2,6 +2,7 @@ import { stage, features } from '../stage.mjs';
 import { ControllerState } from '../core/controller-state.js';
 import { BluetoothLink } from '../core/bluetooth-link.js';
 import { BUTTON_IDS, BUTTON_BITS, ButtonStore, validateProfile } from '../core/controller-contract.js';
+import { staticSite } from './online-config.js';
 import { downloadOrigins } from './download-origin.js';
 
 const $=id=>document.getElementById(id);
@@ -12,7 +13,16 @@ $('extensionCard').hidden=!features.extension;
 const MotionInput=features.motion?(await import('../core/motion-input.js')).MotionInput:null;
 // Smooth presentation once, using capture timestamps; keep measured aim direct.
 const controllers=new ControllerState({createMotion:MotionInput?()=>new MotionInput({smoothing:false}):undefined});
-if(MotionInput){const resize=()=>{const box=$('gameStage').getBoundingClientRect();for(const player of controllers.players)player.motion.pointer.setViewport(box.width,box.height);};new ResizeObserver(resize).observe($('gameStage'));resize();}
+let splitAim=false, online=null;
+function resizePointers() {
+  const stage=$('gameStage');
+  for(const player of controllers.players)player.motion?.pointer.setViewport(stage.clientWidth/(splitAim?2:1),stage.clientHeight);
+}
+function centerFruit(split) {
+  splitAim=split;resizePointers();
+  for(const player of controllers.players)controllers.center(player.slot,{freshGrip:true});
+}
+if(MotionInput)new ResizeObserver(resizePointers).observe($('gameStage'));
 let profile={id:'remote',title:'Controller Lab',orientation:'portrait',motion:features.motion?'aim':'none',
   controls:features.buttons?BUTTON_IDS.map(id=>({id,label:id.toUpperCase(),action:id})):[],
   instruction:features.motion?'Center your grip, then turn your wrist.':'Press a button and watch the laptop.',centerLabel:'Center motion'};
@@ -46,7 +56,7 @@ function assignedProfile(slot){return {...profile,player:slot+1,profileEpoch:con
 async function syncController(slot){
   if(!ble.connected(slot))return;
   deviceText[slot]='Sending the game controls…';
-  try{const ack=await ble.sendProfile(slot,assignedProfile(slot));controllers.markReady(slot,ack.profileEpoch);deviceText[slot]='Controls ready · '+profile.title;flushPendingPlay();}
+  try{const ack=await ble.sendProfile(slot,assignedProfile(slot));controllers.markReady(slot,ack.profileEpoch);deviceText[slot]='Controls ready · '+profile.title;flushPendingPlay();if(online?.active)online.render();}
   catch(error){if(ble.connected(slot)){deviceText[slot]='Update the app or reconnect.';notice(error.message,true);}}
 }
 const ble=new BluetoothLink({
@@ -54,13 +64,15 @@ const ble=new BluetoothLink({
     deviceText[state.slot]=state.text;
     if(state.connected){controllers.connect(state.slot,state.session,state.name);void syncController(state.slot);}
     else controllers.disconnect(state.slot);
-    if(current?.id==='fruit-ninja'&&ble.connected(0)&&ble.connected(1))adapter?.configure?.({splitScreen:true});
+    online?.bluetoothChanged();
+    if(!online?.active && current?.id==='fruit-ninja'&&ble.connected(0)&&ble.connected(1))adapter?.configure?.({splitScreen:true});
     renderPlayers(performance.now());
   },
   onButtons:(frame,slot,session)=>{if(features.buttons)controllers.buttons(slot,frame,session);},
   onSample:(frame,slot)=>{if(features.motion)controllers.motion(slot,frame);},
   onCommand:(command,slot)=>{
     if(command.type==='recentre'&&features.motion)controllers.center(slot,command);
+    else if(command.type==='wheel-rotation')controllers.setWheelRotation(slot,command);
     else if(command.type==='suspend')controllers.player(slot).motion?.suspend();
     else if(command.type==='disconnect')ble.disconnect(slot);
     else if(command.type==='start'&&features.fruit)play();
@@ -75,6 +87,7 @@ function enableDemo(){
 function submitDemo(){if(enableDemo())controllers.buttons(0,{mask:demoButtons.mask|previewMask,sequence:(demoSequence++)&65535,profileEpoch:controllers.profileEpoch},'desktop');}
 function releaseDemo(){previewMask=0;demoButtons.clear();if(controllers.player(0).session==='desktop')controllers.release(0);}
 function previewProfile(){
+  $('previewDialog').dataset.orientation=profile.orientation;
   if($('phonePreview').contentWindow&&$('phonePreview').getAttribute('src'))$('phonePreview').contentWindow.postMessage({type:'controller-preview-profile',profile:assignedProfile(0)},location.origin);
 }
 function setCurrentProfile(next){
@@ -94,7 +107,7 @@ function renderCard(game){
   const info=document.createElement('span');info.className='game-info';
   for(const [tag,className,text]of[['strong','',game.title||game.profile.title],['span','card-description',game.description||game.profile.instruction]]){const element=document.createElement(tag);element.className=className;element.textContent=text;info.append(element);}
   button.append(info);
-  button.addEventListener('click',()=>void select(game.id));$('gameList').append(button);
+  button.addEventListener('click',()=>{if(!online?.active)void select(game.id);});$('gameList').append(button);
 }
 async function select(id){
   const game=games.find(entry=>entry.id===id);if(!game)return;
@@ -110,7 +123,13 @@ async function select(id){
   $('enlargeGame').disabled=true;
   $('gameTools').hidden=true;
   $('roundOptions').hidden=true;
-  const context={container:$('gameStage'),feedback:data=>ble.feedback(data),notify:text=>notice(text),roundOptions,requestPlay:play,onOptions:showRoundOptions,onState:state=>{
+  splitAim=false;resizePointers();
+  const context={container:$('gameStage'),centerFruit,setControllerProfile:next=>{
+    if(version===selection && next.id===game.id && profile.layout!==next.layout) setCurrentProfile(next);
+  },feedback:data=>{
+    if (!online?.room)ble.feedback(data);
+    else if(data.slot===undefined || current?.id!=='fruit-ninja' || data.slot===online.slot)ble.feedback({...data,slot:0});
+  },notify:text=>notice(text),roundOptions,requestPlay:play,onOptions:showRoundOptions,onState:state=>{
     if(version!==selection)return;paused=!!state.paused;$('modeBadge').textContent=pendingPlay?'Preparing phones':paused?'Paused':'Playing';$('pauseGame').textContent=pendingPlay?'Cancel start':paused?'Resume':'Pause';
   }};
   try{
@@ -122,7 +141,7 @@ async function select(id){
     $('roundOptions').hidden=id!=='fruit-ninja';
     const frame=$('gameStage').querySelector('iframe');
     try{frame?.contentWindow?.addEventListener('keydown',restoreWithEscape,true);frame?.contentWindow?.addEventListener('focus',()=>{clearTimeout(focusLossTimer);resumeFromBackground();});}catch{/* Cross-origin games retain the visible Restore button. */}
-    $('gameHint').textContent=id==='fruit-ninja'?'Choose a timer, then Play. Mouse: hold the left button and drag. Two phones get separate lanes.':playable?game.profile.instruction:'Z / X = A / B · Arrow keys = D-pad · C = Center. Pair a phone for wrist motion.';
+    $('gameHint').textContent=id==='fruit-ninja'?'Choose a timer, then Play. Mouse: hold the left button and drag. Two phones get separate lanes.':id==='kart-racing'?'Choose D-pad or Gyro for your phone. On a keyboard, drive with WASD or arrows, drift with Shift and use items with Space.':playable?game.profile.instruction:'Z / X = A / B · Arrow keys = D-pad · C = Center. Pair a phone for wrist motion.';
     notice(playable?'Ready. Start a round from the laptop or press A on your phone.':'Test your controller here, then choose a game.');
   }catch(error){console.error(error);notice('Could not open this game: '+error.message,true);}
 }
@@ -132,7 +151,7 @@ function flushPendingPlay(){
   const requested=pendingPlay;pendingPlay=null;play(requested.options);
 }
 function play(options={}){
-  if(!adapter||current?.id==='remote')return;backgroundRound=null;
+  if(online?.active||!adapter||current?.id==='remote')return;backgroundRound=null;
   if(preparingPhones()){
     pendingPlay={selection,options,required:controllers.players.filter(p=>ble.has(p.slot)).map(p=>p.slot)};paused=true;
     if(!adapter.paused)adapter.pause(true);
@@ -141,8 +160,9 @@ function play(options={}){
   pendingPlay=null;adapter.reset(options);paused=false;$('modeBadge').textContent='Playing';$('pauseGame').textContent='Pause';notice('Round started.');
 }
 function togglePause(){
+  if(online?.active)return;
   if(!adapter||current?.id==='remote')return;
-  if(pendingPlay){pendingPlay=null;paused=true;$('modeBadge').textContent=adapter.api?.game.state.phase==='playing'?'Paused':'Ready to play';$('pauseGame').textContent=adapter.api?.game.state.phase==='playing'?'Resume':'Pause';notice('Start cancelled.');return;}
+  if(pendingPlay){pendingPlay=null;paused=true;const inRound=adapter.api?.race ? adapter.api.race.state!=='ready' : adapter.api?.game?.state.phase==='playing';$('modeBadge').textContent=inRound?'Paused':'Ready to play';$('pauseGame').textContent=inRound?'Resume':'Pause';notice('Start cancelled.');return;}
   backgroundRound=null;paused=!paused;adapter.pause(paused);$('modeBadge').textContent=paused?'Paused':'Playing';$('pauseGame').textContent=paused?'Resume':'Pause';
 }
 let games=[];
@@ -197,6 +217,15 @@ function frame(now){
   if(controllers.player(0).session==='desktop'&&now-lastDemo>400){submitDemo();lastDemo=now;}
   for(const slot of [0,1]){
     const state=controllers.sample(slot,now);
+    if(online?.active){
+      if(slot===0 && online.playing)adapter?.api?.setControllerState(current.id==='fruit-ninja'?online.slot:0,state);
+      if(slot===0 && !online.playing && current?.id==='kart-racing' && state.pressedActions['steering-mode']){
+        const api=adapter.api;
+        api.setSteeringMode(api.steeringMode==='gyro'?'dpad':'gyro');
+        online.render();
+      }
+      continue;
+    }
     if(current?.id!=='remote'&&state.pressedActions.home){void select('remote');continue;}
     if(current?.id!=='remote'&&state.pressedActions.pause)togglePause();
     adapter?.input(slot,state);
@@ -209,18 +238,22 @@ requestAnimationFrame(frame);
 const keyMap={ArrowUp:'up',ArrowRight:'right',ArrowDown:'down',ArrowLeft:'left',w:'up',a:'left',s:'down',d:'right',z:'a',x:'b','1':'one','2':'two','+':'plus','-':'minus'};
 window.addEventListener('keydown',event=>{
   if(restoreWithEscape(event))return;
-  if(event.repeat||event.target.closest('input,textarea,select'))return;
+  if(event.target.closest('input,textarea,select')||online?.active&&(!online.playing||event.key==='Escape'))return;
   if(document.querySelector('dialog[open]'))return;
+  if (adapter?.handleKey && !(['Enter','Space'].includes(event.code) && event.target.closest('button,a'))) {
+    if (adapter.handleKey(event)) return;
+  }
+  if(event.repeat)return;
   if(event.key.toLowerCase()==='c'&&features.motion){controllers.center(0,{});return;}
   if(event.key==='Escape'){if(current?.id!=='remote')void select('remote');return;}
   const id=keyMap[event.key]||keyMap[event.key.toLowerCase()];if(!id||!features.buttons||!enableDemo())return;
   event.preventDefault();demoButtons.press(id,event.code);
 });
-window.addEventListener('keyup',event=>demoButtons.release(event.code));
+window.addEventListener('keyup',event=>{adapter?.handleKey?.(event);demoButtons.release(event.code);});
 function pauseInBackground(){
   releaseDemo();
-  if(!adapter||current?.id==='remote'||paused||backgroundRound)return;
-  if(adapter.api&&adapter.api.game.state.phase!=='playing')return;
+  if(online?.active||!adapter||current?.id==='remote'||paused||backgroundRound)return;
+  if(adapter.api?.game && adapter.api.game.state.phase!=='playing')return;
   backgroundRound={adapter,selection};adapter.pause(true);
 }
 function resumeFromBackground(){
@@ -230,10 +263,11 @@ function resumeFromBackground(){
   if(round.adapter===adapter&&round.selection===selection)adapter.pause(false);
 }
 // Parent blur can be the start of focusing the embedded game, not Alt+Tab.
-window.addEventListener('blur',()=>{releaseDemo();clearTimeout(focusLossTimer);focusLossTimer=setTimeout(()=>{if(!document.hasFocus())pauseInBackground();},250);});
+window.addEventListener('blur',()=>{releaseDemo();adapter?.releaseKeys?.();clearTimeout(focusLossTimer);focusLossTimer=setTimeout(()=>{if(!document.hasFocus())pauseInBackground();},250);});
 window.addEventListener('focus',()=>{clearTimeout(focusLossTimer);resumeFromBackground();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden)pauseInBackground();else resumeFromBackground();});
 window.addEventListener('message',event=>{
+  if(event.origin===location.origin && event.source===adapter?.frame?.contentWindow && current?.id==='kart-racing' && event.data?.type==='kart-center'){controllers.center(0,{});return;}
   if(event.origin===location.origin&&event.source===adapter?.frame?.contentWindow&&event.data?.type==='fruit-request-play'){play();return;}
   if(event.origin!==location.origin||event.source!==$('phonePreview').contentWindow)return;
   if(event.data?.type==='controller-preview-buttons'){previewMask=event.data.mask&2047;submitDemo();}
@@ -244,18 +278,25 @@ $('startGame').addEventListener('click',()=>play());$('pauseGame').addEventListe
 $('enlargeGame').addEventListener('click',()=>setExpanded(!expanded));
 $('fullscreen').addEventListener('click',()=>{if(document.fullscreenElement)void document.exitFullscreen?.();else void document.documentElement.requestFullscreen?.().catch(()=>{});});
 for(const id of ['controllersTab','appButton','emptyConnect','quickQrButton'])$(id)?.addEventListener('click',()=>$('connectionDialog').showModal());
-$('playTab').addEventListener('click',()=>$('gameStage').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'center'}));
+$('roundPlayers').addEventListener('change',()=>{if(!online?.active && current?.id==='fruit-ninja')adapter.configure(roundOptions());});
+$('playTab').addEventListener('click',()=>{if(online?.active)online.close();else $('gameStage').scrollIntoView({block:'center'});});
 for(const id of ['workshopTab','extensionGuide'])$(id).addEventListener('click',()=>$('workshopDialog').showModal());
 for(const button of document.querySelectorAll('[data-close]'))button.addEventListener('click',()=>$(button.dataset.close).close());
 for(const dialog of document.querySelectorAll('dialog'))dialog.addEventListener('click',event=>{if(event.target!==dialog)return;const box=dialog.getBoundingClientRect();if(event.clientX<box.left||event.clientX>box.right||event.clientY<box.top||event.clientY>box.bottom)dialog.close();});
 $('previewDialog').addEventListener('close',()=>{previewMask=0;submitDemo();});
 $('phonePreview').addEventListener('load',previewProfile);
 $('previewButton').addEventListener('click',()=>{if(!$('phonePreview').getAttribute('src'))$('phonePreview').src='/controller?preview=1';$('previewDialog').showModal();previewProfile();});
+let inviteOrigin=location.origin;
 try{
-  const info=await fetch('/connection-info').then(response=>response.json()),origins=downloadOrigins(info,location);
+  const info=staticSite?{}:await fetch('/connection-info').then(response=>response.json()),origins=downloadOrigins(info,location);
   for(const origin of origins){const option=document.createElement('option');option.value=origin;option.textContent=origin;$('downloadAddress').append(option);}
   $('addressLabel').hidden=origins.length<2;
   const draw=()=>{
+    if(!staticSite && info.httpsPort && origins[0]!==location.origin){
+      const shared=new URL($('downloadAddress').value);
+      shared.protocol='https:';shared.port=info.httpsPort;inviteOrigin=shared.origin;
+      if(online?.active)online.render();
+    }
     const url=$('downloadAddress').value+'/downloads/';$('downloadLink').href=$('quickDownloadLink').href=url;
     for(const [id,size]of [['downloadQr',146],['quickDownloadQr',84]]){
       $(id).replaceChildren();if(typeof QRCode==='function')new QRCode($(id),{text:url,width:size,height:size,colorDark:'#233044',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M});
@@ -264,4 +305,10 @@ try{
   $('downloadAddress').addEventListener('change',draw);draw();
   if(origins[0]===location.origin&&['localhost','127.0.0.1'].includes(location.hostname))$('downloadCaption').textContent='Connect the laptop to your phone’s network to generate a reachable download QR.';
 }catch(error){$('downloadCaption').textContent='Open /downloads/ on the laptop’s LAN address.';console.error(error);}
-window.__controllerkit={controllers,ble,registry,registerGame,profile:()=>profile,current:()=>current,adapter:()=>adapter,select,play,togglePause,enableDemo,stage,features};
+if(features.fruit) {
+  const {onlineLobby}=await import('./lobby.mjs');
+  online=onlineLobby({select,inviteOrigin:()=>inviteOrigin,adapter:()=>adapter,current:()=>current,paired:()=>ble.connected(0),centerFruit,
+    phonesReady:()=>!ble.has(0)||controllers.player(0).ready});
+  if(new URLSearchParams(location.search).has('join'))void online.open();
+}
+window.__controllerkit={controllers,ble,online,registry,registerGame,profile:()=>profile,current:()=>current,adapter:()=>adapter,select,play,togglePause,enableDemo,stage,features};
