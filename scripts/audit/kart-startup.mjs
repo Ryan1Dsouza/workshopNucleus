@@ -24,17 +24,21 @@ try {
       for(const selector of ['[data-driver="luigi"]','[data-laps="1"]','[data-steering="gyro"]'])
         assert.equal(await menu.locator(selector).getAttribute('aria-pressed'),'true');
       await menu.locator('#start').click();
-      if(embedded)await page.waitForFunction(()=>__controllerkit.profile().layout==='kart-gyro');
+      if(embedded)assert.equal(await page.evaluate(()=>__controllerkit.profile().layout),undefined);
       assert.equal(await menu.locator('#intro').getAttribute('data-menu-step'),'start');
       assert.equal(await menu.locator('#start').getAttribute('aria-busy'),null);
       await page.keyboard.press('Enter');
       assert.equal(await menu.locator('#start').getAttribute('aria-busy'),'true');
+      if(embedded)assert.equal(await page.evaluate(()=>__controllerkit.profile().layout),undefined);
       const frame=page.frames().find(f=>f.url().includes('/games/mario-kart/'));
       assert.equal(await frame.evaluate(()=>!!window.__openwii),false);
       release();
       await frame.waitForFunction(()=>window.__openwii?.race.state==='racing',null,{timeout:45000});
       assert.deepEqual(await frame.evaluate(()=>[__openwii.race.player.character.id,__openwii.race.laps,__openwii.steeringMode]),['luigi',1,'gyro']);
-      if(embedded)assert.equal(await page.locator('#modeBadge').innerText(),'Playing');
+      if(embedded){
+        assert.equal(await page.evaluate(()=>__controllerkit.profile().layout),'kart-gyro');
+        assert.equal(await page.locator('#modeBadge').innerText(),'Playing');
+      }
       assert.deepEqual(errors,[]);
       console.log((embedded?'Host':'Standalone')+' confirmed steering separately and started the selected race on Enter.');
     } finally {release();await page.close();}

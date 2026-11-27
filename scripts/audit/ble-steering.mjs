@@ -30,8 +30,8 @@ try {
     }
     const kartProfileEpoch = game==='kart-racing' && await page.evaluate(()=>{
       const phone=__fakeBle.phones[0];
-      if(phone.profile.layout!=='kart-gyro' || __controllerkit.adapter().api.race.state!=='ready')
-        throw new Error('The phone must have gyro controls before Start.');
+      if(phone.profile.layout || __controllerkit.adapter().api.race.state!=='ready')
+        throw new Error('The phone must keep its menu controls until race entry.');
       return phone.profile.profileEpoch;
     });
     await page.evaluate(()=>{
@@ -47,7 +47,10 @@ try {
     if (count===2) await page.locator('#roundMode').selectOption('practice');
     await page.locator('#startGame').click();
     await page.waitForFunction(()=>{const api=__controllerkit.adapter().api;return api.race?.state==='racing'||api.game?.state.phase==='playing';});
-    if(game==='kart-racing')assert.equal(await page.evaluate(()=>__fakeBle.phones[0].profile.profileEpoch),kartProfileEpoch);
+    if(game==='kart-racing'){
+      assert.equal(await page.evaluate(()=>__fakeBle.phones[0].profile.layout),'kart-gyro');
+      assert.notEqual(await page.evaluate(()=>__fakeBle.phones[0].profile.profileEpoch),kartProfileEpoch);
+    }
     report.games[game]=await page.evaluate(async count=>{
       stopWarmup();
       const api=__controllerkit.adapter().api,kart=!!api.race;
@@ -172,7 +175,13 @@ try {
         const f=game.fruits.at(-1);
         Object.assign(f,{x:-game.w*.34,y:0,r:.2,vx:0,vy:0});
         const initialScore=game.getPlayer(0).score;
-        d.pose(12,240);d.pose(0,240);d.pose(0,0);
+        // Three 50 Hz captures delivered together, including the return slash.
+        // Using arrival times here would report an impossible 12° move in 1 ms.
+        await new Promise(resolve=>setTimeout(resolve,60));
+        const end=d.captureClock(performance.now());
+        let captured=end-60;
+        d.captureClock=()=>captured+=20;
+        d.pose(12,600);d.pose(0,600);d.pose(0,0);
         await wait();await wait();await wait();
         return {removed:!game.fruits.includes(f),scoreChange:game.getPlayer(0).score-initialScore};
       });

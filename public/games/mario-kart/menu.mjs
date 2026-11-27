@@ -18,8 +18,6 @@ let earlySound = 0;
 export function phoneLayout(next) {
   if (layout === next) return;
   layout = next;
-  // The adapter owns this same-origin iframe. Deliver the choice in the
-  // click handler so a queued course-loading task cannot delay BLE setup.
   window.frameElement?.dispatchEvent(new CustomEvent('kart-controller-layout', {detail:layout}));
 }
 
@@ -45,12 +43,11 @@ export function setStep(next) {
   const intro = $('intro');
   intro.classList.toggle('driver-confirmed', confirmed);
   intro.dataset.menuStep = step;
-  phoneLayout(step === 'start' ? steering : 'menu');
   const copy = {
     driver: 'Choose your driver',
     laps: 'Choose race length · Press A to continue',
     steering: '← / → choose steering · A or Enter to confirm',
-    start: (steering === 'gyro' ? 'Gyro' : 'D-pad') + ' selected · Press again to start',
+    start: (steering === 'gyro' ? 'Gyro' : 'D-pad') + ' selected · A or Enter to start',
   };
   document.querySelector('.intro-copy').textContent = copy[step];
   $('start').firstChild.textContent = step === 'steering' ? 'Confirm steering ' : 'Start Race ';
@@ -142,7 +139,6 @@ export function navigate(direction) {
   chooseDriver(drivers.indexOf(driver) + {left:-1,right:1,up:-4,down:4}[direction]);
 }
 function requestStart() {
-  phoneLayout(steering);
   if (controls) return controls.start();
   if (pendingStart) return;
   menuSound('confirm');

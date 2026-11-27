@@ -451,13 +451,13 @@ function begin() {
   raceSteering = menu.steering;
   $('wheel-ready').firstChild.textContent = raceSteering === 'gyro' ? 'Hold your phone sideways and level' : 'Preparing your D-pad';
   $('wheel-ready').querySelector('small').textContent = 'The countdown starts when your controls are ready';
-  menu.phoneLayout(raceSteering);
   phoneHadGas = lastRemoteItem = itemPulse = false;
   race.start();
   $("intro").hidden = true;
   $("track-label").hidden = true;
   $("hud").hidden = false;
   $("results").hidden = true;
+  menu.phoneLayout(raceSteering);
   noticeUntil = 0;
   if (embedded) parent.postMessage({ type: "game-state", paused: false }, location.origin);
 }

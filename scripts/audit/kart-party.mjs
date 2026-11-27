@@ -42,8 +42,9 @@ try{
   await host.locator('#roomSteering').selectOption('gyro');
   assert.equal(await host.evaluate(()=>__controllerkit.profile().layout),undefined);
   await host.locator('#confirmRoomSteering').click();
-  await host.waitForFunction(()=>__fakeBle.phones[0].profile?.layout==='kart-gyro' && __controllerkit.controllers.player(0).ready);
-  const gyroEpoch=await host.evaluate(()=>__fakeBle.phones[0].profile.profileEpoch);
+  await host.waitForFunction(()=>__controllerkit.adapter().api.menuStep==='start' && __controllerkit.controllers.player(0).ready);
+  const menuEpoch=await host.evaluate(()=>__fakeBle.phones[0].profile.profileEpoch);
+  assert.equal(await host.evaluate(()=>__fakeBle.phones[0].profile.layout),undefined);
   assert.equal(await pages[1].locator('#roomSteering').inputValue(),'dpad');
   await host.locator('#driver7').selectOption('mario');
   await host.waitForFunction(()=>__controllerkit.online.room.options.drivers[7]==='mario' && __controllerkit.online.room.options.drivers[0]==='koopa');
@@ -53,6 +54,8 @@ try{
   await host.screenshot({path:output+'/lobby-mobile.png',fullPage:true});
   await host.setViewportSize({width:1366,height:900});
   await Promise.all(pages.map(p=>p.locator('#readyPlayer').click({timeout:60000})));
+  assert.ok((await Promise.all(pages.map(p=>p.evaluate(()=>!__controllerkit.profile().layout)))).every(Boolean));
+  assert.equal(await host.evaluate(()=>__fakeBle.phones[0].profile.profileEpoch),menuEpoch);
   await host.locator('#startMatch').click();
   await Promise.all(pages.map(p=>p.waitForFunction(()=>__controllerkit.adapter().api.race?.state==='racing',null,{timeout:60000})));
   const readings=()=>Promise.all(pages.map(p=>p.evaluate(async()=>{
@@ -67,7 +70,8 @@ try{
   })));
   const before=await readings();
   assert.equal(await host.evaluate(()=>__controllerkit.profile().layout),'kart-gyro');
-  assert.equal(await host.evaluate(()=>__fakeBle.phones[0].profile.profileEpoch),gyroEpoch);
+  await host.waitForFunction(()=>__fakeBle.phones[0].profile.layout==='kart-gyro' && __controllerkit.controllers.player(0).ready);
+  assert.notEqual(await host.evaluate(()=>__fakeBle.phones[0].profile.profileEpoch),menuEpoch);
   assert.equal(await pages[1].evaluate(()=>__controllerkit.profile().layout),'kart-dpad');
   for(const i of [0,7]){
     const p=pages[i];await p.locator('#gameStage iframe').focus();await p.keyboard.press('Escape');

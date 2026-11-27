@@ -1,6 +1,6 @@
 # ControllerKit Android app
 
-ControllerKit 2.0.7 (versionCode 11) keeps application id workshop.airslice.ble. The APK bundles the standard game profiles so Mario Kart can switch controls when you confirm D-pad or Gyro. Install the APK from Controller options, reload the laptop host and reconnect.
+ControllerKit 2.0.7 (versionCode 11) keeps application id workshop.airslice.ble. Mario Kart uses the normal phone controls through Start Race, then activates the selected D-pad or Gyro layout as the countdown opens. The APK bundles these profiles. Install the APK from Controller options, reload the laptop host and reconnect.
 
 MainActivity hosts an offline WebView. MotionService owns Bluetooth, fused orientation and a user-started foreground service. The existing camera/notification workflow is retained; buttons release when the activity hides. Phones without the required motion sensors can use buttons.
 

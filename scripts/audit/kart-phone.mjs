@@ -16,7 +16,7 @@ try {
   await page.frameLocator('#gameStage iframe').locator('[data-steering="gyro"]').click();
   assert.equal(await page.evaluate(()=>__controllerkit.profile().layout),undefined);
   await page.frameLocator('#gameStage iframe').locator('#start').click();
-  await page.waitForFunction(()=>__controllerkit.profile().layout==='kart-gyro');
+  assert.equal(await page.evaluate(()=>__controllerkit.profile().layout),undefined);
   await page.evaluate(()=>{
     const phone=__fakeBle.phones[0], control=phone.control;
     const write=control.writeValueWithResponse.bind(control);
@@ -35,6 +35,9 @@ try {
   assert.match(await page.locator('#playerDetail0').innerText(),/GATT operation/);
   await page.evaluate(()=>{__fakeBle.phones[0].allowWrites=true;});
   await page.locator('#retryControls0').click();
+  await page.waitForFunction(()=>__controllerkit.controllers.player(0).ready && __controllerkit.adapter()?.api?.race.state==='ready');
+  assert.equal(await page.evaluate(()=>__fakeBle.phones[0].profile.layout),undefined);
+  await page.locator('#startGame').click();
   await page.waitForFunction(()=>__controllerkit.controllers.player(0).ready && __fakeBle.phones[0].profile.layout==='kart-gyro');
   assert.equal(await page.evaluate(()=>__fakeBle.phones[0].gatt.connects),1);
 
@@ -60,8 +63,6 @@ try {
       packet.setUint16(18,phone.epoch,true);phone.motion.emit(packet);
     },20);
   });
-  assert.equal(await page.evaluate(()=>__controllerkit.adapter().api.race.state),'ready');
-  await page.locator('#startGame').click();
   await page.waitForFunction(()=>__controllerkit.adapter()?.api?.race.state==='racing');
   await page.locator('#gameStage iframe').focus();
   await page.keyboard.down('w');
@@ -114,20 +115,20 @@ try {
       if(d.profile.layout || __controllerkit.profile().layout)throw Error('Steering preview changed phone controls');
       const browsing=step();
       d.buttons(16);d.buttons(16); // a held Confirm is only one edge
-      const layout=__controllerkit.profile().layout, confirmed=step(), firstBusy=w.document.getElementById('start').hasAttribute('aria-busy');
+      const layout=__controllerkit.profile().layout ?? 'menu', confirmed=step(), firstBusy=w.document.getElementById('start').hasAttribute('aria-busy');
       d.buttons(0);tap(8);const edited=step();
       tap(2);tap(16);tap(16);
+      if(__controllerkit.profile().layout || d.control.writes.length!==before)throw Error('Queued Start sent a racing layout before the course loaded');
       return {laps,steering,duringLaps,writesWhileBrowsing,layout,browsing,confirmed,firstBusy,edited,pending:w.document.getElementById('start').getAttribute('aria-busy')};
     });
-    assert.deepEqual(result,{laps:'laps',steering:'steering',duringLaps:0,writesWhileBrowsing:0,layout:'kart-gyro',browsing:'steering',confirmed:'start',firstBusy:false,edited:'steering',pending:'true'});
-    // Check one isolated mode change's actual acknowledgement and write count.
-    await page.waitForFunction(()=>__controllerkit.controllers.player(0).ready && __fakeBle.phones[0].profile.layout==='kart-gyro');
+    assert.deepEqual(result,{laps:'laps',steering:'steering',duringLaps:0,writesWhileBrowsing:0,layout:'menu',browsing:'steering',confirmed:'start',firstBusy:false,edited:'steering',pending:'true'});
     loadCourse();
     await page.waitForFunction(()=>__controllerkit.adapter()?.api?.race.state==='countdown');
+    await page.waitForFunction(()=>__controllerkit.controllers.player(0).ready && __fakeBle.phones[0].profile.layout==='kart-gyro');
     await page.unroute('**/games/mario-kart/game.js');
-    const timing=await page.evaluate(async()=>{
-      const d=__fakeBle.phones[0];
-      __controllerkit.adapter().api.resetGame();
+    const timing=await page.evaluate(async mode=>{
+      const d=__fakeBle.phones[0], api=__controllerkit.adapter().api;
+      api.resetGame();
       await __controllerkit.ble.devices.get(0).profileTask;
       const ctx=__controllerkit.adapter().api.audio.engine.ctx;
       if(ctx.state!=='running')throw Error('Phone-only menu audio is suspended');
@@ -140,24 +141,25 @@ try {
       const tapAt=performance.now();
       try{d.buttons(2);d.buttons(0);}finally{for(const undo of restore)undo();}
       if(times.length!==1)throw Error('Expected exactly one audio source during a D-pad character change, got '+times.length);
-      const before=d.control.writes.length,start=performance.now();
-      document.querySelector('#gameStage iframe').contentDocument.querySelector('[data-steering="gyro"]').click();
-      if(d.control.writes.length!==before || d.profile.layout)throw Error('Browsing sent a racing layout');
+      const profileWrites=()=>d.control.writes.filter(([op])=>[0x40,0x41,0x42,0x46].includes(op)).length;
+      const before=profileWrites(), menuEpoch=d.profile.profileEpoch;
+      const frame=document.querySelector('#gameStage iframe'), changes=[];
+      frame.addEventListener('kart-controller-layout',event=>changes.push({
+        layout:event.detail,state:api.race.state,hidden:frame.contentDocument.getElementById('intro').hidden
+      }),{once:true});
+      frame.contentDocument.querySelector('[data-steering="'+mode+'"]').click();
+      d.buttons(16);d.buttons(16);
+      if(api.race.state!=='ready' || api.menuStep!=='start' || d.profile.layout || d.profile.profileEpoch!==menuEpoch || profileWrites()!==before)
+        throw Error('Confirming steering must leave the phone on its menu controls at Start Race');
+      d.buttons(0);
+      const start=performance.now();
       d.buttons(16);d.buttons(0);
       await __controllerkit.ble.devices.get(0).profileTask;
-      if(d.profile.layout!=='kart-gyro')throw Error('Phone did not apply the selected layout');
-      return {writes:d.control.writes.length-before,ms:Math.round(performance.now()-start),dpadSoundScheduledMs:+(times[0]-tapAt).toFixed(1)};
-    });
+      if(d.profile.layout!=='kart-'+mode || d.profile.profileEpoch===menuEpoch)throw Error('Race entry did not activate the selected phone layout');
+      return {changes,writes:profileWrites()-before,ms:Math.round(performance.now()-start),dpadSoundScheduledMs:+(times[0]-tapAt).toFixed(1)};
+    },fast?'gyro':'dpad');
+    assert.deepEqual(timing.changes,[{layout:fast?'gyro':'dpad',state:'countdown',hidden:true}]);
     assert.ok(fast?timing.writes===1:timing.writes>40);
-    const states=await page.evaluate(()=>{
-      const d=__fakeBle.phones[0],api=__controllerkit.adapter().api;
-      d.buttons(8);d.buttons(0);
-      const states=[api.race.state,api.menuStep];
-      d.buttons(16);d.buttons(16);states.push(api.race.state,api.menuStep);
-      d.buttons(0);d.buttons(16);d.buttons(0);states.push(api.race.state);
-      return states;
-    });
-    assert.deepEqual(states,['ready','steering','ready','start','countdown']);
     console.log((fast?'Preset APK':'Legacy APK')+' at 30 ms/write: '+JSON.stringify(timing)+'; phone-only menu and queued Start passed.');
   }
   assert.deepEqual(errors,[]);
