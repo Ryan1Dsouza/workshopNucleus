@@ -43,7 +43,7 @@ class HostedLobby {
     return r.json();
   }
   resetRoom() {
-    this.code=null;this.cursor=0;this.previous=null;this.room=null;this.signals=[];
+    this.code=null;this.cursor=0;this.revision=0;this.previous=null;this.room=null;this.signals=[];
     clearTimeout(this.batch);this.batch=null;
   }
   accept(result, action) {
@@ -56,7 +56,10 @@ class HostedLobby {
     }
     if (result.directory) this.notify('directory',result.directory);
     if (!result.room) return;
+    if(result.room.code===this.code && result.revision<this.revision)return;
+    this.revision=result.revision;
     this.code=result.room.code;
+    if(Array.isArray(result.iceServers))this.iceServers=result.iceServers;
     this.room=result.room;
     const signature=JSON.stringify(result.room);
     if (signature!==this.previous) {

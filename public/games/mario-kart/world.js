@@ -138,10 +138,13 @@ function profileRibbon(start, end, profile, mat, step = 2) {
   m.receiveShadow = true;
   return m;
 }
-export function buildWorld(scene) {
+// Leave the browser time to paint the driver menu between groups of geometry.
+export const yieldDuringLoad = () => globalThis.scheduler?.yield?.() ?? new Promise(resolve=>setTimeout(resolve,0));
+export async function buildWorld(scene) {
   const world = new THREE.Group();
   scene.add(world);
   const pavement = pavementMaps();
+  await yieldDuringLoad();
   const roadTex = pavement.map;
   roadTex.wrapS = roadTex.wrapT = THREE.RepeatWrapping;
   const grassTex = grass();
@@ -200,6 +203,7 @@ export function buildWorld(scene) {
     world.add(ribbon(a, b, -WALL_HALF, WALL_HALF, standard("#26384a"), -0.65));
   }
   buildPlanting(world);
+  await yieldDuringLoad();
   const sandMap = canvasTexture(256, 256, (c, w, h) => {
     c.fillStyle = "#bba775";
     c.fillRect(0, 0, w, h);
@@ -241,6 +245,7 @@ export function buildWorld(scene) {
   });
   buildLanding(world, { mesh, box, standard, canvasTexture });
   buildLandingPylons(world, { mesh, box, standard, canvasTexture });
+  await yieldDuringLoad();
 
   // One continuous top surface per curb. The filtered stripe texture gives
   // distant stripes a stable average colour and matches across the lap seam.
@@ -287,6 +292,7 @@ export function buildWorld(scene) {
       ];
       world.add(profileRibbon(a, b, side < 0 ? curb.reverse() : curb, grass ? plainCurb : stripedCurb));
     }
+    await yieldDuringLoad();
   }
   // A continuous rail follows the collision boundary even on the outside of a bend.
   for (const [a, b] of [[0, SECTIONS.glideStart], [SECTIONS.glideEnd, L]]) {
@@ -493,6 +499,7 @@ export function buildWorld(scene) {
     }
   }
   buildUnderpass(world, { box, standard });
+  await yieldDuringLoad();
   const gate = buildPitlane(world, {
     mesh,
     box,
@@ -520,6 +527,7 @@ export function buildWorld(scene) {
     lights.push(light);
   }
   buildStadiumBowl(world, { mesh, box, standard, basic, canvasTexture });
+  await yieldDuringLoad();
   // Floodlight pylons and their visible luminaires. Illumination is consolidated
   // into the scene's key/fill lights rather than hundreds of GPU point lights.
   for (let i = 0; i < 12; i++) {
@@ -602,6 +610,7 @@ export function buildWorld(scene) {
   }
   buildLandmark(world, { box, standard });
   buildPaddock(world, { mesh, box, standard, basic, canvasTexture });
+  await yieldDuringLoad();
   const architecture = buildArchitecture(world, {
     mesh,
     box,

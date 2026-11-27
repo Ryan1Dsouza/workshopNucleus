@@ -1,4 +1,5 @@
 import {KartMatch} from './online.js';
+import * as menu from './menu.mjs';
 import {itemRoulette} from "./item-roulette.js";
 import {raceEffects} from "./race-effects.js";
 import {itemPortraits} from "./item-portraits.js";
@@ -53,7 +54,7 @@ import {
   rigWheels,
   disposeModel,
 } from "./models.js";
-import { buildWorld, canvasTexture } from "./world.js";
+import { buildWorld, canvasTexture, yieldDuringLoad } from "./world.js";
 import { ITEM_ICONS, portrait } from "./icons.js";
 const $ = (id) => document.getElementById(id),
   canvas = $("game"),
@@ -111,7 +112,7 @@ if (courseDescriptor) {
   }
   catch (error) { console.warn('Local course pack unavailable; using built-in course:', error.message); }
 }
-if (!world) world = buildWorld(scene);
+if (!world) world = await buildWorld(scene);
 if (world.source) {
   useSourceTrack(world.route);
   camera.far = 420;
@@ -143,6 +144,7 @@ for (const front of twoSidedBoards) {
 world.world.updateMatrixWorld(true);
 const avoidScenery = world.avoidCamera || cameraCollision(world.world);
 const staticGroups = new Map();
+const staticMeshes = [];
 world.world.traverse((o) => {
   // Animated crowd and broadcast props keep their original transforms.
   for (let parent = o; parent; parent = parent.parent)
@@ -154,6 +156,14 @@ world.world.traverse((o) => {
     Array.isArray(o.material)
   )
     return;
+  staticMeshes.push(o);
+});
+let sliceStart = performance.now();
+for (const o of staticMeshes) {
+  if (performance.now() - sliceStart > 12) {
+    await yieldDuringLoad();
+    sliceStart = performance.now();
+  }
   const g = o.geometry.clone();
   if (!g.index) g.setIndex(Array.from({length: g.attributes.position.count}, (_, i) => i));
   g.applyMatrix4(o.matrixWorld);
@@ -190,7 +200,8 @@ world.world.traverse((o) => {
     staticGroups.set(id, { mat: material, geos: [], originals: [] });
   staticGroups.get(id).geos.push(g);
   staticGroups.get(id).originals.push(o);
-});
+}
+staticMeshes.length = 0;
 for (const { mat, geos, originals } of staticGroups.values()) {
   const g = mergeGeometries(geos);
   geos.forEach(x => x.dispose());
@@ -199,28 +210,19 @@ for (const { mat, geos, originals } of staticGroups.values()) {
   const m = new THREE.Mesh(g, mat);
   m.receiveShadow = true;
   scene.add(m);
+  if (performance.now() - sliceStart > 12) {
+    await yieldDuringLoad();
+    sliceStart = performance.now();
+  }
 }
 staticGroups.clear();
 twoSidedBoards.length = 0;
 let onlineSetup=null, match=null;
-let steeringMode = localStorage.getItem('openwii.kart.steering') === 'gyro' ? 'gyro' : 'dpad';
-let raceSteering = steeringMode;
-function setSteeringMode(mode) {
-  if (mode !== 'gyro' && mode !== 'dpad') return;
-  steeringMode = mode;
-  localStorage.setItem('openwii.kart.steering', mode);
-  for (const button of document.querySelectorAll('[data-steering]'))
-    button.setAttribute('aria-pressed', String(button.dataset.steering === mode));
-}
-for (const button of document.querySelectorAll('[data-steering]'))
-  button.onclick = () => setSteeringMode(button.dataset.steering);
-setSteeringMode(steeringMode);
+let raceSteering = menu.steering;
 function phoneLayout(layout) {
   if (embedded) parent.postMessage({type:'kart-controller-layout', layout}, location.origin);
 }
-let selected = "mario",
-  selectedLaps = localStorage.getItem("openwii.kart.laps") === "1" ? 1 : 3,
-  paused = false,
+let paused = false,
   race,
   noticeUntil = 0,
   hitUntil = 0,
@@ -247,8 +249,8 @@ const shadowTexture = canvasTexture(64, 64, (ctx, w, h) => {
 });
 function constructRace(reuseGrid = false) {
   race = new Race({
-    character: selected,
-    laps: selectedLaps,
+    character: onlineSetup?.options.drivers[onlineSetup.slot] ?? menu.driver.id,
+    laps: onlineSetup?.options.laps ?? menu.laps,
     drivers:onlineSetup?.options.drivers,
     slot:onlineSetup?.slot,
     seed: onlineSetup?.seed ?? (new URLSearchParams(location.search).has("evidence")
@@ -421,55 +423,17 @@ function onEvent(e) {
   }
   if (e.type === "coin") burst(race.player, 10, "#ffdf46");
 }
-let driverConfirmed = false;
-function setDriverConfirmed(value) {
-  driverConfirmed = value;
-  $('intro').classList.toggle('driver-confirmed',value);
-  document.querySelector('.intro-copy').textContent = value ? 'Choose race length · Turn your phone sideways' : 'Choose your driver';
-  $('start').innerHTML = 'Start Race <span>② / ENTER</span>';
-  $('menu-hint').textContent = 'Click or use WASD / Arrows to choose · Start Race to play';
-}
 function cancelDriver() {
-  if(driverConfirmed){setDriverConfirmed(false);audio.ui('cancel');}
+  if(menu.confirmed){menu.setConfirmed(false);audio.ui('cancel');}
 }
 function chooseDriver(index) {
-  if (race.state !== 'ready') return;
-  const c=CHARACTERS[(index+CHARACTERS.length)%CHARACTERS.length];
-  selected=c.id;setDriverConfirmed(false);
-  document.querySelectorAll('.character').forEach((el,i)=>{
-    el.classList.toggle('selected',CHARACTERS[i].id===selected);
-    el.setAttribute('aria-pressed',String(CHARACTERS[i].id===selected));
-  });
-  $('chosen').textContent=c.name;
-  constructRace(true);
-  audio.ui('cursor');
+  if (race.state === 'ready') menu.chooseDriver(index);
 }
 function selectLaps(laps) {
-  if (race.state !== 'ready') return;
-  selectedLaps = laps === 1 ? 1 : 3;
-  race.laps = selectedLaps;
-  localStorage.setItem('openwii.kart.laps', String(selectedLaps));
-  syncLapOptions();
-  audio.ui('cursor');
+  if (race.state === 'ready') menu.selectLaps(laps);
 }
-function syncLapOptions() {
-  document.querySelectorAll('[data-laps]').forEach(button => {
-    button.setAttribute('aria-pressed', String(Number(button.dataset.laps) === selectedLaps));
-  });
-  document.querySelector('#track-label small').textContent = `${selectedLaps} ${selectedLaps === 1 ? 'LAP' : 'LAPS'} · 8 RACERS · MARIO KART STADIUM`;
-}
-for (const button of document.querySelectorAll('[data-laps]')) {
-  button.onclick = () => selectLaps(Number(button.dataset.laps));
-}
-syncLapOptions();
 function navigateDriver(direction) {
-  if (driverConfirmed) {
-    if (direction === 'left' || direction === 'right') selectLaps(selectedLaps === 1 ? 3 : 1);
-    return;
-  }
-  const index=CHARACTERS.findIndex(c=>c.id===selected);
-  const step={left:-1,right:1,up:-4,down:4}[direction];
-  chooseDriver(index+step);
+  menu.navigate(direction);
 }
 function begin() {
   if (race.state !== "ready") return;
@@ -477,7 +441,7 @@ function begin() {
   void audio.ui('start');
   wheel.reset();
   captureUntil = performance.now() + 3000;
-  raceSteering = steeringMode;
+  raceSteering = menu.steering;
   $('wheel-ready').firstChild.textContent = raceSteering === 'gyro' ? 'Hold your phone sideways and level' : 'Preparing your D-pad';
   $('wheel-ready').querySelector('small').textContent = 'The countdown starts when your controls are ready';
   phoneLayout(raceSteering);
@@ -497,7 +461,7 @@ function confirm() {
     return;
   }
   if (race.state === 'ready') {
-    if (!driverConfirmed) {setDriverConfirmed(true);audio.ui('confirm');}
+    if (!menu.confirmed) {menu.setConfirmed(true);audio.ui('confirm');}
     else begin();
   }
   else if (race.state === "results" && resultsPresentation?.done) {
@@ -505,14 +469,6 @@ function confirm() {
     begin();
   }
 }
-$("start").onclick = () => {
-  if (race.state === "ready") {
-    driverConfirmed = true;
-    begin();
-  } else {
-    confirm();
-  }
-};
 $("again").onclick = confirm;
 $("resume").onclick = resume;
 $("mute").onclick = () => {
@@ -523,15 +479,6 @@ $("mute").onclick = () => {
   );
   $("mute").textContent = audio.engine.enabled ? "♪ SOUND ON" : "♪ SOUND OFF";
 };
-for (const c of CHARACTERS) {
-  const b = document.createElement("button");
-  b.className = "character" + (c.id === selected ? " selected" : "");
-  b.setAttribute("aria-label", c.name);
-  b.innerHTML = `<img src="${portrait(c)}" alt="${c.name}">`;
-  b.setAttribute('aria-pressed',String(c.id===selected));
-  b.onclick = () => chooseDriver(CHARACTERS.indexOf(c));
-  $("characters").append(b);
-}
 function pause(reason = "Take a breath. The race will wait.") {
   if (match || ["ready", "results"].includes(race.state)) return;
   paused = true;
@@ -579,7 +526,7 @@ const drivingKeys = new Set([
     "KeyI",
 ]);
 function handleKey(e) {
-  if (!drivingKeys.has(e.code)) return;
+  if (!window.__openwii || !drivingKeys.has(e.code)) return;
   if (e.type === "keyup") {
     if (keys.delete(e.code)) e.preventDefault();
     return;
@@ -599,14 +546,13 @@ function handleKey(e) {
       return;
     }
     if (e.code === 'Space') {
-      driverConfirmed = true;
       begin();
       return;
     }
   }
   if (e.code === 'Escape' && race.state === 'ready') { cancelDriver(); return; }
   if (e.code === "Enter") {
-    if (race.state === 'ready') { driverConfirmed = true; begin(); }
+    if (race.state === 'ready') begin();
     else confirm();
   }
   if (e.code === "Space") itemPulse = true;
@@ -1465,7 +1411,7 @@ if (new URLSearchParams(location.search).get("evidence") === "1") {
     }
     if (name === "results") {
       // Run the real CPU planner and finish-line logic for all eight racers.
-      race = new Race({ character: selected, seed: 42, onEvent: () => {} });
+      race = new Race({ character: menu.driver.id, seed: 42, onEvent: () => {} });
       race.start();
       for (let i = 0; i < 30000 && race.state !== "results"; i++)
         race.update(1 / 120, race.cpuInput(race.player));
@@ -1496,10 +1442,10 @@ const ensureAudio = () => {
   audioPrepared = true;
   audio.prepare();
 };
-window.addEventListener("pointerdown", ensureAudio, { once: true, passive: true });
-window.addEventListener("keydown", ensureAudio, { once: true, passive: true });
 constructRace();
 syncPickupPools();
+await renderer.compileAsync(scene, camera);
+lastFrame = performance.now();
 requestAnimationFrame(frame);
 window.addEventListener("resize", () => {
   viewportWidth = innerWidth; viewportHeight = innerHeight;
@@ -1523,7 +1469,7 @@ function setControllerState(slot, state) {
   const p = state.pressed || {};
   const b = state.buttons || {};
   if (race?.state === "ready") {
-    if (p.minus) setSteeringMode(steeringMode === 'gyro' ? 'dpad' : 'gyro');
+    if (p.minus) menu.setSteeringMode(menu.steering === 'gyro' ? 'dpad' : 'gyro');
     for (const dir of ["left", "right", "up", "down"]) {
       if (p[dir]) navigateDriver(dir);
     }
@@ -1554,11 +1500,11 @@ function setControllerState(slot, state) {
 }
 
 window.__openwii = {
-  get steeringMode() { return steeringMode; },
-  setSteeringMode,
+  get steeringMode() { return menu.steering; },
+  setSteeringMode:menu.setSteeringMode,
   get race() { return race; },
   startMatch(setup) {
-    onlineSetup=setup;selected=setup.options.drivers[setup.slot];selectedLaps=setup.options.laps;
+    onlineSetup=setup;
     constructRace(true);paused=false;keys.clear();itemPulse=false;begin();
     race.time=clamp(setup.elapsed/1000,0,3);
     $("again").hidden=true;
@@ -1576,7 +1522,7 @@ window.__openwii = {
   releaseKeys: () => keys.clear(),
   startGame() {
     if (race?.state === "ready") {
-      if (!driverConfirmed) setDriverConfirmed(true);
+      if (!menu.confirmed) menu.setConfirmed(true);
       begin();
     } else if (race?.state === "results") {
       constructRace();
@@ -1594,10 +1540,21 @@ window.__openwii = {
     $("intro").hidden = false;
     $("track-label").hidden = false;
     $("hud").hidden = true;
-    setDriverConfirmed(false);
+    menu.setConfirmed(false);
     if (embedded) parent.postMessage({ type: "game-state", paused: true }, location.origin);
   },
 };
+
+export function connectMenu() {
+  if (race.player.character.id !== menu.driver.id) constructRace(true);
+  race.laps = menu.laps;
+  const cursorSound = () => requestAnimationFrame(()=>setTimeout(()=>audio.ui('cursor'),0));
+  menu.connectRace({
+    onDriver() { constructRace(true); cursorSound(); },
+    onLaps() { race.laps = menu.laps; cursorSound(); },
+    start: begin,
+  });
+}
 
 function toggleFullscreen() {
   if (document.fullscreenElement) document.exitFullscreen();

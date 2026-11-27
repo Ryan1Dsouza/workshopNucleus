@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Mario Kart — OpenWii</title>
     <link rel="stylesheet" href="style.css" />
+    <link rel="modulepreload" href="./menu.mjs" />
     <script type="importmap">
       { "imports": { "three": "/vendor/three/three.module.js" } }
     </script>
@@ -59,7 +60,7 @@
         ⛶ FULLSCREEN</button
       ><button id="mute" aria-label="Toggle audio">♪ SOUND ON</button>
     </div>
-    <div id="intro">
+    <div id="intro" hidden>
       <div class="eyebrow">MUSHROOM CUP · 150cc</div>
       <h1><img src="menu-logo.svg" alt="Mario Kart"></h1>
       <div class="stadium-name">MARIO KART STADIUM <span>★</span></div>

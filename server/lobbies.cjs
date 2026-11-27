@@ -69,8 +69,9 @@ function installLobbies(io) {
     socket.on('signal',packet=>{
       const state = rooms.get(socket.data.code);
       const other = state?.room.players.find(p=>p.id!==socket.id && p.id===packet?.to);
-      if(other && (packet.description || packet.candidate))
-        service.to(other.id).emit('signal',{from:socket.id,description:packet.description,candidate:packet.candidate});
+      if(other && (packet.description || packet.candidate || packet.retry===true))
+        service.to(other.id).emit('signal',{from:socket.id,description:packet.description,candidate:packet.candidate,
+          generation:packet.generation,retry:packet.retry===true});
     });
     socket.on('disconnect',()=>leave(socket));
   });

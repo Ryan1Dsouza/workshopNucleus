@@ -67,7 +67,9 @@ function acceptSignals(state, id, packets, now) {
   for (const p of packets) {
     if (!p || p.to === id || !state.room.players.some(other=>other.id===p.to)) continue;
     const entry = {to:p.to, from:id, seq:++state.seq, at:now};
-    if (['offer','answer'].includes(p.description?.type) && typeof p.description.sdp === 'string' && p.description.sdp.length < 20000)
+    if(Number.isSafeInteger(p.generation) && p.generation>0)entry.generation=p.generation;
+    if (p.retry===true) entry.retry=true;
+    else if (['offer','answer'].includes(p.description?.type) && typeof p.description.sdp === 'string' && p.description.sdp.length < 20000)
       entry.description = {type:p.description.type,sdp:p.description.sdp};
     else if (typeof p.candidate?.candidate === 'string' && p.candidate.candidate.length < 2048) {
       const {candidate,sdpMid,sdpMLineIndex,usernameFragment} = p.candidate;
@@ -129,8 +131,8 @@ async function handleLobby(store, secret, q, now = Date.now()) {
     }
     if (q.action === 'leave') return {closed:true,time:now};
     const since = Number.isSafeInteger(q.since) ? q.since : 0;
-    return {id,time:now,room:state.room,cursor:state.seq,
-      signals:state.signals.filter(s=>s.to===id && s.seq>since).map(({from,description,candidate})=>({from,description,candidate}))};
+    return {id,time:now,room:state.room,revision:state.rev,cursor:state.seq,
+      signals:state.signals.filter(s=>s.to===id && s.seq>since).map(({seq,at,to,...signal})=>signal)};
   }
   throw new Error('Concurrent lobby update timed out.');
 }

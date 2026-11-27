@@ -75,7 +75,8 @@ export function onlineLobby({select,inviteOrigin,adapter,current,paired,centerFr
       if(peers.has(id))continue;
       const senderSlot=()=>room?.players.findIndex(p=>p.id===id)??-1;
       const initiator=slot<senderSlot();
-      const peer=new MatchPeer({initiator,iceServers,
+      const peer=new MatchPeer({initiator,iceServers:[...iceServers,...(socket.iceServers||[])],
+        onStatus:render,
         signal:packet=>socket?.signal({...packet,to:id}),
         onLink:value=>{
           if(peers.get(id)!==peer || !room || peer.linked===value)return;
@@ -89,7 +90,7 @@ export function onlineLobby({select,inviteOrigin,adapter,current,paired,centerFr
           if(frame.done===true)finishedPeers.add(id);
         }});
       peers.set(id,peer);
-      if(initiator)peer.describe(true).catch(signalError);
+      if(initiator)peer.describe(true).catch(()=>peer.negotiationFailed());
     }
   }
   function signalError(err){notice='Peer connection failed. '+err.message;render();}
@@ -188,12 +189,20 @@ export function onlineLobby({select,inviteOrigin,adapter,current,paired,centerFr
     $('roomGame').querySelector('[value="fruit-ninja"]').disabled=room.players.length>2;
     $('matchOptions').disabled=!!outage||slot!==0||!!room.match;
     const me=room.players[slot];
+    const waiting=[...peers.values()].filter(peer=>peer.status!=='connected');
+    const blocked=waiting.some(peer=>peer.status==='blocked');
+    const retrying=waiting.some(peer=>peer.status==='retrying');
+    $('retryPeer').hidden=!waiting.length || !!room.match || !!outage;
+    const hasRelay=[...iceServers,...(socket.iceServers||[])].some(s=>[s.urls].flat().some(url=>url.startsWith('turn:')));
+    const pendingLink=blocked ? (hasRelay?'The laptops could not establish a UDP connection. Try another network and retry.':
+      'No direct connection between laptops. Try the same home Wi-Fi or hotspot. Separate networks may need a TURN relay.')
+      : retrying?'Retrying the connection between laptops…':'Connecting laptops over WebRTC…';
     $('readyPlayer').textContent=me?.ready?'Cancel ready':'Ready';
     $('readyPlayer').setAttribute('aria-pressed',String(!!me?.ready));
     $('readyPlayer').disabled=!!outage||!!room.match||!me?.linked||!loaded||!phonesReady();
     $('startMatch').hidden=slot!==0;$('startMatch').textContent=played?'Rematch':'Start match';
     $('startMatch').disabled=!!outage||!!room.match||room.players.length<2||!room.players.every(p=>p.ready&&p.linked);
-    status(notice || (room.match?(playing?'':'Starting together…'):!loaded?'Loading game…':room.players.length===1?'Invite a player to start.':!me?.linked?'Connecting laptops over WebRTC…':!phonesReady()?'Preparing phone controls…':'Choose Ready when you’re set.'));
+    status(notice || (room.match?(playing?'':'Starting together…'):!loaded?'Loading game…':room.players.length===1?'Invite a player to start.':!me?.linked?pendingLink:!phonesReady()?'Preparing phone controls…':'Choose Ready when you’re set.'));
   }
   function directory(rooms) {
     $('directory').replaceChildren();
@@ -242,6 +251,7 @@ export function onlineLobby({select,inviteOrigin,adapter,current,paired,centerFr
   }
   $('onlineTab').hidden=false;$('onlineTab').onclick=open;
   $('retryLobby').onclick=()=>{if(socket)socket.retry();else {active=false;void open();}};
+  $('retryPeer').onclick=()=>{notice='';for(const peer of peers.values())peer.retry();};
   $('outageLocal').onclick=close;
   $('createRoom').onclick=()=>emit('create',{public:$('visibility').value==='public',game:$('createGame').value,...identity()});
   $('joinForm').onsubmit=e=>{e.preventDefault();join($('joinCode').value);};

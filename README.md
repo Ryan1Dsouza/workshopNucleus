@@ -84,6 +84,8 @@ For a static frontend with an external Socket.IO signaling service, configure bo
 
 Both lobby transports carry discovery, setup, SDP and ICE. Every pair of laptops exchanges live game frames over an unordered WebRTC data channel with zero retransmits. A selected TURN candidate relays the encrypted WebRTC traffic over UDP. Networks that block UDP cannot start an online match.
 
+For laptops on separate internet connections, the Vercel lobby can fetch TURN credentials when a player creates or joins a room. Set the sensitive Production variable `METERED_ICE_URL` to your Metered project's full HTTPS `/api/v1/turn/credentials?apiKey=…` URL and redeploy. Only the UDP relay addresses and client credentials go to the room member. A phone can already show **BLE paired** while its laptop is still establishing this connection. Either player can select **Retry laptop connection** from the room. [Metered Open Relay setup](https://www.metered.ca/tools/openrelay/)
+
 ## Checks
 
 ~~~sh

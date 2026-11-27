@@ -22,7 +22,10 @@ export class MarioKartAdapter {
       }, 25000);
       this.readyListener = (event) => {
         if (event.source !== this.frame.contentWindow || event.origin !== location.origin) return;
-        if (event.data?.type === 'kart-ready') {
+        if (event.data?.type === 'kart-menu-ready') {
+          // The interactive menu can accept Start even on a slow course download.
+          clearTimeout(timer);
+        } else if (event.data?.type === 'kart-ready') {
           this.api = this.frame.contentWindow.__openwii;
           clearTimeout(timer);
           window.removeEventListener('message', this.readyListener);
