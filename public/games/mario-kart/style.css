@@ -963,7 +963,7 @@ button {font-weight:normal!important;}
 #intro[data-menu-step="start"] #start {outline:3px solid #fff;outline-offset:2px;}
 
 @media (max-height: 560px) {
-  #intro { padding: 14px 0 12px 4vw; overflow-y: auto; }
+  #intro { padding: 14px 0 12px 4vw; overflow-y: auto; justify-content: safe center; }
   #intro h1 { width: min(30vw, 240px); margin: 4px 0; }
   #intro .stadium-name { margin-bottom: 2px; }
   #intro .intro-copy { margin: 8px 0 6px; font-size: 13px; }
@@ -990,10 +990,56 @@ button {font-weight:normal!important;}
   #intro #chosen {font-size:14px!important;margin:8px 0!important;}
   .race-option, #start {width:min(100%,290px);}
   .race-option > span, .race-option button, #start span, #menu-hint {font-size:11px;}
-  .race-option button {min-height:36px;padding:4px 8px;}
+  .race-option button {min-height:44px;min-width:44px;padding:4px 8px;}
   #start {min-height:44px;font-size:16px;}
   #menu-hint {max-width:290px;}
   #intro .controls {font-size:10px;}
+  #wheel-ready {width:84%;left:8%;font-size:16px;padding:12px;}
+  #wheel-ready small, #result-summary, .results-panel > a {font-size:12px;}
+  #lap-panel {font-size:16px;gap:4px;}
+  #coin-icon, .flag {width:16px;height:22px;}
+  #position {width:52px;height:62px;}
+  #position > .race-lettering {width:40px;}
+  #position sup {font-size:16px;}
+  #minimap {width:clamp(86px,24vw,120px);height:auto;top:auto;bottom:18%;}
+  #results {overflow-y:auto;place-items:safe center;}
+  .results-panel {width:calc(100% - 28px);margin:0;}
+  .results-panel .eyebrow {font-size:11px;}
+  .results-panel h2 {font-size:22px;}
+  .standing {grid-template-columns:24px 28px minmax(0,1fr) auto;min-height:28px;font-size:14px;}
+  .standing img {width:28px;height:26px;}
+  .standing b, .standing .time {font-size:13px;}
+  #again {min-width:150px;min-height:44px;font-size:16px;}
+}
+@media (min-width: 561px) and (max-width: 920px) and (max-height: 440px) {
+  #intro {
+    display: grid;
+    width: min(100%, 660px);
+    grid-template-columns: 198px minmax(0, 310px);
+    grid-template-areas: "cup cup" "logo logo" "stadium stadium" "prompt laps" "drivers steering" "drivers start" "chosen hint";
+    gap: 4px clamp(16px, 4vw, 40px);
+    padding: 10px 4vw;
+    align-items: center;
+    align-content: safe center;
+    justify-content: start;
+  }
+  #intro:before {transform:none;}
+  #intro .eyebrow {grid-area:cup;font-size:10px;}
+  #intro h1 {grid-area:logo;width:176px;margin:0;}
+  #intro .stadium-name {grid-area:stadium;font-size:11px;}
+  #intro .intro-copy {grid-area:prompt;margin:0;}
+  #characters {grid-area:drivers;}
+  #intro #chosen {grid-area:chosen;margin:0!important;}
+  #lap-options {grid-area:laps;}
+  #steering-options {grid-area:steering;}
+  .race-option {width:100%;margin:0;}
+  .race-option button {min-height:44px;min-width:44px;}
+  #start {grid-area:start;width:100%;min-height:44px;}
+  #menu-hint {grid-area:hint;margin:0;}
+}
+@media (max-width: 600px), (max-width: 920px) and (max-height: 440px) {
+  .race-option {display:grid;grid-template-columns:minmax(0,1fr) max-content max-content;}
+  .race-option > span {padding-inline:0;white-space:normal;line-height:1.3;}
 }
 #local-views {position:absolute;inset:0;pointer-events:none;color:white;font:600 clamp(10px,1.1vw,16px)/1.3 system-ui}
 #local-views>div {position:absolute;box-sizing:border-box;border:1px solid #344355;padding:6px;display:flex;align-items:flex-start;justify-content:space-between;gap:3px}

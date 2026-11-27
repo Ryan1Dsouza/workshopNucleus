@@ -21,13 +21,15 @@
       <span class="brand-icon" aria-hidden="true"><svg viewBox="0 0 28 28"><path d="M8 8h12c3 0 5 3 5 8 0 4-2 5-4 3l-3-3h-8l-3 3c-2 2-4 1-4-3 0-5 2-8 5-8Z"/><path d="M9 10v5m-2.5-2.5h5M19 11h.1M21 14h.1"/></svg></span>
       <span>ControllerKit<small>Phone-powered play</small></span>
     </a>
-    <nav aria-label="Workspace">
-      <button class="nav-item active" id="playTab" aria-current="page">Local play</button>
-      <button class="nav-item" id="onlineTab">Online</button>
-      <button class="nav-item" id="workshopTab">Workshop</button>
-    </nav>
-    <div class="top-actions">
+    <div class="workspace-links">
+      <nav aria-label="Workspace">
+        <button class="nav-item active" id="playTab" aria-current="page">Local play</button>
+        <button class="nav-item" id="onlineTab">Online</button>
+        <button class="nav-item" id="workshopTab">Workshop</button>
+      </nav>
       <span class="connection-count" id="connectionCount"><i aria-hidden="true"></i>0 / 2 controllers</span>
+    </div>
+    <div class="top-actions">
       <button class="connect-button" id="controllersTab" aria-haspopup="dialog" aria-controls="connectionDialog">Connect phones</button>
       <button class="icon-button" id="fullscreen" aria-label="Toggle fullscreen"><svg viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg></button>
     </div>
@@ -54,7 +56,7 @@
       <section class="online-panel" id="localKartRoom" aria-labelledby="localRoomTitle" hidden>
         <div class="online-heading"><h2 id="localRoomTitle">Mario Kart local room</h2><button class="text-button" id="leaveLocalRoom">Leave room</button></div>
         <p class="online-note">Pair one phone per driver to this laptop. Each player gets a view on the shared screen.</p>
-        <div class="online-row">
+        <div class="online-row local-options">
           <label class="online-field">Players<select id="localCapacity"></select></label>
           <label class="online-field">Laps<select id="localLaps"><option>1</option><option>3</option></select></label>
           <label class="online-field">CPU bots<select id="localBots"><option value="true">Fill to 8 with bots</option><option value="false">Humans only</option></select></label>

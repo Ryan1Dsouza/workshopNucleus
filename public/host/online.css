@@ -1,5 +1,5 @@
 .local-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));gap:12px}
-.local-seat {display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:14px;background:white;border:1px solid var(--line);border-radius:10px;min-width:0}
+.local-seat {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:14px;background:white;border:1px solid var(--line);border-radius:10px;min-width:0}
 .local-seat h3,.local-seat p {grid-column:1/-1;margin:0;overflow-wrap:anywhere}
 .local-seat p,#localStatus {font-size:13px;color:#40536a}
 .local-seat [aria-pressed=true] {background:#dfefe6;color:#174b35}
@@ -65,8 +65,19 @@ body.online-playing .game-stage {flex:1 1 auto;width:100%;height:auto;min-height
 @media (max-width:720px) {
   #lobbyBrowser:not([hidden]),body.online-mode .player-dock {grid-template-columns:minmax(0,1fr)}
   .public-directory {border:0;border-top:1px solid var(--line);padding:12px 0 0}
-  .topbar {flex-wrap:wrap}
-  .topbar nav {order:3;width:100%;justify-content:flex-start}
   .online-panel {padding:14px}
   body.online-playing #onlineMatchBar {padding:6px 10px}
+}
+@media (max-width:560px) {
+  .create-lobby > .online-field {display:grid}
+  #createLobbyGroup, #joinForm, #matchOptions, .local-options {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .local-options label:last-child {grid-column:1 / -1}
+  #createRoom, #roomDrivers {grid-column:1 / -1}
+  .online-field input, .online-field select {width:100%;height:44px;font-size:16px}
+  .online-field {min-width:0}
+  .room-players {grid-template-columns:minmax(0,1fr)}
+  .directory-room {width:100%;margin-inline:0}
+}
+@media (max-width:400px) {
+  #createLobbyGroup, #matchOptions {grid-template-columns:minmax(0,1fr)}
 }

@@ -24,6 +24,7 @@ h1, h2, h3 { font-family: var(--heading-font); }
 .brand-icon { display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 auto; border-radius: 14px; color: white; background: var(--ink); font-size: 28px; }
 .brand-icon svg { width: 30px; height: 30px; }
 .brand small { display: block; margin-top: 1px; font-family: "Source Sans 3", sans-serif; font-size: 12px; font-weight: 400; letter-spacing: 0; color: var(--slate); }
+.workspace-links { display: flex; align-items: center; justify-content: space-between; flex: 1; gap: 8px; }
 .topbar nav, .top-actions { display: flex; align-items: center; gap: 8px; }
 .nav-item { min-height: 44px; padding: 0 18px; background: transparent; color: var(--slate); border-radius: 10px; font-size: 15px; font-weight: 600; }
 .nav-item.active { color: var(--blue); background: #e7eefb; }
@@ -266,20 +267,19 @@ dialog::backdrop { background: #23304466; }
   .quick-install-copy strong { font-size: 16px; }
   .quick-install-copy p, .quick-install-copy .text-button { font-size: 14px; }
 }
-@media (max-width: 820px) {
-  .topbar { flex-wrap: wrap; gap: 14px; padding: 14px 20px; }
-  .topbar nav { margin-left: auto; }
-  .top-actions { width: 100%; justify-content: flex-end; padding-top: 10px; border-top: 1px solid var(--line); }
-  .connection-count { display: flex; margin-right: auto; }
-  .workspace { grid-template-columns: minmax(0, 1fr); gap: 22px; padding: 22px 20px; }
+@media (max-width: 920px) {
+  .topbar { gap: 16px; padding: 8px 20px; min-height: 64px; }
+  .nav-item { padding-inline: 12px; }
+  .workspace { grid-template-columns: minmax(0, 1fr); gap: 18px; padding: 18px 20px; }
   .library { grid-row: auto; }
-  .library .section-caption { margin-bottom: 14px; }
-  .game-list { flex-direction: row; overflow-x: auto; padding: 3px; margin: -3px; }
-  .game-card { grid-template-columns: 44px 1fr; min-width: 180px; max-width: 230px; flex: 1 0 180px; }
+  .library .section-caption { display: none; }
+  .game-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(135px, 100%), 1fr)); margin-top: 8px; }
+  .game-card { grid-template-columns: auto minmax(0, 1fr); min-width: 0; background: #f3f6fa; border-color: var(--line); }
   .game-card .card-description, .extension-card { display: none; }
   .controllers-panel { grid-column: 1; }
   .play-heading h1 { font-size: 27px; }
   .game-stage { height: clamp(330px, 52dvh, 580px); }
+  .game-tools { flex-wrap: wrap; }
   .player-card { padding: 16px; }
   .page-footer { padding: 0 20px 24px; }
   .preview-layout { grid-template-columns: 1fr; }
@@ -288,14 +288,28 @@ dialog::backdrop { background: #23304466; }
   .connection-layout { grid-template-columns: 240px minmax(0, 1fr); gap: 24px; }
   .install-card { padding: 18px; }
 }
+@media (max-width: 700px) {
+  .topbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; }
+  .top-actions { grid-column: 2; grid-row: 1; gap: 6px; }
+  .workspace-links { grid-column: 1 / -1; grid-row: 2; flex-wrap: wrap; gap: 2px 6px; border-top: 1px solid var(--line); }
+  .connection-count { display: flex; }
+}
 @media (max-width: 560px) {
+  .topbar { padding: 8px 12px 4px; }
   .brand { font-size: 18px; gap: 8px; }
   .brand-icon { width: 38px; height: 38px; border-radius: 12px; }
   .brand small { font-size: 11px; }
   .topbar nav { gap: 0; }
-  .nav-item { padding: 0 11px; font-size: 14px; }
+  .nav-item { padding: 0 9px; font-size: 14px; }
   .connection-count { font-size: 12px; }
   .connect-button { min-height: 44px; padding: 0 12px; font-size: 13px; }
+  .workspace { padding: 14px 12px; gap: 16px; }
+  .game-list { grid-template-columns: repeat(auto-fit, minmax(min(86px, 100%), 1fr)); gap: 6px; }
+  .game-card { grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; align-content: start; gap: 5px; padding: 8px 4px; }
+  .game-card.selected { box-shadow: inset 0 -3px var(--blue); }
+  .game-art { width: 48px; height: 36px; }
+  .art-remote svg { height: 34px; }
+  .game-card strong { font-size: 13px; }
   .play-heading { gap: 12px; }
   .play-heading h1 { font-size: 25px; }
   .play-heading p { font-size: 14px; }
@@ -303,10 +317,15 @@ dialog::backdrop { background: #23304466; }
   .game-category { display: none; }
   .mode-badge { font-size: 12px; padding: 5px 8px; }
   .game-toolbar { gap: 6px; }
-  .game-tools { flex-wrap: wrap; }
+  .game-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; width: 100%; }
+  #createLocalRoom { grid-column: 1 / -1; }
+  .round-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 6px; }
+  .round-options label { display: grid; gap: 3px; }
+  .round-options select { padding-inline: 4px; min-width: 0; }
   .play-area.is-expanded { padding: 12px; }
   .play-area.is-expanded .play-heading h1 { font-size: 20px; }
   .play-area.is-expanded .mode-badge { display: none; }
+  .play-area.is-expanded .expanded-hint { display: none; }
   .input-tools { width: 100%; justify-content: space-between; margin-left: 0; }
   .primary-button, .secondary-button { padding: 0 16px; font-size: 14px; }
   .player-dock { grid-template-columns: 1fr; }
@@ -334,4 +353,23 @@ dialog::backdrop { background: #23304466; }
   .download-cards { grid-template-columns: 1fr; gap: 16px; }
   .download-platform { padding: 24px; }
   .download-platform p { min-height: 0; }
+}
+@media (max-width: 640px) and (orientation: portrait) {
+  :root[data-game="kart-racing"] body:not(.online-playing):not(.local-racing) .play-area:not(.is-expanded) .game-stage {
+    height: clamp(490px, 65dvh, 660px);
+  }
+}
+@media (max-width: 359px) {
+  .topbar .brand { font-size: 16px; gap: 5px; }
+  .topbar .brand-icon { width: 30px; height: 34px; }
+  .topbar .brand-icon svg { width: 24px; }
+  .topbar .connect-button, .nav-item { padding-inline: 6px; }
+}
+@media (max-width: 920px) and (max-height: 500px) {
+  .play-area.is-expanded { padding: 4px 10px; }
+  .play-area.is-expanded .play-heading, .play-area.is-expanded .expanded-hint { display: none; }
+  .play-area.is-expanded .game-toolbar { gap: 4px 10px; margin-top: 4px; }
+  .play-area.is-expanded .game-tools { width: auto; display: flex; }
+  .play-area.is-expanded .input-tools { width: auto; margin-left: auto; }
+  .play-area.is-expanded .round-options { width: auto; }
 }
