@@ -19,7 +19,10 @@ try {
     await page.locator('[data-game="'+game+'"]').click();
     await page.waitForFunction(id=>__controllerkit.current()?.id===id&&__controllerkit.adapter()?.api,game);
     const count=game==='kart-racing'?1:2;
-    if(game==='kart-racing')await page.frameLocator('#gameStage iframe').locator('[data-steering="gyro"]').click();
+    if(game==='kart-racing'){
+      await page.frameLocator('#gameStage iframe').locator('[data-steering="gyro"]').click();
+      await page.frameLocator('#gameStage iframe').locator('#start').click();
+    }
     for(let slot=0;slot<count;slot++){
       await page.evaluate(slot=>{__fakeBle.next=slot;},slot);
       await page.locator('#pair'+slot).click();

@@ -1450,6 +1450,10 @@ function recordDrag(e, reset=false) {
   mousePosition(e);
   const slot=localSlot(), aim=laneAim(slot,mouse,true), p=toWorld(aim.x,aim.y);
   game.setCursor(p.x,p.y,e.timeStamp,slot,{reset,cutting:!reset && !game.paused});
+  // After a long display frame the last held location is still the visual
+  // origin of this move. Keep the physics timestamps above untouched.
+  const origin=mouse.trail.points.at(-1);
+  if(origin && e.timeStamp-origin.t>=mouse.trail.lifetimeMs)origin.t=e.timeStamp;
   mouse.trail.push(p.x,p.y,e.timeStamp);
 }
 canvas.addEventListener('pointerenter',mousePosition);

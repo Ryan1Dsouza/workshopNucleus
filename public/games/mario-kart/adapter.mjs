@@ -11,6 +11,7 @@ export class MarioKartAdapter {
 
   async mount(container) {
     this.frame = document.createElement('iframe');
+    this.frame.kartHasPhone=this.context.hasPhone;
     // The game-card click activates the host document. A BLE notification
     // cannot unlock a fresh AudioContext in the subsequently loaded iframe.
     const Ctx=window.AudioContext || window.webkitAudioContext;

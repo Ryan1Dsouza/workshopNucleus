@@ -40,6 +40,8 @@ try{
   await rejected.context().close();
   assert.equal(await host.locator('#roomDrivers select').count(),8);
   await host.locator('#roomSteering').selectOption('gyro');
+  assert.equal(await host.evaluate(()=>__controllerkit.profile().layout),undefined);
+  await host.locator('#confirmRoomSteering').click();
   await host.waitForFunction(()=>__fakeBle.phones[0].profile?.layout==='kart-gyro' && __controllerkit.controllers.player(0).ready);
   const gyroEpoch=await host.evaluate(()=>__fakeBle.phones[0].profile.profileEpoch);
   assert.equal(await pages[1].locator('#roomSteering').inputValue(),'dpad');

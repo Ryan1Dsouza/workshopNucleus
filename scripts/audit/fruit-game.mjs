@@ -53,15 +53,19 @@ export async function checkFruitGame(host) {
     };
     const field=await page.locator('iframe[title="Fruit Ninja game"]').boundingBox();
     await page.mouse.move(field.x+field.width*.28,field.y+field.height*.55);
-    await page.mouse.down();
     await game.evaluate(()=>{
       const canvas=document.querySelector('canvas');
       const ribbon=()=>__openwii.visuals.get(0).screen.paths[1].getAttribute('d');
       canvas.addEventListener('pointermove',e=>{
         window.firstDrag={path:!!ribbon(),ms:performance.now()-e.timeStamp};
+        // Finish within this event task to cover a complete between-frame
+        // swipe, independent of a delayed automation round trip on release.
+        canvas.dispatchEvent(new PointerEvent('pointerup',{pointerId:e.pointerId,pointerType:'mouse',
+          isPrimary:true,button:0,clientX:e.clientX,clientY:e.clientY,bubbles:true}));
       },{once:true});
       canvas.addEventListener('pointerup',()=>{window.releasedRibbon=!!ribbon();},{once:true});
     });
+    await page.mouse.down();
     await page.mouse.move(field.x+field.width*.38,field.y+field.height*.55);
     await page.mouse.up();
     const drag=await game.evaluate(()=>({first:window.firstDrag,release:window.releasedRibbon}));
@@ -72,9 +76,12 @@ export async function checkFruitGame(host) {
       const target=()=>game.evaluate(fruitId=>{const f=__openwii.game.fruits.find(f=>f.id===fruitId);return f?__openwii.toScreen(f.x,f.y):null;},fruitId);
       const first=await target();await page.mouse.move(box.x+box.width*start,box.y+first.y);
       if(held){await page.mouse.down();await game.waitForFunction(()=>__openwii.game.getPlayer(0).cursor.active);}
-      for(let step=1;step<=12;step++){
+      // Cross in one hover movement. Pausing over the approaching fruit
+      // would exercise stationary contact, which is tested separately.
+      const steps=held?2:1;
+      for(let step=1;step<=steps;step++){
         const point=await target();if(!point)break;
-        await page.mouse.move(box.x+box.width*(start+(end-start)*step/12),box.y+point.y);await page.waitForTimeout(20);
+        await page.mouse.move(box.x+box.width*(start+(end-start)*step/steps),box.y+point.y);
       }
       if(held)await page.mouse.up();
     };

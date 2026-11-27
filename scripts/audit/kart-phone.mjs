@@ -14,6 +14,8 @@ try {
   await page.goto((process.env.HOST_URL||'http://localhost:3000')+'/host/');
   await page.locator('[data-game="kart-racing"]').click();
   await page.frameLocator('#gameStage iframe').locator('[data-steering="gyro"]').click();
+  assert.equal(await page.evaluate(()=>__controllerkit.profile().layout),undefined);
+  await page.frameLocator('#gameStage iframe').locator('#start').click();
   await page.waitForFunction(()=>__controllerkit.profile().layout==='kart-gyro');
   await page.evaluate(()=>{
     const phone=__fakeBle.phones[0], control=phone.control;
@@ -58,7 +60,6 @@ try {
       packet.setUint16(18,phone.epoch,true);phone.motion.emit(packet);
     },20);
   });
-  await page.locator('#startGame').click();
   assert.equal(await page.evaluate(()=>__controllerkit.adapter().api.race.state),'ready');
   await page.locator('#startGame').click();
   await page.waitForFunction(()=>__controllerkit.adapter()?.api?.race.state==='racing');
@@ -109,15 +110,16 @@ try {
       tap(8);tap(16);const steering=step(),duringLaps=d.control.writes.length-before;
       d.writeDelay=30;
       tap(2);tap(8);tap(2); // last selection wins, still on the confirmed menu epoch
-      const layout=__controllerkit.profile().layout;
+      const writesWhileBrowsing=d.control.writes.length-before;
+      if(d.profile.layout || __controllerkit.profile().layout)throw Error('Steering preview changed phone controls');
       const browsing=step();
       d.buttons(16);d.buttons(16); // a held Confirm is only one edge
-      const confirmed=step(), firstBusy=w.document.getElementById('start').hasAttribute('aria-busy');
+      const layout=__controllerkit.profile().layout, confirmed=step(), firstBusy=w.document.getElementById('start').hasAttribute('aria-busy');
       d.buttons(0);tap(8);const edited=step();
       tap(2);tap(16);tap(16);
-      return {laps,steering,duringLaps,layout,browsing,confirmed,firstBusy,edited,pending:w.document.getElementById('start').getAttribute('aria-busy')};
+      return {laps,steering,duringLaps,writesWhileBrowsing,layout,browsing,confirmed,firstBusy,edited,pending:w.document.getElementById('start').getAttribute('aria-busy')};
     });
-    assert.deepEqual(result,{laps:'laps',steering:'steering',duringLaps:0,layout:'kart-gyro',browsing:'steering',confirmed:'start',firstBusy:false,edited:'steering',pending:'true'});
+    assert.deepEqual(result,{laps:'laps',steering:'steering',duringLaps:0,writesWhileBrowsing:0,layout:'kart-gyro',browsing:'steering',confirmed:'start',firstBusy:false,edited:'steering',pending:'true'});
     // Check one isolated mode change's actual acknowledgement and write count.
     await page.waitForFunction(()=>__controllerkit.controllers.player(0).ready && __fakeBle.phones[0].profile.layout==='kart-gyro');
     loadCourse();
@@ -140,13 +142,17 @@ try {
       if(times.length!==1)throw Error('Expected exactly one audio source during a D-pad character change, got '+times.length);
       const before=d.control.writes.length,start=performance.now();
       document.querySelector('#gameStage iframe').contentDocument.querySelector('[data-steering="gyro"]').click();
+      if(d.control.writes.length!==before || d.profile.layout)throw Error('Browsing sent a racing layout');
+      d.buttons(16);d.buttons(0);
       await __controllerkit.ble.devices.get(0).profileTask;
       if(d.profile.layout!=='kart-gyro')throw Error('Phone did not apply the selected layout');
       return {writes:d.control.writes.length-before,ms:Math.round(performance.now()-start),dpadSoundScheduledMs:+(times[0]-tapAt).toFixed(1)};
     });
     assert.ok(fast?timing.writes===1:timing.writes>40);
     const states=await page.evaluate(()=>{
-      const d=__fakeBle.phones[0],api=__controllerkit.adapter().api,states=[api.race.state,api.menuStep];
+      const d=__fakeBle.phones[0],api=__controllerkit.adapter().api;
+      d.buttons(8);d.buttons(0);
+      const states=[api.race.state,api.menuStep];
       d.buttons(16);d.buttons(16);states.push(api.race.state,api.menuStep);
       d.buttons(0);d.buttons(16);d.buttons(0);states.push(api.race.state);
       return states;

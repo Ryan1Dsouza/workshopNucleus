@@ -247,8 +247,11 @@ export function onlineLobby({select,inviteOrigin,adapter,current,paired,centerFr
     for(const el of document.querySelectorAll('.kart-option'))el.hidden=!kart;
     if(kart){
       renderDrivers();
-      $('roomSteering').disabled=!loaded || !!room.match;
+      $('roomSteering').disabled=!loaded || !!room.match || !!room.players[slot]?.ready;
       $('roomSteering').value=adapter()?.api?.steeringMode || 'dpad';
+      const confirmed=adapter()?.api?.menuStep==='start';
+      $('confirmRoomSteering').disabled=$('roomSteering').disabled || confirmed;
+      $('confirmRoomSteering').textContent=confirmed?'Steering confirmed':'Confirm steering';
     }
     $('roomGame').querySelector('[value="fruit-ninja"]').disabled=room.players.length>2;
     $('matchOptions').disabled=!!outage||slot!==0||!!room.match;
@@ -265,10 +268,11 @@ export function onlineLobby({select,inviteOrigin,adapter,current,paired,centerFr
       : retrying?(hasSecureRelay?'Trying a secure relay…':'Retrying the connection between laptops…'):'Connecting laptops over WebRTC…';
     $('readyPlayer').textContent=me?.ready?'Cancel ready':'Ready';
     $('readyPlayer').setAttribute('aria-pressed',String(!!me?.ready));
-    $('readyPlayer').disabled=!!outage||!!room.match||!me?.linked||!loaded||!phonesReady();
+    const needsSteering=kart && paired() && adapter()?.api?.menuStep!=='start' && !me?.ready;
+    $('readyPlayer').disabled=!!outage||!!room.match||!me?.linked||!loaded||!phonesReady()||needsSteering;
     $('startMatch').hidden=slot!==0;$('startMatch').textContent=played?'Rematch':'Start match';
     $('startMatch').disabled=!!outage||!!room.match||room.players.length<2||!room.players.every(p=>p.ready&&p.linked);
-    status(notice || (room.match?(playing?'':'Starting together…'):!loaded?'Loading game…':room.players.length===1?'Invite a player to start.':!me?.linked?pendingLink:!phonesReady()?'Preparing phone controls…':'Choose Ready when you’re set.'));
+    status(notice || (room.match?(playing?'':'Starting together…'):!loaded?'Loading game…':room.players.length===1?'Invite a player to start.':!me?.linked?pendingLink:needsSteering?'Confirm your phone steering before choosing Ready.':!phonesReady()?'Preparing phone controls…':'Choose Ready when you’re set.'));
   }
   function directory(rooms) {
     $('directory').replaceChildren();
@@ -391,7 +395,8 @@ export function onlineLobby({select,inviteOrigin,adapter,current,paired,centerFr
     void emit('ready',{value:!room.players[slot].ready});
   };
   $('startMatch').onclick=()=>emit('start');
-  $('roomSteering').onchange=event=>adapter()?.api?.setSteeringMode(event.target.value);
+  $('roomSteering').onchange=event=>{adapter()?.api?.setSteeringMode(event.target.value);render();};
+  $('confirmRoomSteering').onclick=()=>{const api=adapter()?.api;if(api?.menuStep==='steering')api.confirm();render();};
   $('copyInvite').onclick=async()=>{
     try{await navigator.clipboard.writeText($('inviteLink').href);status('Invite link copied.');}
     catch{status('Copy the address from Join link.');}

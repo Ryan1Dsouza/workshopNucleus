@@ -45,11 +45,11 @@ export function setStep(next) {
   const intro = $('intro');
   intro.classList.toggle('driver-confirmed', confirmed);
   intro.dataset.menuStep = step;
-  if (step === 'driver' || step === 'laps') phoneLayout('menu');
+  phoneLayout(step === 'start' ? steering : 'menu');
   const copy = {
     driver: 'Choose your driver',
     laps: 'Choose race length · Press A to continue',
-    steering: '← / → choose steering · A / Drift or Enter to confirm',
+    steering: '← / → choose steering · A or Enter to confirm',
     start: (steering === 'gyro' ? 'Gyro' : 'D-pad') + ' selected · Press again to start',
   };
   document.querySelector('.intro-copy').textContent = copy[step];
@@ -94,10 +94,8 @@ export function setSteeringMode(value) {
   if (value !== 'dpad' && value !== 'gyro') return;
   const changed = steering !== value;
   steering = value;
-  localStorage.setItem('openwii.kart.steering', value);
   showSteering();
   setStep('steering');
-  phoneLayout(steering);
   if (changed) menuSound();
 }
 
@@ -105,7 +103,7 @@ export function confirmStep() {
   if (pendingStart) return;
   if (step === 'start') { requestStart(); return; }
   menuSound('confirm');
-  if (step === 'steering') phoneLayout(steering);
+  if (step === 'steering') localStorage.setItem('openwii.kart.steering', steering);
   setStep({driver:'laps',laps:'steering',steering:'start'}[step]);
 }
 export function backStep() {
@@ -189,7 +187,11 @@ export function mountMenu() {
   for (const button of document.querySelectorAll('[data-steering]')) button.onclick = () => setSteeringMode(button.dataset.steering);
   showLaps();
   showSteering();
-  $('start').onclick = () => step === 'steering' ? confirmStep() : requestStart();
+  $('start').onclick = () => {
+    if (step === 'steering') confirmStep();
+    else if (step !== 'start' && window.frameElement?.kartHasPhone?.()) setStep('steering');
+    else requestStart();
+  };
   window.addEventListener('keydown', menuKey);
   $('intro').hidden = false;
 }

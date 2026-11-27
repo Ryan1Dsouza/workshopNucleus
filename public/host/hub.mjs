@@ -78,6 +78,8 @@ function receiveButtons(frame,slot,session,applied) {
       if(mode && mode!==api.steeringMode || pressed & BUTTON_BITS.minus && !applied.layout){
         api.setSteeringMode(mode || (api.steeringMode==='gyro'?'dpad':'gyro'));
         online.render();
+      }else if(!mode && (pressed & (BUTTON_BITS.a|BUTTON_BITS.two)) && api.menuStep==='steering'){
+        $('confirmRoomSteering').click();
       }
       menuButtons.consumed |= frame.mask & menuMask;
     }
@@ -177,7 +179,7 @@ async function select(id){
   $('gameTools').hidden=true;
   $('roundOptions').hidden=true;
   splitAim=false;resizePointers();
-  const context={container:$('gameStage'),centerFruit,setPhoneMenu:handler=>{if(version===selection)phoneMenu=handler;},setControllerProfile:next=>{
+  const context={container:$('gameStage'),centerFruit,hasPhone:()=>ble.has(0),setPhoneMenu:handler=>{if(version===selection)phoneMenu=handler;},setControllerProfile:next=>{
     if(version===selection && next.id===game.id && profile.layout!==next.layout) {
       setCurrentProfile(next);
       if(online?.active) online.render();
@@ -208,8 +210,9 @@ function flushPendingPlay(){
 }
 function play(options={}){
   if(online?.active||!adapter||current?.id==='remote')return;backgroundRound=null;
-  if(current.id==='kart-racing' && adapter.api?.race.state==='ready' && adapter.api.menuStep==='steering'){
-    adapter.api.confirm();return;
+  if(current.id==='kart-racing' && adapter.api?.race.state==='ready'){
+    if(adapter.api.menuStep==='steering'){adapter.api.confirm();return;}
+    if(ble.has(0) && adapter.api.menuStep!=='start'){adapter.api.setSteeringMode(adapter.api.steeringMode);return;}
   }
   // Kart holds its countdown on the track until the controller is ready.
   // A pending host start must never fire later during menu navigation.
