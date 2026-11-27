@@ -85,16 +85,44 @@ window.onNativeState = value => {
       if (native.connected) bluetoothParent.append($('bluetoothButton'));
       else bluetoothParent.insertBefore($('bluetoothButton'), $('status'));
     }
-    $('extras').hidden = !native.connected;
+    $('extras').hidden = !(native.connected || !!window.AndroidController?.post || !!native.update);
+    $('hapticsOption').hidden = !native.connected;
     $('motionToggle').checked = !!native.sensing;
     $('motionToggle').disabled = !native.running || !native.motionAvailable;
     $('centerButton').disabled = !usable || !native.motionAvailable || !native.sensing;
     $('motionHint').textContent = !native.motionAvailable ? 'Buttons work without a gyroscope' : native.sensing ? 'Center in your natural grip' : 'Enable when you are ready';
     $('status').textContent = native.status || (native.connected ? 'Input goes directly to your laptop over Bluetooth.' : 'Start here, then connect from the laptop.');
-    $('recordButton').hidden = !native.camera;
+    $('recordButton').hidden = !(native.camera && native.connected);
     $('recordButton').disabled = !usable;
     $('hapticsToggle').checked = !!native.haptics;
     $('hapticsToggle').disabled = !native.running;
+    const update = native.update && typeof native.update === 'object' ? native.update : null;
+    const showUpdates = !!update || !!window.AndroidController?.post;
+    $('updateSection').hidden = !showUpdates;
+    if (showUpdates) {
+      const info = update || {};
+      const busy = !!(info.checking || info.downloading);
+      const anyUpdate = !!(info.uiAvailable || info.apkAvailable);
+      $('updateSummaryBadge').hidden = !anyUpdate;
+      $('appVersionBadge').textContent = info.versionName ? 'v' + info.versionName : 'Installed';
+      $('updateStatus').textContent = info.status || (info.apkAvailable
+        ? 'ControllerKit v' + (info.latestVersionName || 'latest') + ' is ready to install.'
+        : info.uiAvailable
+          ? 'A newer controller interface is ready.'
+          : 'Check for interface or APK updates.');
+      $('checkUpdateButton').disabled = busy;
+      $('checkUpdateButton').textContent = info.checking ? 'Checking…' : 'Check updates';
+      $('applyUiUpdateButton').hidden = !info.uiAvailable;
+      $('applyUiUpdateButton').disabled = busy;
+      $('applyUiUpdateButton').textContent = info.downloading === 'ui' ? 'Updating interface…' : 'Update interface';
+      $('applyApkUpdateButton').hidden = !info.apkAvailable;
+      $('applyApkUpdateButton').disabled = busy;
+      $('applyApkUpdateButton').textContent = info.downloading === 'apk'
+        ? 'Downloading APK…'
+        : ('Install v' + (info.latestVersionName || 'latest'));
+    } else {
+      $('updateSummaryBadge').hidden = true;
+    }
   } catch(error) { $('status').textContent = 'Could not load this controller profile.'; console.error(error); }
 };
 for (const button of document.querySelectorAll('[data-control]')) {
@@ -120,6 +148,9 @@ $('centerButton').addEventListener('click',()=>send({type:'center'}));
 $('motionToggle').addEventListener('change',event=>send({type:'motion',enabled:event.target.checked}));
 $('hapticsToggle').addEventListener('change',event=>send({type:'haptics',enabled:event.target.checked}));
 $('recordButton').addEventListener('click',()=>send({type:'camera'}));
+$('checkUpdateButton').addEventListener('click',()=>send({type:'check-update'}));
+$('applyUiUpdateButton').addEventListener('click',()=>send({type:'update-ui'}));
+$('applyApkUpdateButton').addEventListener('click',()=>send({type:'install-app-update'}));
 window.addEventListener('message',event=>{
   if (preview && event.source === parent && event.origin === location.origin && event.data?.type === 'controller-preview-profile') {
     window.onNativeState({running:true,connected:true,sensing:true,motionAvailable:true,profile:event.data.profile,status:'Desktop UI preview. Pair a phone for Bluetooth gameplay.'});

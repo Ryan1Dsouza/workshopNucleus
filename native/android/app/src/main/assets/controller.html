@@ -74,7 +74,9 @@ body {
   padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
   background: var(--silver);
 }
+[hidden] { display: none !important; }
 button { border: 0; user-select: none; -webkit-user-select: none; }
+button:focus-visible, summary:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
 button[data-control] { touch-action: none; }
 button:disabled { opacity: .5; }
 .remote-shell {
@@ -156,6 +158,15 @@ details[open] summary::after { content: "−"; }
 .option { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; }
 .option input { width: 18px; height: 18px; accent-color: var(--blue); }
 .record-button { min-height: 48px; padding: 8px 16px; margin-top: 8px; border: 1px solid #c6d3e2; border-radius: 10px; background: white; color: var(--ink); font-size: 14px; }
+.update-badge { padding: 2px 8px; border-radius: 99px; background: #dce8fb; color: var(--blue); font-size: 11px; font-weight: 700; }
+.update-section { margin-top: 10px; padding: 12px; border: 1px solid #d1ddea; border-radius: 14px; background: white; text-align: left; }
+.update-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.update-title { color: var(--ink); font-size: 13px; font-weight: 700; }
+.version-badge { padding: 3px 8px; border-radius: 8px; background: #e8eef5; color: var(--slate); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.update-status { margin: 6px 0 10px; color: var(--slate); font-size: 12px; line-height: 1.4; }
+.update-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.update-button { flex: 1 1 128px; min-height: 44px; padding: 8px 12px; border: 1px solid #c6d3e2; border-radius: 10px; background: #f6f8fc; color: var(--ink); font-size: 13px; font-weight: 600; cursor: pointer; }
+.update-button.primary { border-color: var(--blue); background: var(--blue); color: white; }
 details .bluetooth-button { margin-top: 12px; }
 .is-preview .remote-footer { display: none; }
 .is-preview .instruction { margin-bottom: 0; }
@@ -262,10 +273,11 @@ details .bluetooth-button { margin-top: 12px; }
   .motion-controls { width: 330px; flex: 0 0 auto; gap: 16px; }
   .motion-hint { margin: 0; flex: 1; }
   .instruction { grid-column: 1 / -1; margin: 0; font-size: 12px; }
-  .remote-footer { grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; padding-top: 8px; }
+  .remote-footer { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding-top: 8px; }
   .bluetooth-button { width: 170px; flex: 0 0 auto; font-size: 13px; }
   .remote-footer > p { flex: 1; margin: 0; text-align: left; }
   details { margin: 0; }
+  details[open] { flex: 1 0 100%; }
   .is-preview .remote-footer { display: none; }
 }
 @media (orientation:landscape) and (max-height:460px) {
@@ -329,7 +341,23 @@ details .bluetooth-button { margin-top: 12px; }
   <footer class="remote-footer">
     <button id="bluetoothButton" class="bluetooth-button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10-5 4V3l5 4L7 17"/></svg><span id="bluetoothLabel">Start Bluetooth</span></button>
     <p id="status" role="status">Ready when you are.</p>
-    <details id="extras"><summary>Controller options</summary><label class="option"><input id="hapticsToggle" type="checkbox" checked> Vibration feedback</label><button id="recordButton" class="record-button" hidden>Open camera</button></details>
+    <details id="extras">
+      <summary>Controller options <span id="updateSummaryBadge" class="update-badge" hidden>Update ready</span></summary>
+      <label class="option" id="hapticsOption"><input id="hapticsToggle" type="checkbox" checked> Vibration feedback</label>
+      <button id="recordButton" class="record-button" hidden>Open camera</button>
+      <section id="updateSection" class="update-section" hidden aria-label="App updates">
+        <div class="update-header">
+          <span class="update-title">App &amp; interface updates</span>
+          <span id="appVersionBadge" class="version-badge">v2.0.6</span>
+        </div>
+        <p id="updateStatus" class="update-status" role="status">Check for interface or APK updates.</p>
+        <div class="update-actions">
+          <button id="checkUpdateButton" type="button" class="update-button">Check updates</button>
+          <button id="applyUiUpdateButton" type="button" class="update-button" hidden>Update interface</button>
+          <button id="applyApkUpdateButton" type="button" class="update-button primary" hidden>Install app update</button>
+        </div>
+      </section>
+    </details>
   </footer>
 </main>
 <script>(function(){
@@ -526,16 +554,44 @@ window.onNativeState = value => {
       if (native.connected) bluetoothParent.append($('bluetoothButton'));
       else bluetoothParent.insertBefore($('bluetoothButton'), $('status'));
     }
-    $('extras').hidden = !native.connected;
+    $('extras').hidden = !(native.connected || !!window.AndroidController?.post || !!native.update);
+    $('hapticsOption').hidden = !native.connected;
     $('motionToggle').checked = !!native.sensing;
     $('motionToggle').disabled = !native.running || !native.motionAvailable;
     $('centerButton').disabled = !usable || !native.motionAvailable || !native.sensing;
     $('motionHint').textContent = !native.motionAvailable ? 'Buttons work without a gyroscope' : native.sensing ? 'Center in your natural grip' : 'Enable when you are ready';
     $('status').textContent = native.status || (native.connected ? 'Input goes directly to your laptop over Bluetooth.' : 'Start here, then connect from the laptop.');
-    $('recordButton').hidden = !native.camera;
+    $('recordButton').hidden = !(native.camera && native.connected);
     $('recordButton').disabled = !usable;
     $('hapticsToggle').checked = !!native.haptics;
     $('hapticsToggle').disabled = !native.running;
+    const update = native.update && typeof native.update === 'object' ? native.update : null;
+    const showUpdates = !!update || !!window.AndroidController?.post;
+    $('updateSection').hidden = !showUpdates;
+    if (showUpdates) {
+      const info = update || {};
+      const busy = !!(info.checking || info.downloading);
+      const anyUpdate = !!(info.uiAvailable || info.apkAvailable);
+      $('updateSummaryBadge').hidden = !anyUpdate;
+      $('appVersionBadge').textContent = info.versionName ? 'v' + info.versionName : 'Installed';
+      $('updateStatus').textContent = info.status || (info.apkAvailable
+        ? 'ControllerKit v' + (info.latestVersionName || 'latest') + ' is ready to install.'
+        : info.uiAvailable
+          ? 'A newer controller interface is ready.'
+          : 'Check for interface or APK updates.');
+      $('checkUpdateButton').disabled = busy;
+      $('checkUpdateButton').textContent = info.checking ? 'Checking…' : 'Check updates';
+      $('applyUiUpdateButton').hidden = !info.uiAvailable;
+      $('applyUiUpdateButton').disabled = busy;
+      $('applyUiUpdateButton').textContent = info.downloading === 'ui' ? 'Updating interface…' : 'Update interface';
+      $('applyApkUpdateButton').hidden = !info.apkAvailable;
+      $('applyApkUpdateButton').disabled = busy;
+      $('applyApkUpdateButton').textContent = info.downloading === 'apk'
+        ? 'Downloading APK…'
+        : ('Install v' + (info.latestVersionName || 'latest'));
+    } else {
+      $('updateSummaryBadge').hidden = true;
+    }
   } catch(error) { $('status').textContent = 'Could not load this controller profile.'; console.error(error); }
 };
 for (const button of document.querySelectorAll('[data-control]')) {
@@ -561,6 +617,9 @@ $('centerButton').addEventListener('click',()=>send({type:'center'}));
 $('motionToggle').addEventListener('change',event=>send({type:'motion',enabled:event.target.checked}));
 $('hapticsToggle').addEventListener('change',event=>send({type:'haptics',enabled:event.target.checked}));
 $('recordButton').addEventListener('click',()=>send({type:'camera'}));
+$('checkUpdateButton').addEventListener('click',()=>send({type:'check-update'}));
+$('applyUiUpdateButton').addEventListener('click',()=>send({type:'update-ui'}));
+$('applyApkUpdateButton').addEventListener('click',()=>send({type:'install-app-update'}));
 window.addEventListener('message',event=>{
   if (preview && event.source === parent && event.origin === location.origin && event.data?.type === 'controller-preview-profile') {
     window.onNativeState({running:true,connected:true,sensing:true,motionAvailable:true,profile:event.data.profile,status:'Desktop UI preview. Pair a phone for Bluetooth gameplay.'});

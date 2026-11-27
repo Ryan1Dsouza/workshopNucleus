@@ -24,8 +24,8 @@ const script = '(function(){\n' + contract.replaceAll(/\bexport /g, '') + '\n'
   + ui.replace(/^import[^\n]+\n/gm, '').replaceAll(/\bexport /g, '') + '\n})();';
 const bundled = html.replace('<link rel="stylesheet" href="./phone.css">', '<style>' + css + '</style>')
   .replace('<script type="module" src="./phone-ui.mjs"></script>', '<script>' + script + '</script>');
-for (const relative of ['native/android/app/src/main/assets/controller.html', 'native/ios/Resources/controller.html']) {
+for (const relative of ['native/android/app/src/main/assets/controller.html', 'native/ios/Resources/controller.html', 'public/downloads/controller.html']) {
   const destination = path.join(root, relative); await fs.mkdir(path.dirname(destination), { recursive: true });
   await fs.writeFile(destination, bundled);
 }
-console.log('Shared offline controller UI synchronized to Android and iOS.');
+console.log('Shared offline controller UI synchronized to Android, iOS, and downloads.');

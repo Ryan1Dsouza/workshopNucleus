@@ -2,7 +2,7 @@ plugins { id 'com.android.application' }
 android {
     namespace 'workshop.airslice.ble'
     compileSdk 35
-    defaultConfig { applicationId 'workshop.airslice.ble'; minSdk 26; targetSdk 35; versionCode 9; versionName '2.0.5' }
+    defaultConfig { applicationId 'workshop.airslice.ble'; minSdk 26; targetSdk 35; versionCode 10; versionName '2.0.6' }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
 }
 tasks.register('syncControllerUi', Exec) {

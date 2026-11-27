@@ -52,7 +52,23 @@
   <footer class="remote-footer">
     <button id="bluetoothButton" class="bluetooth-button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10-5 4V3l5 4L7 17"/></svg><span id="bluetoothLabel">Start Bluetooth</span></button>
     <p id="status" role="status">Ready when you are.</p>
-    <details id="extras"><summary>Controller options</summary><label class="option"><input id="hapticsToggle" type="checkbox" checked> Vibration feedback</label><button id="recordButton" class="record-button" hidden>Open camera</button></details>
+    <details id="extras">
+      <summary>Controller options <span id="updateSummaryBadge" class="update-badge" hidden>Update ready</span></summary>
+      <label class="option" id="hapticsOption"><input id="hapticsToggle" type="checkbox" checked> Vibration feedback</label>
+      <button id="recordButton" class="record-button" hidden>Open camera</button>
+      <section id="updateSection" class="update-section" hidden aria-label="App updates">
+        <div class="update-header">
+          <span class="update-title">App &amp; interface updates</span>
+          <span id="appVersionBadge" class="version-badge">v2.0.6</span>
+        </div>
+        <p id="updateStatus" class="update-status" role="status">Check for interface or APK updates.</p>
+        <div class="update-actions">
+          <button id="checkUpdateButton" type="button" class="update-button">Check updates</button>
+          <button id="applyUiUpdateButton" type="button" class="update-button" hidden>Update interface</button>
+          <button id="applyApkUpdateButton" type="button" class="update-button primary" hidden>Install app update</button>
+        </div>
+      </section>
+    </details>
   </footer>
 </main>
 <script type="module" src="./phone-ui.mjs"></script>

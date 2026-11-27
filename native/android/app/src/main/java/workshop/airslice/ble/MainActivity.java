@@ -17,8 +17,11 @@ import java.util.ArrayList;
 /** The offline shared UI sends commands; the foreground service owns BLE/sensors. */
 public class MainActivity extends Activity {
     MotionService service;
+    AppUpdater updater;
     WebView web;
-    boolean bound=false,resumed=false,startRequested=false,requesting=false,waitingBluetooth=false,pageReady=false;
+    String loadedUrl="";
+    Runnable cachedLoadWatchdog;
+    boolean bound=false,resumed=false,startRequested=false,requesting=false,waitingBluetooth=false,pageReady=false,bridgeReady=false;
     final Handler main=new Handler(Looper.getMainLooper());
     final MotionService.Listener listener=this::render;
     final ServiceConnection connection=new ServiceConnection(){
@@ -35,11 +38,25 @@ public class MainActivity extends Activity {
         web.getSettings().setAllowContentAccess(false);web.getSettings().setAllowFileAccess(true);
         web.setOnApplyWindowInsetsListener((view,insets)->{view.setPadding(insets.getSystemWindowInsetLeft(),insets.getSystemWindowInsetTop(),insets.getSystemWindowInsetRight(),insets.getSystemWindowInsetBottom());return insets;});
         web.addJavascriptInterface(new Bridge(),"AndroidController");
+        updater=new AppUpdater(this,new AppUpdater.Listener(){
+            @Override public void onUpdateStateChanged(){render(service);}
+            @Override public void onReloadWebView(String url){loadUi(url);}
+        });
         web.setWebViewClient(new WebViewClient(){
-            @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request){return !request.getUrl().toString().equals("file:///android_asset/controller.html");}
+            @Override public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request){return !updater.isAllowedUrl(request.getUrl().toString());}
             @Override public void onPageFinished(WebView view,String url){pageReady=true;render(service);}
         });
-        setContentView(web);web.loadUrl("file:///android_asset/controller.html");
+        setContentView(web);loadUi(updater.initialUrl());
+        updater.checkForUpdates(true);
+    }
+    void loadUi(String url){
+        if(cachedLoadWatchdog!=null){main.removeCallbacks(cachedLoadWatchdog);cachedLoadWatchdog=null;}
+        loadedUrl=url;pageReady=false;bridgeReady=false;
+        if(updater.cachedUiUrl().equals(url)){
+            cachedLoadWatchdog=()->{if(!bridgeReady){updater.markCachedUiFailedAndDelete();loadUi(updater.assetUrl());}};
+            main.postDelayed(cachedLoadWatchdog,4000);
+        }
+        web.loadUrl(url);
     }
     public final class Bridge {
         @JavascriptInterface public void post(String body){
@@ -48,7 +65,11 @@ public class MainActivity extends Activity {
                 try{
                     JSONObject data=new JSONObject(body);
                     switch(data.optString("type")){
-                        case "ready":pageReady=true;render(service);break;
+                        case "ready":
+                            bridgeReady=true;
+                            if(cachedLoadWatchdog!=null){main.removeCallbacks(cachedLoadWatchdog);cachedLoadWatchdog=null;}
+                            if(updater.cachedUiUrl().equals(loadedUrl))updater.markCachedUiLoaded();
+                            pageReady=true;render(service);break;
                         case "start":startRequested=true;ensureReady();break;
                         case "stop":startRequested=false;startService(new Intent(MainActivity.this,MotionService.class).setAction(MotionService.STOP));break;
                         case "buttons":if(service!=null)service.setButtons(data.optInt("mask",0));break;
@@ -56,6 +77,9 @@ public class MainActivity extends Activity {
                         case "motion":if(service!=null)service.setMotion(data.optBoolean("enabled"));break;
                         case "haptics":if(service!=null)service.setHaptics(data.optBoolean("enabled"));break;
                         case "camera":recordVideo();break;
+                        case "check-update":updater.checkForUpdates(false);break;
+                        case "update-ui":updater.applyUiUpdate();break;
+                        case "install-app-update":updater.installApkUpdate(MainActivity.this);break;
                         default:break;
                     }
                 }catch(JSONException ignored){}
@@ -68,7 +92,8 @@ public class MainActivity extends Activity {
             JSONObject data=new JSONObject().put("running",value!=null&&value.running()).put("connected",value!=null&&value.connected())
                 .put("motionAvailable",value==null||value.motionAvailable()).put("sensing",value!=null&&value.sensing())
                 .put("haptics",value==null||value.haptics()).put("camera",true)
-                .put("status",value==null?"Start Bluetooth, then select this phone on the laptop.":value.status());
+                .put("status",value==null?"Start Bluetooth, then select this phone on the laptop.":value.status())
+                .put("update",updater.toJson());
             if(value!=null&&value.profile()!=null)data.put("profile",value.profile());
             web.evaluateJavascript("window.onNativeState && window.onNativeState("+data.toString()+");",null);
             int orientation=value!=null&&value.connected()&&value.profile()!=null&&"landscape".equals(value.profile().optString("orientation"))
@@ -106,7 +131,7 @@ public class MainActivity extends Activity {
     @Override protected void onStop(){if(service!=null)service.detach(listener);if(bound){unbindService(connection);bound=false;}service=null;super.onStop();}
     @Override protected void onResume(){super.onResume();resumed=true;if(web!=null)web.onResume();if(startRequested)ensureReady();}
     @Override protected void onPause(){resumed=false;if(service!=null)service.setButtons(0);if(web!=null)web.onPause();super.onPause();}
-    @Override protected void onDestroy(){if(web!=null){web.removeJavascriptInterface("AndroidController");web.destroy();}super.onDestroy();}
+    @Override protected void onDestroy(){if(cachedLoadWatchdog!=null)main.removeCallbacks(cachedLoadWatchdog);if(updater!=null)updater.shutdown();if(web!=null){web.removeJavascriptInterface("AndroidController");web.destroy();}super.onDestroy();}
     @Override public void onRequestPermissionsResult(int code,String[] names,int[] results){super.onRequestPermissionsResult(code,names,results);if(code==1){requesting=false;if(bluetoothPermissions())ensureReady();else error("Nearby devices permission is needed for Bluetooth.");}}
-    @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==2){waitingBluetooth=false;if(result==RESULT_OK)ensureReady();else error("Bluetooth is off. Enable it and start again.");}}
+    @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==2){waitingBluetooth=false;if(result==RESULT_OK)ensureReady();else error("Bluetooth is off. Enable it and start again.");}else if(request==AppUpdater.REQ_INSTALL_PERMISSION&&updater!=null){updater.onInstallPermissionResult(this);}}
 }
