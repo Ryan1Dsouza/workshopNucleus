@@ -25,11 +25,11 @@ export class ScreenBlade {
     this.element.style.transform = `translate3d(${position.x * width}px,${position.y * height}px,0)`;
     if (!active) this.paths.forEach(p => p.setAttribute('d', ''));
   }
-  trail(points, toScreen, height, width, now = performance.now()) {
+  trail(points, toScreen, height, width, now = performance.now(), visible = this.active) {
     this.svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
     const age = points.length ? Math.max(0, Math.min(1, 1 - (now - points.at(-1).t) / 140)) : 0;
     this.paths.forEach((path, index) => {
-      if (!this.active || points.length < 2) { path.setAttribute('d', ''); return; }
+      if (!visible || points.length < 2) { path.setAttribute('d', ''); return; }
       // The white core meets the 14px tip; the wider halo stays soft and small.
       const halfWidth = index ? 7 : Math.max(9, Math.min(16, height * .014));
       path.setAttribute('d', bladeRibbon(points, toScreen, { now, halfWidth }));

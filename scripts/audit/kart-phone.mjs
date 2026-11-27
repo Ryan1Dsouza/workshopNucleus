@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {chromium} from 'playwright';
 import {installFakeBluetooth} from '../../tests/helpers/fake-bluetooth.mjs';
+import presets from '../../native/android/app/src/main/assets/profiles.json' with {type:'json'};
 
 const browser=await chromium.launch({channel:'chrome'});
 try {
@@ -81,4 +82,53 @@ try {
   await page.keyboard.up('w');
   assert.deepEqual(errors,[]);
   console.log('Same-connection retry passed; zero console or page errors.');
+
+  // Hold the Three.js module and the profile transfer independently. Phone
+  // taps must reach the visible menu even when either one is still loading.
+  for(const fast of [false,true]){
+    let loadCourse;
+    const gate=new Promise(resolve=>{loadCourse=resolve;});
+    await page.route('**/games/mario-kart/game.js',async route=>{await gate;await route.continue();});
+    await page.goto((process.env.HOST_URL||'http://localhost:3000')+'/host/');
+    await page.waitForFunction(()=>window.__controllerkit);
+    await page.evaluate(p=>{const d=__fakeBle.phones[0];d.presets=p;d.writeDelay=5;},fast?presets:null);
+    await page.click('#pair0');
+    await page.waitForFunction(()=>__controllerkit.controllers.player(0).ready);
+    await page.click('[data-game="kart-racing"]');
+    const menu=page.frameLocator('#gameStage iframe');
+    await menu.locator('[data-driver]').first().waitFor();
+    await page.waitForFunction(()=>__fakeBle.phones[0].profile?.id==='kart-racing' && __controllerkit.controllers.player(0).ready);
+    const result=await page.evaluate(()=>{
+      const d=__fakeBle.phones[0], w=document.querySelector('#gameStage iframe').contentWindow;
+      const intro=w.document.getElementById('intro'), step=()=>intro.dataset.menuStep;
+      const tap=mask=>{d.buttons(mask);d.buttons(0);};
+      const before=d.control.writes.length;
+      tap(2);tap(16);const laps=step();
+      tap(8);tap(16);const steering=step(),duringLaps=d.control.writes.length-before;
+      d.writeDelay=30;
+      tap(2);tap(8);tap(2); // last selection wins, still on the confirmed menu epoch
+      const layout=__controllerkit.profile().layout;
+      tap(16);
+      return {laps,steering,duringLaps,layout,pending:w.document.getElementById('start').getAttribute('aria-busy')};
+    });
+    assert.deepEqual(result,{laps:'laps',steering:'steering',duringLaps:0,layout:'kart-gyro',pending:'true'});
+    // Check one isolated mode change's actual acknowledgement and write count.
+    await page.waitForFunction(()=>__controllerkit.controllers.player(0).ready && __fakeBle.phones[0].profile.layout==='kart-gyro');
+    loadCourse();
+    await page.waitForFunction(()=>__controllerkit.adapter()?.api?.race.state==='countdown');
+    await page.unroute('**/games/mario-kart/game.js');
+    const timing=await page.evaluate(async()=>{
+      const d=__fakeBle.phones[0];
+      __controllerkit.adapter().api.resetGame();
+      await __controllerkit.ble.devices.get(0).profileTask;
+      const before=d.control.writes.length,start=performance.now();
+      document.querySelector('#gameStage iframe').contentDocument.querySelector('[data-steering="gyro"]').click();
+      await __controllerkit.ble.devices.get(0).profileTask;
+      if(d.profile.layout!=='kart-gyro')throw Error('Phone did not apply the selected layout');
+      return {writes:d.control.writes.length-before,ms:Math.round(performance.now()-start)};
+    });
+    assert.ok(fast?timing.writes===1:timing.writes>40);
+    console.log((fast?'Preset APK':'Legacy APK')+' at 30 ms/write: '+JSON.stringify(timing)+'; phone-only menu and queued Start passed.');
+  }
+  assert.deepEqual(errors,[]);
 } finally {await browser.close();}

@@ -24,6 +24,7 @@ export class MarioKartAdapter {
         if (event.source !== this.frame.contentWindow || event.origin !== location.origin) return;
         if (event.data?.type === 'kart-menu-ready') {
           // The interactive menu can accept Start even on a slow course download.
+          this.context.setPhoneMenu?.(this.frame.contentWindow.kartPhoneMenu);
           clearTimeout(timer);
         } else if (event.data?.type === 'kart-ready') {
           this.api = this.frame.contentWindow.__openwii;

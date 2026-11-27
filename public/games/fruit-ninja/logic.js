@@ -87,7 +87,7 @@ export class FruitNinja {
     value = !!value;
     if (value === this.splitScreen) return;
     this.splitScreen = value;
-    for (const p of this.players.values()) { p.trail.clear(); p.cutting = false; p.cursor.active = false; }
+    for (const p of this.players.values()) { p.trail.clear(); p.finishedCuts.length=0; p.cutting = false; p.cursor.active = false; }
     for (const f of this.fruits) f.lane = value ? (f.x < 0 ? 0 : 1) : undefined;
   }
 
@@ -99,6 +99,7 @@ export class FruitNinja {
   pause(now) {
     if (this.paused) return;
     this.paused = true; this.pausedAt = now;
+    for (const p of this.players.values()) p.finishedCuts.length=0;
   }
 
   resume(now) {
@@ -118,6 +119,7 @@ export class FruitNinja {
       p = {
         slot,
         trail: new Trail({ lifetimeMs: 140, minStep: 0.004, speedWindowMs: 55 }),
+        finishedCuts: [],
         cursor: { x: 0, y: 0, active: false },
         score: 0,
         combo: 0,
@@ -156,6 +158,14 @@ export class FruitNinja {
     if (p.trail.segments.length > 32) p.trail.segments.shift();
   }
 
+  // A pointer can press, move and release between two physics frames.
+  // Keep its measured cuts even when a phone takes over the live trail.
+  finishStroke(slot) {
+    const p=this.getPlayer(slot);
+    p.finishedCuts.push(...p.trail.segments.splice(0));
+    if(p.finishedCuts.length>32)p.finishedCuts.splice(0,p.finishedCuts.length-32);
+  }
+
   start(now) {
     this.paused = false; this.pausedAt = null;
     Object.assign(this.state, {
@@ -175,6 +185,7 @@ export class FruitNinja {
       p.combo = 0;
       p.comboUntil = 0;
       p.trail.clear();
+      p.finishedCuts.length=0;
       p.cutting = false; p.cursor.active = false;
     }
     this.onEvent({ type: 'start' });
@@ -302,7 +313,9 @@ export class FruitNinja {
     // swing if the display stalls or the player leaves during delivery.
     const activeBlades = [];
     for (const p of this.players.values()) {
-      const segments = p.trail.segments.splice(0).filter(segment => now - segment.at <= 100);
+      const pending=p.trail.segments.splice(0);
+      if(p.finishedCuts.length)pending.unshift(...p.finishedCuts.splice(0));
+      const segments = pending.filter(segment => now - segment.at <= 100);
       if (this.network && p.slot !== this.network.slot) continue;
       if (segments.length) activeBlades.push({ player: p, segments });
     }

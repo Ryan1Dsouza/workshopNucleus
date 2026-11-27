@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { BluetoothLink } from '../public/core/bluetooth-link.js';
 import { kartRaceProfile } from '../public/core/controller-profiles.js';
+import presets from '../native/android/app/src/main/assets/profiles.json' with {type:'json'};
+import {validateProfile} from '../public/core/controller-contract.js';
 import { installFakeBluetooth } from './helpers/fake-bluetooth.mjs';
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const navigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
@@ -74,6 +76,24 @@ test('reconnect removes old listeners, changes input session and explicit discon
   phone.pose(); assert.notEqual(samples.at(-1).s.session, session);
   link.disconnect(0); phone.pose(); assert.equal(samples.length, 2);
   assert.equal(phone.motion.listeners.size, 0); assert.equal(phone.control.listeners.size, 0);
+});
+
+test('bundled Android layouts use one ATT write and customized layouts fall back to exact JSON',async t=>{
+  const {fake,link}=fixture(t);
+  const phone=fake.phones[0];phone.presets=presets;phone.writeDelay=0;
+  await link.connect(0);
+  for(const [i,mode] of ['gyro','dpad'].entries()){
+    const profile={...kartRaceProfile(mode),player:2,profileEpoch:65535-i};
+    const ack=await link.sendProfile(0,profile);
+    assert.equal(ack.profileEpoch,profile.profileEpoch);
+    assert.deepEqual(phone.profile,validateProfile(profile));
+  }
+  assert.deepEqual(phone.control.writes.map(p=>[p[0],p.length]),[[0x46,10],[0x46,10]]);
+  const custom={...kartRaceProfile('gyro'),title:'Workshop kart',player:1,profileEpoch:0};
+  await link.sendProfile(0,custom);
+  assert.equal(phone.control.writes[2][0],0x46);
+  assert.equal(phone.control.writes[3][0],0x40);
+  assert.deepEqual(phone.profile,validateProfile(custom));
 });
 test('a failed write after the phone consumed a chunk restarts the transfer from byte zero', async t => {
   const {fake,link}=fixture(t); await link.connect(0);

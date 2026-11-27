@@ -1,6 +1,7 @@
 import { BLE_SERVICE, BLE_MOTION, BLE_CONTROL, decodeBleFrame, decodeBleCenter, BleTimeline } from './ble-protocol.js';
 import { PeerMetrics, RateWindow } from './diagnostics.js';
 import { decodeButtonFrame, decodeProfileAck, profilePackets } from './controller-contract.js';
+import { presetPacket } from './profile-preset.js';
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const transientWriteErrors = new Set(['NetworkError','OperationError','UnknownError','TimeoutError','AbortError']);
@@ -96,6 +97,7 @@ export class BluetoothLink {
       r.forwardedAt = r.forwardedEpoch = null;
       r.session = `ble:${r.device.id}:${++this.serial}`;
       r.profileTask = null; r.profileSync = false;
+      r.appliedProfile = null; r.presetSupport = false;
       r.timeline = new BleTimeline(); r.metrics = new PeerMetrics(); r.captureRate = new RateWindow();
       r.writeBusy = false; r.pendingFeedback = null; r.pingAt = null;
       const server = await r.device.gatt.connect(); check();
@@ -103,13 +105,20 @@ export class BluetoothLink {
       const control = await service.getCharacteristic(BLE_CONTROL); check();
       const motion = await service.getCharacteristic(BLE_MOTION); check();
       r.control = control; r.motion = motion;
+      if (control.properties?.read) {
+        // Older Android builds return their last control value. Some phones
+        // only allow writes and notifications. Both use the JSON path.
+        const value = await control.readValue().catch(() => null);
+        check();
+        r.presetSupport = value?.byteLength === 2 && value.getUint8(0) === 0x45 && value.getUint8(1) === 1;
+      }
       const onControl = e => {
         if (!valid() || !r.connected) return;
         const v = e.target.value; if (!v?.byteLength) return;
         const code = v.getUint8(0);
         if (code === 4) {
           const buttons = decodeButtonFrame(v);
-          if (buttons) this.handlers.onButtons?.(buttons, r.slot, r.session);
+          if (buttons) this.handlers.onButtons?.(buttons, r.slot, r.session, r.appliedProfile);
           return;
         }
         if (code === 0x44 && v.byteLength === 4 && v.getUint8(1) <= 3) {
@@ -118,7 +127,10 @@ export class BluetoothLink {
         }
         if (code === 0x43) {
           const ack = decodeProfileAck(v);
-          if (ack?.transferId === r.profileTransferId) r.resolveProfileAck?.(ack);
+          if (ack && ack.transferId === r.profileTransferId) {
+            if (ack.ok && ack.profileEpoch === r.sendingProfile?.profileEpoch) r.appliedProfile = r.sendingProfile;
+            r.resolveProfileAck?.(ack);
+          }
           return;
         }
         if (code === 0x90 && v.byteLength === 5 && r.pingAt !== null && v.getUint32(1, true) === r.pingToken) {
@@ -224,9 +236,10 @@ export class BluetoothLink {
   resetMetrics() {
     for (const r of this.devices.values()) { r.metrics = new PeerMetrics(); r.captureRate = new RateWindow(); r.captureAt = null; }
   }
-  async transferProfile(r, profile, check) {
+  async transferProfile(r, profile, check, usePreset = r.presetSupport && !!profile.player) {
     const id = r.profileTransferId = (++this.serial) & 65535;
-    const packets = profilePackets(profile, id);
+    r.sendingProfile = profile;
+    const packets = usePreset ? [presetPacket(profile, id)] : profilePackets(profile, id);
     let resolveAck, timer;
     const acknowledged = new Promise(resolve => { resolveAck = resolve; });
     r.resolveProfileAck = resolveAck;
@@ -244,6 +257,7 @@ export class BluetoothLink {
       const ack = await Promise.race([acknowledged, timeout]);
       check();
       if (r.desiredProfile) return;
+      if (usePreset && ack && !ack.ok) return this.transferProfile(r, profile, check, false);
       if (!ack?.ok || ack.profileEpoch !== profile.profileEpoch) throw new Error('The phone rejected these controls.');
       return ack;
     } finally {

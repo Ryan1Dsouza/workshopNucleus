@@ -57,6 +57,20 @@ test('a slow drag through a fruit does not slice it', () => {
   assert.equal(g.state.score, 0, 'no score');
 });
 
+test('a released between-frame swipe survives a phone handoff and is consumed once', () => {
+  const g=game();
+  put(g,0,0);
+  g.setCursor(-3,0,10,0,{reset:true,cutting:false});
+  g.setCursor(3,0,12);
+  g.finishStroke(0);
+  g.setCursor(-3,2,13,0,{reset:true,cutting:false});
+  g.update(16,.016);
+  assert.equal(g.fruits.length,0);
+  put(g,0,0);
+  g.update(32,.016);
+  assert.equal(g.fruits.length,1);
+});
+
 test('a fast slash that misses does not slice', () => {
   const g = game();
   const clock = { t: 0 };

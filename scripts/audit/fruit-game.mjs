@@ -51,6 +51,22 @@ export async function checkFruitGame(host) {
       await game.waitForFunction(fruitId=>__openwii.meshes.has(fruitId),fruitId);
       return fruitId;
     };
+    const field=await page.locator('iframe[title="Fruit Ninja game"]').boundingBox();
+    await page.mouse.move(field.x+field.width*.28,field.y+field.height*.55);
+    await page.mouse.down();
+    await game.evaluate(()=>{
+      const canvas=document.querySelector('canvas');
+      const ribbon=()=>__openwii.visuals.get(0).screen.paths[1].getAttribute('d');
+      canvas.addEventListener('pointermove',e=>{
+        window.firstDrag={path:!!ribbon(),ms:performance.now()-e.timeStamp};
+      },{once:true});
+      canvas.addEventListener('pointerup',()=>{window.releasedRibbon=!!ribbon();},{once:true});
+    });
+    await page.mouse.move(field.x+field.width*.38,field.y+field.height*.55);
+    await page.mouse.up();
+    const drag=await game.evaluate(()=>({first:window.firstDrag,release:window.releasedRibbon}));
+    check(drag.first?.path && drag.release,'first pointermove draws the ribbon within the event ('+drag.first?.ms.toFixed(1)+' ms), and release preserves it');
+    await game.waitForFunction(()=>!__openwii.visuals.get(0).screen.paths[1].getAttribute('d'));
     const sweep=async(fruitId,start=.3,end=.7,held=true)=>{
       const box=await page.locator('iframe[title="Fruit Ninja game"]').boundingBox();
       const target=()=>game.evaluate(fruitId=>{const f=__openwii.game.fruits.find(f=>f.id===fruitId);return f?__openwii.toScreen(f.x,f.y):null;},fruitId);

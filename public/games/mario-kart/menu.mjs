@@ -1,6 +1,7 @@
 import drivers from '../../core/kart-roster.json' with {type:'json'};
 import {portrait} from './icons.js';
 import {AudioEngine} from '../../core/audio.js';
+import {BUTTON_BITS} from '../../core/controller-contract.js';
 
 export const audioEngine = new AudioEngine({volume:.55});
 
@@ -33,11 +34,11 @@ export function setStep(next) {
   const intro = $('intro');
   intro.classList.toggle('driver-confirmed', confirmed);
   intro.dataset.menuStep = step;
-  phoneLayout(step === 'steering' ? steering : 'menu');
+  if (step !== 'steering') phoneLayout('menu');
   const copy = {
     driver: 'Choose your driver',
     laps: 'Choose race length · Press A to continue',
-    steering: 'Choose phone steering · Press A to start race',
+    steering: '← / → choose · Confirm or Drift to race',
   };
   document.querySelector('.intro-copy').textContent = copy[step];
 }
@@ -83,7 +84,26 @@ export function setSteeringMode(value) {
   localStorage.setItem('openwii.kart.steering', value);
   showSteering();
   setStep('steering');
+  phoneLayout(steering);
   if (changed) void cursorSound();
+}
+
+// This menu is interactive while the course loads and while a new layout
+// travels to the phone. Its navigation uses physical button edges.
+export function phoneMenuInput(pressed) {
+  if ($('intro').hidden) return false;
+  if (pendingStart) return true;
+  for (const direction of ['left','right','up','down']) {
+    if (pressed & BUTTON_BITS[direction]) navigate(direction);
+  }
+  if (pressed & (BUTTON_BITS.a | BUTTON_BITS.two)) {
+    if (step === 'steering') requestStart();
+    else { void cursorSound(); setStep(step === 'driver' ? 'laps' : 'steering'); }
+  } else if (pressed & (BUTTON_BITS.one | BUTTON_BITS.b)) {
+    void cursorSound();
+    setStep(step === 'steering' ? 'laps' : 'driver');
+  } else if (pressed & BUTTON_BITS.minus) setSteeringMode(steering === 'gyro' ? 'dpad' : 'gyro');
+  return true;
 }
 
 export function navigate(direction) {
@@ -94,13 +114,14 @@ export function navigate(direction) {
     return;
   }
   if (step === 'steering') {
-    if (direction === 'left' || direction === 'right') setSteeringMode(steering === 'dpad' ? 'gyro' : 'dpad');
+    if (direction === 'left' || direction === 'right') setSteeringMode(direction === 'left' ? 'dpad' : 'gyro');
     else if (direction === 'up') { void cursorSound(); setStep('laps'); }
     return;
   }
   chooseDriver(drivers.indexOf(driver) + {left:-1,right:1,up:-4,down:4}[direction]);
 }
 function requestStart() {
+  phoneLayout(steering);
   if (controls) return controls.start();
   if (pendingStart) return;
   void cursorSound();

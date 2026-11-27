@@ -1,7 +1,8 @@
-import {mountMenu} from './menu.mjs';
+import {mountMenu, phoneMenuInput} from './menu.mjs';
 
 try {
   mountMenu();
+  window.kartPhoneMenu = phoneMenuInput;
   window.__controllerEmbedded = window.parent !== window;
   if (window.__controllerEmbedded) parent.postMessage({type:'kart-menu-ready'},location.origin);
   if (!window.__controllerEmbedded && new URLSearchParams(location.search).has('room')) {

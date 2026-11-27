@@ -29,3 +29,12 @@ for (const relative of ['native/android/app/src/main/assets/controller.html', 'n
   await fs.writeFile(destination, bundled);
 }
 console.log('Shared offline controller UI synchronized to Android, iOS, and downloads.');
+// Use the same normalized definitions that the host fingerprints over BLE.
+const profilesFile = path.join(root, 'public/core/controller-profiles.js');
+try { await fs.access(profilesFile); } catch { process.exit(0); }
+const {REMOTE_PROFILE, FRUIT_PROFILE, MARIO_KART_PROFILE, kartRaceProfile} = await import('../../public/core/controller-profiles.js');
+const {profileKey} = await import('../../public/core/profile-preset.js');
+const {validateProfile} = await import('../../public/core/controller-contract.js');
+const presets = [REMOTE_PROFILE, FRUIT_PROFILE, MARIO_KART_PROFILE, kartRaceProfile('gyro'), kartRaceProfile('dpad')];
+await fs.writeFile(path.join(root, 'native/android/app/src/main/assets/profiles.json'),
+  JSON.stringify(Object.fromEntries(presets.map(p => [profileKey(p), validateProfile(p)]))) + '\n');

@@ -13,6 +13,8 @@ import android.graphics.Point;
 import android.view.Display;
 import android.os.*;
 import java.nio.*;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import org.json.*;
 
@@ -46,6 +48,7 @@ public class MotionService extends Service implements SensorEventListener {
     }
     final BleControlQueue controls=new BleControlQueue();
     final ProfileTransfer profileTransfer=new ProfileTransfer();
+    JSONObject presets;
     JSONObject profile;int buttonMask=0,buttonSequence=0,profileEpoch=0;long buttonsSentAt=0;
     boolean gyroWanted=true;
     SensorManager sensors;Sensor rotation,gyro;
@@ -90,6 +93,10 @@ public class MotionService extends Service implements SensorEventListener {
     public void playGame(){if(central!=null)enqueue(new byte[]{1});else{message="Connect this phone from the laptop first.";refresh();}}
     @Override public void onCreate(){
         super.onCreate();
+        try (InputStream input=getAssets().open("profiles.json");
+             Scanner reader=new Scanner(input,StandardCharsets.UTF_8.name()).useDelimiter("\\A")) {
+            presets=new JSONObject(reader.next());
+        } catch(IOException|JSONException|NoSuchElementException ignored) { presets=null; }
         displays=(DisplayManager)getSystemService(DISPLAY_SERVICE);
         displays.registerDisplayListener(displayListener,handler);
         sensors=(SensorManager)getSystemService(SENSOR_SERVICE);
@@ -192,8 +199,7 @@ public class MotionService extends Service implements SensorEventListener {
     };
     boolean same(BluetoothDevice d){return central!=null&&central.equals(d);}
     void enqueue(byte[] bytes){if(!controls.offer(bytes)){controls.clear();buttonMask=0;controls.offer(FrameCodec.encodeButtons(0,buttonSequence++,profileEpoch));}flush();}
-    void applyProfile(ProfileTransfer.Result transferred)throws JSONException{
-        JSONObject next=new JSONObject(transferred.json);
+    void applyProfile(int transferId,JSONObject next)throws JSONException{
         if(!next.getString("id").matches("[a-z][a-z0-9-]{0,31}")||next.getString("title").trim().isEmpty()||next.getString("title").length()>48)throw new IllegalArgumentException("Invalid profile");
         String orientation=next.getString("orientation"),mode=next.getString("motion");
         if(!orientation.equals("portrait")&&!orientation.equals("landscape")||!mode.equals("none")&&!mode.equals("aim")&&!mode.equals("steer"))throw new IllegalArgumentException("Invalid profile mode");
@@ -207,7 +213,7 @@ public class MotionService extends Service implements SensorEventListener {
         }
         profile=next;profileEpoch=revision;buttonMask=0;
         wheelProfile=mode.equals("steer")&&orientation.equals("landscape");lastWheelRotation=-1;handler.removeCallbacks(retryRotation);
-        byte[] ack=ByteBuffer.allocate(6).order(ByteOrder.LITTLE_ENDIAN).put((byte)0x43).putShort((short)transferred.id).put((byte)0).putShort((short)revision).array();
+        byte[] ack=profileAck(transferId,0,revision);
         setMotion(!mode.equals("none"));
         // If already in landscape, the captured grip belongs to this display.
         // A later portrait-to-landscape rotation establishes a level horizon.
@@ -215,6 +221,21 @@ public class MotionService extends Service implements SensorEventListener {
         if(gyroWanted)centerBlade();
         enqueue(ack);sendButtons();
         message="Player "+assigned+" · "+next.getString("title")+". Controls are ready.";refresh();
+    }
+    byte[] profileAck(int id,int status,int revision){
+        return ByteBuffer.allocate(6).order(ByteOrder.LITTLE_ENDIAN).put((byte)0x43)
+            .putShort((short)id).put((byte)status).putShort((short)revision).array();
+    }
+    void selectPreset(byte[] value)throws JSONException{
+        ByteBuffer packet=ByteBuffer.wrap(value).order(ByteOrder.LITTLE_ENDIAN);
+        int id=packet.getShort(1)&65535,revision=packet.getShort(8)&65535;
+        String key=Long.toString(packet.getInt(3)&0xffffffffL);
+        JSONObject base=presets==null?null:presets.optJSONObject(key);
+        profileTransfer.reset();
+        if(base==null){enqueue(profileAck(id,1,revision));return;}
+        JSONObject next=new JSONObject(base.toString());
+        next.put("player",value[7]&255);next.put("profileEpoch",revision);
+        applyProfile(id,next);
     }
     void flush(){
         if(busy||central==null||gatt==null)return;
@@ -269,14 +290,17 @@ public class MotionService extends Service implements SensorEventListener {
             if(response)respond(d,id,result,0,null);
             if(result==BluetoothGatt.GATT_SUCCESS){message=controlEnabled?"Connected. The laptop chooses your controls.":"Laptop connected.";refresh();flush();}
         });}
-        @Override public void onCharacteristicReadRequest(BluetoothDevice d,int id,int offset,BluetoothGattCharacteristic c){handler.post(()->{respond(d,id,offset==0?BluetoothGatt.GATT_SUCCESS:BluetoothGatt.GATT_INVALID_OFFSET,offset,controlValue);});}
+        @Override public void onCharacteristicReadRequest(BluetoothDevice d,int id,int offset,BluetoothGattCharacteristic c){handler.post(()->{respond(d,id,offset==0?BluetoothGatt.GATT_SUCCESS:BluetoothGatt.GATT_INVALID_OFFSET,offset,c==control&&presets!=null?new byte[]{0x45,1}:controlValue);});}
         @Override public void onCharacteristicWriteRequest(BluetoothDevice d,int id,BluetoothGattCharacteristic c,boolean prepared,boolean response,int offset,byte[] value){handler.post(()->{
             if(gatt==null)return;int result=BluetoothGatt.GATT_SUCCESS;
             if(!same(d)||prepared||offset!=0||c!=control||value.length<1)result=BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED;
             else if(value[0]==0x10&&value.length==5){controlValue=value.clone();controlValue[0]=(byte)0x90;enqueue(controlValue);}
             else if(value.length==1&&value[0]>=0x11&&value[0]<=0x13){Vibrator v=(Vibrator)getSystemService(VIBRATOR_SERVICE);if(hapticsEnabled&&v!=null&&v.hasVibrator())v.vibrate(VibrationEffect.createOneShot(value[0]==0x12?45:12,VibrationEffect.DEFAULT_AMPLITUDE));}
-            else if((value[0]&255)>=0x40&&(value[0]&255)<=0x42){
-                try{ProfileTransfer.Result transferred=profileTransfer.accept(value);if(transferred!=null)applyProfile(transferred);}
+            else if(((value[0]&255)>=0x40&&(value[0]&255)<=0x42)||(value[0]==0x46&&value.length==10)){
+                try{
+                    if(value[0]==0x46)selectPreset(value);
+                    else{ProfileTransfer.Result transferred=profileTransfer.accept(value);if(transferred!=null)applyProfile(transferred.id,new JSONObject(transferred.json));}
+                }
                 catch(IllegalArgumentException|JSONException e){result=BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED;message="Controller profile could not be applied.";refresh();}
             }
             else result=BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED;

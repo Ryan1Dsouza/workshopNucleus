@@ -59,11 +59,39 @@ function restoreWithEscape(event){
 document.addEventListener('fullscreenchange',()=>{const ours=document.fullscreenElement===playArea;if(gameFullscreen&&!ours)setExpanded(false);gameFullscreen=ours;});
 const deviceText=['Start Bluetooth on your phone.','A second phone plays independently.'];
 const controlsFailed=[false,false];
+let phoneMenu=null, menuButtons=null, menuProfiles=new WeakSet();
+const menuMask=['up','down','left','right','a','b','one','two','minus'].reduce((mask,id)=>mask|BUTTON_BITS[id],0);
+function receiveButtons(frame,slot,session,applied) {
+  if(!features.buttons)return;
+  if(slot===0 && phoneMenu && menuProfiles.has(applied) && applied.profileEpoch===frame.profileEpoch){
+    if(menuButtons?.session!==session)menuButtons={session,sequence:null,mask:0,consumed:0};
+    const last=menuButtons.sequence, delta=(frame.sequence-last)&65535;
+    if(last!==null && (!delta || delta>=32768))return;
+    const pressed=frame.mask & ~menuButtons.mask & menuMask;
+    menuButtons.sequence=frame.sequence;
+    menuButtons.mask=frame.mask;
+    menuButtons.consumed &= frame.mask;
+    if(!online?.active && phoneMenu(pressed))menuButtons.consumed |= frame.mask & menuMask;
+    else if(online?.room && !online.room.match && !$('roomSteering').disabled && current?.id==='kart-racing'){
+      const api=adapter.api;
+      const mode=(pressed & BUTTON_BITS.left)?'dpad':(pressed & BUTTON_BITS.right)?'gyro':null;
+      if(mode && mode!==api.steeringMode || pressed & BUTTON_BITS.minus && !applied.layout){
+        api.setSteeringMode(mode || (api.steeringMode==='gyro'?'dpad':'gyro'));
+        online.render();
+      }
+      menuButtons.consumed |= frame.mask & menuMask;
+    }
+    // Keep a held Confirm out of gameplay until the phone releases it.
+    frame={...frame,mask:frame.mask & ~menuButtons.consumed};
+  }
+  controllers.buttons(slot,frame,session);
+}
 function notice(text,error=false){$('notice').textContent=text;$('notice').classList.remove('pending');$('notice').classList.toggle('error',error);}
 function assignedProfile(slot){return {...profile,player:slot+1,profileEpoch:controllers.profileEpoch};}
 async function syncController(slot){
   if(!ble.connected(slot))return;
   const session=controllers.player(slot).session, assigned=assignedProfile(slot);
+  if(assigned.id==='kart-racing')menuProfiles.add(assigned);
   const currentRequest=()=>ble.connected(slot) && controllers.player(slot).session===session && controllers.profileEpoch===assigned.profileEpoch;
   controlsFailed[slot]=false;
   $('retryControls'+slot).hidden=true;
@@ -92,7 +120,7 @@ const ble=new BluetoothLink({
     if(!online?.active && current?.id==='fruit-ninja'&&ble.connected(0)&&ble.connected(1))adapter?.configure?.({splitScreen:true});
     renderPlayers(performance.now());
   },
-  onButtons:(frame,slot,session)=>{if(features.buttons)controllers.buttons(slot,frame,session);},
+  onButtons:receiveButtons,
   onSample:(frame,slot)=>{if(features.motion)controllers.motion(slot,frame);},
   onCommand:(command,slot)=>{
     if(command.type==='recentre'&&features.motion)controllers.center(slot,command);
@@ -138,6 +166,7 @@ async function select(id){
   setExpanded(false);
   backgroundRound=null;
   pendingPlay=null;
+  phoneMenu=null;menuButtons=null;menuProfiles=new WeakSet();
   const version=++selection;paused=true;setCurrentProfile(game.profile);
   document.documentElement.dataset.game=id;
   $('selectedTitle').textContent=game.title;$('gameCategory').textContent=game.category?.toLowerCase().replace(/^./,letter=>letter.toUpperCase())||'Your game';$('selectedDescription').textContent=game.description;
@@ -148,7 +177,7 @@ async function select(id){
   $('gameTools').hidden=true;
   $('roundOptions').hidden=true;
   splitAim=false;resizePointers();
-  const context={container:$('gameStage'),centerFruit,setControllerProfile:next=>{
+  const context={container:$('gameStage'),centerFruit,setPhoneMenu:handler=>{if(version===selection)phoneMenu=handler;},setControllerProfile:next=>{
     if(version===selection && next.id===game.id && profile.layout!==next.layout) {
       setCurrentProfile(next);
       if(online?.active) online.render();

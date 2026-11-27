@@ -772,11 +772,14 @@ function drawTrail(now = performance.now()) {
     const aim = opponent ? game.network.remoteAim : localAim && laneAim(slot, localAim, mousePreview);
     const p = aim ? toWorld(aim.x, aim.y) : player.cursor;
     Object.assign(v.cursor, p, { active: player.cursor.active });
-    if (!player.cursor.active || !opponent && inp && !inp.pointer.live && !(slot === localSlot() && mouse.active)) v.trail.clear();
+    const dragging = slot === localSlot() && mouse.active;
+    if (dragging || !player.cursor.active || !opponent && inp && !inp.pointer.live) v.trail.clear();
     else v.trail.push(p.x, p.y, now);
     const visible=player.cursor.active||mousePreview||phonePresent;
     v.screen.aim(aim || {x: .5, y: .5}, visible);
-    v.screen.trail(v.trail.points, toScreen, innerHeight, innerWidth, now);
+    const pointerRibbon = slot === localSlot() && (dragging ||
+      now - (mouse.trail.points.at(-1)?.t ?? -Infinity) < mouse.trail.lifetimeMs && v.trail.points.length < 2);
+    v.screen.trail(pointerRibbon ? mouse.trail.points : v.trail.points, toScreen, innerHeight, innerWidth, now, visible || pointerRibbon);
   }
 }
 
@@ -899,6 +902,7 @@ function resize() {
   game.setAspect(camera.aspect);
   for (const inp of inputs.values()) inp.pointer.setViewport(w / (game.splitScreen ? 2 : 1), h);
   if (remapped) {
+    mouse.active=false;mouse.trail.clear();
     // Reprojecting the play surface starts a fresh stroke without recalibrating.
     for (const [slot, inp] of inputs) {
       inp.externalReset = true;
@@ -929,6 +933,7 @@ function configureRound({splitScreen = game.splitScreen, durationSeconds = game.
   game.setSplitScreen(splitScreen); game.setDuration(durationSeconds);
   document.body.classList.toggle('split-screen',game.splitScreen);
   if (changed) {
+    mouse.trail.clear();
     for (const inp of inputs.values()) {
       inp.pointer.setViewport(innerWidth / (game.splitScreen ? 2 : 1), innerHeight);
       inp.center({freshGrip:true},performance.now());
@@ -1242,6 +1247,7 @@ function syncTimer() {
 function startGame(now = performance.now()) {
   $('setup').classList.add('hide');
   mouse.active = false;
+  mouse.trail.clear();
   if(embedded)clearStrokes();
   else for (const [slot, inp] of inputs) { recentreSlot(slot,{freshGrip:true}); inp.externalReset = true; }
   hideOverlay();
@@ -1269,6 +1275,7 @@ function pauseGame() {
 }
 function clearStrokes() {
   mouse.active = false;
+  mouse.trail.clear();
   for (const [slot,inp] of inputs) {
     inp.externalReset = true; inp.pointer.pending = {cutting:false,reset:true};
     inp.display.reset(inp.pointer.position); visualFor(slot).trail.clear();
@@ -1385,12 +1392,18 @@ function frame(now) {
     if(game.network && slot!==localSlot())continue;
     if (inp.pointer.live && now - inp.pointer.lastSeen > 150) suspendSlot(slot);
     const mouseOwns=slot===localSlot()&&mouse.active;
-    if ((inp.pointer.live && !inp.packetCursor) || mouseOwns) {
-      const aim = mouseOwns ? mouse : inp.pointer.sampleAt(now);
-      const mapped=laneAim(slot,aim,mouseOwns),p = toWorld(mapped.x,mapped.y);
+    if (mouseOwns) {
+      // Refresh a stationary endpoint so the first movement after a long
+      // hold has a recent origin. Movement itself is recorded at event time.
+      const cursor = game.getPlayer(slot).cursor;
+      game.setCursor(cursor.x,cursor.y,now,slot,{cutting:!game.paused});
+      mouse.trail.push(cursor.x,cursor.y,now,true);
+      mouse.trail.segments.length=0;
+    } else if (inp.pointer.live && !inp.packetCursor) {
+      const aim = inp.pointer.sampleAt(now);
+      const mapped=laneAim(slot,aim),p = toWorld(mapped.x,mapped.y);
       const movement = inp.pointer.consumeMovement();
-      game.setCursor(p.x, p.y, now, slot, { cutting: !game.paused&&(mouseOwns || movement.cutting), reset: mouseOwns?mouse.reset:movement.reset });
-      if(mouseOwns)mouse.reset=false;
+      game.setCursor(p.x, p.y, now, slot, { cutting: !game.paused && movement.cutting, reset: movement.reset });
     }
   }
 
@@ -1414,28 +1427,43 @@ function frame(now) {
 }
 
 // ── Input ──────────────────────────────────────────────────────────────────
-const mouse = { x: 0.5, y: 0.5, active: false, visible: false, reset: false };
+const mouse = { x: 0.5, y: 0.5, active: false, visible: false, trail: new Trail({minStep:.004}) };
 function mousePosition(e){
   if(!e.isPrimary)return;
   mouse.x=clamp(e.clientX/window.innerWidth,0,1);mouse.y=clamp(e.clientY/window.innerHeight,0,1);mouse.visible=true;
+}
+function recordDrag(e, reset=false) {
+  mousePosition(e);
+  const slot=localSlot(), aim=laneAim(slot,mouse,true), p=toWorld(aim.x,aim.y);
+  game.setCursor(p.x,p.y,e.timeStamp,slot,{reset,cutting:!reset && !game.paused});
+  mouse.trail.push(p.x,p.y,e.timeStamp);
 }
 canvas.addEventListener('pointerenter',mousePosition);
 canvas.addEventListener('pointerleave',e=>{if(e.isPrimary&&!mouse.active)mouse.visible=false;});
 canvas.addEventListener('pointerdown', (e) => {
   if (!e.isPrimary || game.paused || e.button !== 0) return;
-  canvas.setPointerCapture(e.pointerId); mouse.active = true;mouse.reset=true;mousePosition(e);
-  const inp = inputFor(localSlot()); inp.pointer.live = false;inp.pointer.pending={cutting:false,reset:false};game.getPlayer(localSlot()).trail.clear();visualFor(localSlot()).trail.clear();
+  canvas.setPointerCapture(e.pointerId); mouse.active = true;mouse.trail.clear();
+  const inp = inputFor(localSlot()); inp.pointer.live = false;inp.pointer.pending={cutting:false,reset:false};visualFor(localSlot()).trail.clear();
+  recordDrag(e,true);
+  drawTrail();
 });
 canvas.addEventListener('pointermove', (e) => {
-  mousePosition(e);
+  if(!e.isPrimary || !mouse.active){mousePosition(e);return;}
+  for(const sample of e.getCoalescedEvents?.() || [])recordDrag(sample);
+  recordDrag(e);
+  drawTrail();
 });
 for (const event of ['pointerup', 'pointercancel', 'lostpointercapture']) canvas.addEventListener(event, e => {
   if(!e.isPrimary || !mouse.active)return;
-  if(event==='pointercancel')mouse.visible=false;
-  else if(event==='pointerup')mouse.visible=e.pointerType!=='touch'&&e.clientX>=0&&e.clientX<=innerWidth&&e.clientY>=0&&e.clientY<=innerHeight;
+  if(event==='pointerup'){
+    recordDrag(e);
+    game.finishStroke(localSlot());
+    mouse.visible=e.pointerType!=='touch'&&e.clientX>=0&&e.clientX<=innerWidth&&e.clientY>=0&&e.clientY<=innerHeight;
+  }else{mouse.visible=false;mouse.trail.clear();}
   mouse.active = false; game.getPlayer(localSlot()).cursor.active = false;game.getPlayer(localSlot()).cutting=false;game.getPlayer(localSlot()).trail.clear();
   const inp=inputFor(localSlot());inp.externalReset=true;inp.pointer.pending={cutting:false,reset:true};visualFor(localSlot()).trail.clear();
   if(inp.latestController)setControllerState(localSlot(),{...inp.latestController,motionPath:[],cutting:false,reset:true});
+  drawTrail();
 });
 window.addEventListener('pointerdown', () => audio.unlock());
 

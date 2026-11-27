@@ -29,9 +29,13 @@ After a successful verified connection, the host remembers that phone's id for i
 | End profile | 3 | code 0x42; transfer id u16 |
 | Profile acknowledgement | 6 | code 0x43; transfer id u16; status u8 (0 accepted); profile epoch u16 |
 | Android wheel display rotation (optional) | 4 | opcode 0x44, Surface rotation u8 (0 through 3), profile epoch u16 |
+| Android preset capability (Control read) | 2 | 0x45, version 1 |
+| Select bundled profile | 10 | 0x46, transfer id u16, profile CRC32 u32, player u8, profile epoch u16 |
 | Ping / pong | 5 | code 0x10 / 0x90; echoed timestamp token u32 |
 
 Quaternion components use ±32767 and are normalized on decode. Speed uses 0.01 degrees/second. Motion flags bit 0 means active and bit 1 means fresh gyro. Capture clocks and sequence numbers unwrap independently.
+
+Android 2.0.7 bundles the standard profiles. Their IDs are CRC32 values of the UTF-8 JSON returned by validateProfile with player and profileEpoch omitted. After reading the capability once per connection, the host can select a layout with one write. The phone replies with the usual 0x43 acknowledgement. Status 1 requests the full JSON for an unknown preset. A phone without the capability receives the full JSON directly.
 
 One-byte legacy control commands remain: 1 starts a round, 3 suspends motion, 5 requests disconnect. Profile data is at most 4096 UTF-8 bytes. Both native receivers reject incomplete, reordered, oversized or bad-checksum transfers.
 

@@ -11,12 +11,20 @@ export function installFakeBluetooth(target = globalThis) {
   class Characteristic extends Emitter {
     constructor(uuid, device) { super(); this.uuid = uuid; this.device = device; this.writes = []; this.activeWrites = 0; this.maxWrites = 0; }
     async startNotifications() { this.subscribed = true; return this; }
+    get properties() { return {read:true}; }
+    async readValue() { return new DataView(Uint8Array.from(this.device.presets ? [0x45,1] : [0]).buffer); }
     emit(bytes) { this.value = bytes instanceof DataView ? bytes : new DataView(Uint8Array.from(bytes).buffer); this.dispatchEvent(new Event('characteristicvaluechanged')); }
     async writeValueWithResponse(bytes) {
       this.activeWrites++; this.maxWrites = Math.max(this.maxWrites, this.activeWrites); this.writes.push([...bytes]);
       await new Promise(resolve => setTimeout(resolve, this.device.writeDelay ?? 8));
       if (bytes[0] === 0x10) this.emit([0x90, ...bytes.slice(1)]);
       const view=new DataView(Uint8Array.from(bytes).buffer),d=this.device;
+      if(bytes[0]===0x46){
+        if(!d.presets || bytes.length!==10)throw Error('Unsupported preset packet');
+        const base=d.presets[view.getUint32(3,true)];
+        if(base)d.profile={...base,player:bytes[7],profileEpoch:view.getUint16(8,true)};
+        this.emit([0x43,bytes[1],bytes[2],base?0:1,bytes[8],bytes[9]]);
+      }
       if(bytes[0]===0x40){d.transfer={id:view.getUint16(1,true),bytes:new Uint8Array(view.getUint16(3,true)),offset:0};}
       else if(bytes[0]===0x41){if(!d.transfer||view.getUint16(1,true)!==d.transfer.id||view.getUint16(3,true)!==d.transfer.offset)throw Error('Invalid profile chunk');d.transfer.bytes.set(bytes.slice(5),d.transfer.offset);d.transfer.offset+=bytes.length-5;}
       else if(bytes[0]===0x42){if(!d.transfer||d.transfer.offset!==d.transfer.bytes.length)throw Error('Incomplete profile');d.profile=JSON.parse(new TextDecoder().decode(d.transfer.bytes));this.emit([0x43,...bytes.slice(1),0,d.profile.profileEpoch&255,d.profile.profileEpoch>>8]);d.transfer=null;}
