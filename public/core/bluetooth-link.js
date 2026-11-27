@@ -238,8 +238,11 @@ export class BluetoothLink {
           for (const packet of packets) {
             check();
             while (r.writeBusy) { await new Promise(resolve => setTimeout(resolve, 5)); check(); }
+            // A new begin packet replaces an unfinished transfer on the phone.
+            if (r.desiredProfile) break;
             if (!await this.write(r, packet)) throw new Error('Could not send controls. Update the controller app and reconnect.');
           }
+          if (r.desiredProfile) continue;
           // The phone can acknowledge only after receiving the final chunk.
           // Background scheduling or a slow GATT write must not consume its reply window.
           const timeout = new Promise((_,reject)=>{

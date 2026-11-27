@@ -1,9 +1,17 @@
 // Real browser regressions for mouse ownership, two BLE lanes and lifecycle.
 // The caller supplies a page whose context has the simulated GATT fixture.
+function usePhoneClocks(){
+  const start=performance.now();
+  for(const phone of __fakeBle.phones){
+    const base=phone.time;
+    phone.captureClock=now=>base+Math.round(now-start);
+  }
+}
 export async function checkPendingPhoneStart(host,{screenshot}={}){
   const page=await host.context().newPage();
   try{
     await page.goto(new URL('/host/',host.url()).href);await page.waitForFunction(()=>window.__controllerkit);
+    await page.evaluate(usePhoneClocks);
     await page.click('#pair0');await page.waitForFunction(()=>__controllerkit.controllers.player(0).ready);
     await page.evaluate(()=>{__fakeBle.phones[0].writeDelay=60;__setupMotion=setInterval(()=>__fakeBle.phones[0].pose(0,0),16);});
     await page.click('[data-game="fruit-ninja"]');await page.waitForFunction(()=>__controllerkit.adapter()?.api);
@@ -26,6 +34,7 @@ export async function checkFruitGame(host) {
   const check=(value,message)=>{if(!value)throw new Error(message);checks.push(message);};
   try {
     await page.goto(new URL('/host/',host.url()).href);await page.waitForFunction(()=>window.__controllerkit);
+    await page.evaluate(usePhoneClocks);
     await page.click('[data-game="fruit-ninja"]');await page.waitForFunction(()=>__controllerkit.adapter()?.api);
     await page.selectOption('#roundDuration','120');
     let game=page.frames().find(frame=>frame.url().includes('/games/fruit-ninja/index.html'));
@@ -68,7 +77,16 @@ export async function checkFruitGame(host) {
     check(firstPlayState.score>0&&!firstPlayState.paused,'first Play accepts mouse input while a phone is live: '+JSON.stringify(firstPlayState));
     await game.waitForFunction(()=>__openwii.pointer.live&&!__openwii.game.getPlayer(0).cutting);
     check(await game.evaluate(()=>__openwii.game.getPlayer(0).trail.points.length<=1),'mouse release returns to phone without a phantom stroke');
+    const box=await page.locator('#gameStage iframe').boundingBox();
+    await page.mouse.move(box.x+box.width*.15,box.y+box.height*.7);
     await page.evaluate(()=>clearInterval(__phoneStream));
+    await game.waitForFunction(()=>!__openwii.pointer.live);
+    const heldAim=await game.evaluate(()=>{
+      __openwii.drawTrail();
+      const screen=__openwii.visuals.get(0).screen;
+      return {visible:screen.active,x:screen.position.x,y:screen.position.y};
+    });
+    check(heldAim.visible&&Math.abs(heldAim.x-.5)<.01&&Math.abs(heldAim.y-.5)<.01,'a parked mouse cannot move the phone dot when BLE packets pause');
     await page.click('#restartGame');fruitId=await place(true);await sweep(fruitId);
     check(await game.evaluate(()=>__openwii.game.state.phase==='playing'&&__openwii.game.state.lives===2&&document.querySelectorAll('#lives .lost').length===1),'Classic bomb costs one life and keeps the round running');
     await game.evaluate(async()=>{const {FRUIT_TYPES}=await import('/games/fruit-ninja/logic.js'),g=__openwii.game;g.fruits=[{id:93888,x:0,y:-g.h/2-3,vx:0,vy:-1,r:.62,rot:0,spin:0,spinAxis:{x:1,y:0,z:0},kind:FRUIT_TYPES[3]}];});
@@ -87,10 +105,10 @@ export async function checkFruitGame(host) {
     const boundaries=await game.evaluate(()=>{
       const api=__openwii,s=(slot,x)=>({slot,connected:true,ready:true,session:'boundary-'+slot,motionLive:true,axes:{x,y:.5},displayAxes:{x,y:.5},reset:false,cutting:false});
       const points=[];
-      for(const x of [-1,0,.5,1,2]){for(const slot of [0,1]){api.setControllerState(slot,s(slot,x));api.drawTrail();points.push({slot,x:api.visuals.get(slot).screen.position.x});}}
+      for(const x of [-1,0,.5,1,2]){for(const slot of [0,1]){api.setControllerState(slot,s(slot,x));api.drawTrail();points.push({slot,input:x,x:api.visuals.get(slot).screen.position.x});}}
       return points;
     });
-    check(boundaries.every(p=>p.slot===0?p.x>=0&&p.x<.5:p.x>.5&&p.x<=1),'both visible phone pointers stay inside their own lanes at every extreme');
+    check(boundaries.every(p=>p.x===(p.slot+Math.max(0,Math.min(1,p.input)))/2),'both visible phone pointers reach the edges and center of their own lanes');
     await page.evaluate(()=>{for(const phone of __fakeBle.phones){phone.pose(0,0);phone.center(0);}});await page.waitForTimeout(50);
     for(const slot of [0,1]){
       await game.evaluate(()=>{__openwii.game.fruits=[];});

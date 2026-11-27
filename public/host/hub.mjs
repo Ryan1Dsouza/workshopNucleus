@@ -132,7 +132,10 @@ async function select(id){
   $('roundOptions').hidden=true;
   splitAim=false;resizePointers();
   const context={container:$('gameStage'),centerFruit,setControllerProfile:next=>{
-    if(version===selection && next.id===game.id && profile.layout!==next.layout) setCurrentProfile(next);
+    if(version===selection && next.id===game.id && profile.layout!==next.layout) {
+      setCurrentProfile(next);
+      if(online?.active) online.render();
+    }
   },feedback:data=>{
     if (!online?.room)ble.feedback(data);
     else if(data.slot===undefined || current?.id!=='fruit-ninja' || data.slot===online.slot)ble.feedback({...data,slot:0});
@@ -225,10 +228,14 @@ function frame(now){
     const state=controllers.sample(slot,now);
     if(online?.active){
       if(slot===0 && online.playing)adapter?.api?.setControllerState(current.id==='fruit-ninja'?online.slot:0,state);
-      if(slot===0 && !online.playing && current?.id==='kart-racing' && state.pressedActions['steering-mode']){
+      if(slot===0 && online.room && !online.room.match && current?.id==='kart-racing' && !$('roomSteering').disabled){
         const api=adapter.api;
-        api.setSteeringMode(api.steeringMode==='gyro'?'dpad':'gyro');
-        online.render();
+        // Both race layouts have a D-pad. It selects the local mode in the room.
+        const mode = state.pressed.left ? 'dpad' : state.pressed.right ? 'gyro' : null;
+        if(state.pressedActions['steering-mode'] || mode && mode!==api.steeringMode){
+          api.setSteeringMode(mode || (api.steeringMode==='gyro'?'dpad':'gyro'));
+          online.render();
+        }
       }
       continue;
     }

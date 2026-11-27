@@ -223,9 +223,8 @@ staticGroups.clear();
 twoSidedBoards.length = 0;
 let onlineSetup=null, match=null;
 let raceSteering = menu.steering;
-function phoneLayout(layout) {
-  if (embedded) parent.postMessage({type:'kart-controller-layout', layout}, location.origin);
-}
+const embedded = window.__controllerEmbedded === true;
+const savedWheelInversion = localStorage.getItem("openwii.chargeInvert2");
 let paused = false,
   race,
   noticeUntil = 0,
@@ -235,7 +234,9 @@ let paused = false,
   resultsShown = false, resultsPresentation = null;
 const audio = new KartAudio(menu.audioEngine),
   wheel = new WheelInput({
-    invert: localStorage.getItem("openwii.chargeInvert2") === "1",
+    // BLE supplies a signed host axis. The standalone tray reader already
+    // converts its bank into kart coordinates. Preserve explicit overrides.
+    invert: savedWheelInversion === null ? embedded : savedWheelInversion === "1",
   }),
   keys = new Set();
 let captureUntil = performance.now() + 3000,
@@ -322,7 +323,6 @@ function constructRace(reuseGrid = false) {
   $("pause").hidden = true;
   paused = false;
 }
-const embedded = window.__controllerEmbedded === true;
 let embeddedController = { active: false, live: false, isPhone: false, steer: 0, gas: false, brake: false, drift: false, item: false };
 const legacyRemote = !embedded && typeof window.io==="function";
 const link = !legacyRemote ? {
@@ -452,7 +452,7 @@ function begin() {
   raceSteering = menu.steering;
   $('wheel-ready').firstChild.textContent = raceSteering === 'gyro' ? 'Hold your phone sideways and level' : 'Preparing your D-pad';
   $('wheel-ready').querySelector('small').textContent = 'The countdown starts when your controls are ready';
-  phoneLayout(raceSteering);
+  menu.phoneLayout(raceSteering);
   phoneHadGas = lastRemoteItem = itemPulse = false;
   race.start();
   $("intro").hidden = true;
@@ -1135,7 +1135,7 @@ function updateHUD() {
   if (standings) {
     race.showResults();
     resultsShown = true;
-    phoneLayout('menu');
+    menu.phoneLayout('menu');
     $("results").hidden = false;
     $("hud").hidden = true;
     $("result-summary").textContent =
@@ -1279,7 +1279,7 @@ function frame(now) {
       race.update(dt, input);
     audio.update(race);
     setText($("wheel-status"),usingPhone
-      ? (raceSteering === 'dpad' ? "D-pad steering" : (embedded ? "Gyro steering" : remote.status) + (wheel.invert ? " · inverted" : ""))
+      ? (raceSteering === 'dpad' ? "D-pad steering" : (embedded ? "Gyro steering" : remote.status) + (wheel.invert !== embedded ? " · inverted" : ""))
       : "W/↑/Z gas · S/↓/X brake · A/D steer · Shift drift · Space item");
   }
   draw(dt || 1 / 60, now);
@@ -1502,7 +1502,7 @@ function setControllerState(slot, state) {
   const p = state.pressed || {};
   const b = state.buttons || {};
   if (race?.state === "ready") {
-    if (p.minus) menu.setSteeringMode(menu.steering === 'gyro' ? 'dpad' : 'gyro');
+    if (state.pressedActions?.['steering-mode']) menu.setSteeringMode(menu.steering === 'gyro' ? 'dpad' : 'gyro');
     for (const dir of ["left", "right", "up", "down"]) {
       if (p[dir]) navigateDriver(dir);
     }
@@ -1569,7 +1569,7 @@ window.__openwii = {
   },
   resetGame() {
     constructRace();
-    phoneLayout('menu');
+    menu.phoneLayout('menu');
     $("intro").hidden = false;
     $("track-label").hidden = false;
     $("hud").hidden = true;

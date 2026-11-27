@@ -30,6 +30,32 @@ function host(mode='steer'){
   return {state,send,hint,read:now=>state.sample(0,now)};
 }
 
+test('Fruit Ninja smooths a noisy moving blade without filtering out measured slice endpoints',()=>{
+  const {state,send,read}=host('aim');
+  let previousRaw=0, previousDot=0, rawJitter=0, dotJitter=0, lastDot=0;
+  for(let i=0;i<100;i++){
+    const t=i*20;
+    // A slow rightward sweep with alternating sub-degree sensor noise.
+    const angle=i*.16+(i%2?.22:-.22);
+    send(axis(2,-angle),t);
+    const input=read(t), raw=input.axes.x;
+    assert.equal(input.motionPath.at(-1).x,raw);
+    const dot=input.displayAxes.x;
+    if(i>10){
+      rawJitter+=((raw-previousRaw)-.16/60)**2;
+      dotJitter+=((dot-previousDot)-.16/60)**2;
+      assert.ok(Math.abs(raw-dot)<.023);
+    }
+    previousRaw=raw; previousDot=dot;lastDot=dot;
+  }
+  assert.ok(dotJitter<rawJitter*.3);
+  const endpoint=state.player(0).motion.display.points.at(-1).x;
+  const idle=read(2400);
+  assert.equal(idle.motionLive,false);
+  assert.equal(idle.displayAxes.x,endpoint);
+  assert.ok(Math.abs(idle.displayAxes.x-lastDot)<.01);
+});
+
 test('display rotation gives the same wheel sign through both landscapes, flat, pitched, vertical, and landscape-native devices',()=>{
   for(const rotation of [0,1,2,3]) for(const tilt of [0,30,45,60,90]){
     const {send,hint,read}=host();

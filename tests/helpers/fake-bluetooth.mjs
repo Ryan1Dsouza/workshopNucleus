@@ -43,7 +43,8 @@ export function installFakeBluetooth(target = globalThis) {
     device.pose = (angle = 0, speed = 0, active = true) => {
       const v = new DataView(new ArrayBuffer(20));
       v.setUint8(0, 1); v.setUint8(1, active ? 3 : 0); v.setUint16(2, device.sequence++, true);
-      v.setUint32(4, device.time += 16, true);
+      device.time=device.captureClock ? Math.max(device.time+1,device.captureClock(performance.now())) : device.time+16;
+      v.setUint32(4, device.time, true);
       const q = [0, 0, Math.sin(angle * Math.PI / 360), Math.cos(angle * Math.PI / 360)];
       q.forEach((x, i) => v.setInt16(8 + i * 2, Math.round(x * 32767), true));
       v.setUint16(16, speed * 100, true); v.setUint16(18, device.epoch, true); device.motion.emit(v);

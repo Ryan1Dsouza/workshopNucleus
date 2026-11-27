@@ -19,6 +19,7 @@ try {
       await menu.getByRole('button',{name:'Luigi',exact:true}).click();
       await menu.locator('[data-laps="1"]').click();
       await menu.locator('[data-steering="gyro"]').click();
+      if(embedded)await page.waitForFunction(()=>__controllerkit.profile().layout==='kart-gyro');
       assert.equal(await menu.locator('#chosen').innerText(),'Luigi');
       for(const selector of ['[data-driver="luigi"]','[data-laps="1"]','[data-steering="gyro"]'])
         assert.equal(await menu.locator(selector).getAttribute('aria-pressed'),'true');

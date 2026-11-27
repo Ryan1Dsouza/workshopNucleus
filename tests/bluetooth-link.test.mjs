@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { BluetoothLink } from '../public/core/bluetooth-link.js';
+import { kartRaceProfile } from '../public/core/controller-profiles.js';
 import { installFakeBluetooth } from './helpers/fake-bluetooth.mjs';
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const navigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
@@ -50,6 +51,19 @@ test('GATT writes serialize ping and one newest feedback rather than creating a 
   assert.equal(fake.phones[0].control.maxWrites, 1);
   assert.deepEqual(fake.phones[0].control.writes.map(w => w[0]), [0x10, 0x11]);
   assert.equal(link.diagnostics()[0].rttMs.count, 1);
+});
+test('a lobby mode change replaces an unfinished BLE profile and acknowledges only the final selection', async t => {
+  const {fake, link} = fixture(t);
+  await link.connect(0);
+  const phone = fake.phones[0];
+  phone.writeDelay = 1;
+  const first = link.sendProfile(0, {...kartRaceProfile('dpad'), profileEpoch:5});
+  const last = link.sendProfile(0, {...kartRaceProfile('gyro'), profileEpoch:6});
+  const acks = await Promise.all([first, last]);
+  assert.deepEqual(acks.map(ack => ack.profileEpoch), [6, 6]);
+  assert.equal(phone.profile.layout, 'kart-gyro');
+  assert.equal(phone.control.maxWrites, 1);
+  assert.deepEqual(phone.control.writes.filter(packet => packet[0] !== 0x41).map(packet => packet[0]), [0x40, 0x40, 0x42]);
 });
 test('reconnect removes old listeners, changes input session and explicit disconnect stops samples', async t => {
   const { fake, link, samples } = fixture(t); await link.connect(0);

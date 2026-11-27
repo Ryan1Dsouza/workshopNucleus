@@ -76,6 +76,10 @@ export function onlineLobby({select,inviteOrigin,adapter,current,paired,centerFr
       if(mount!==pending)return;
       loaded=!!adapter()?.api?.startMatch && current()?.id===game;
       if(!loaded)notice='Game failed to load. Leave and rejoin to retry.';
+      else if(game==='kart-racing') {
+        const api=adapter().api;
+        api.setSteeringMode(api.steeringMode);
+      }
       render();
     }).catch(err=>{if(mount===pending){notice=err.message;render();}});
   }

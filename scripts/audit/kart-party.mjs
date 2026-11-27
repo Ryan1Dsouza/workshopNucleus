@@ -40,6 +40,8 @@ try{
   await rejected.context().close();
   assert.equal(await host.locator('#roomDrivers select').count(),8);
   await host.locator('#roomSteering').selectOption('gyro');
+  await host.waitForFunction(()=>__fakeBle.phones[0].profile?.layout==='kart-gyro' && __controllerkit.controllers.player(0).ready);
+  const gyroEpoch=await host.evaluate(()=>__fakeBle.phones[0].profile.profileEpoch);
   assert.equal(await pages[1].locator('#roomSteering').inputValue(),'dpad');
   await host.locator('#driver7').selectOption('mario');
   await host.waitForFunction(()=>__controllerkit.online.room.options.drivers[7]==='mario' && __controllerkit.online.room.options.drivers[0]==='koopa');
@@ -63,6 +65,7 @@ try{
   })));
   const before=await readings();
   assert.equal(await host.evaluate(()=>__controllerkit.profile().layout),'kart-gyro');
+  assert.equal(await host.evaluate(()=>__fakeBle.phones[0].profile.profileEpoch),gyroEpoch);
   assert.equal(await pages[1].evaluate(()=>__controllerkit.profile().layout),'kart-dpad');
   for(const i of [0,7]){
     const p=pages[i];await p.locator('#gameStage iframe').focus();await p.keyboard.press('Escape');
@@ -96,7 +99,7 @@ try{
     const axis=(i,a)=>{const h=a*Math.PI/360,q=[0,0,0,Math.cos(h)];q[i]=Math.sin(h);return q;};
     while(performance.now()-started<2400){
       const t=performance.now()-started;
-      const bank=t<1000?4.2*Math.sin(t/90):t<1600?-20:t<1800?0:20;
+      const bank=t<1000?4.2*Math.sin(t/90):t<1600?20:t<1800?0:-20;
       const q=mul(axis(2,30*Math.sin(t/230)),mul(axis(1,bank),mul(axis(0,45+10*Math.sin(t/130)),axis(2,90))));
       const v=new DataView(new ArrayBuffer(20));v.setUint8(0,1);v.setUint8(1,3);
       v.setUint16(2,d.sequence++,true);v.setUint32(4,d.time=base+Math.round(t),true);

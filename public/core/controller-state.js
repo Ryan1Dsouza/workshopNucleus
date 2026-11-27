@@ -44,6 +44,7 @@ export class ControllerState {
       if (player.motion) {
         player.motion.timeout = profile.motion === 'steer' ? 450 : 150;
         player.motion.collectPath = profile.motion === 'aim';
+        player.motion.pointer.smoothDisplay = profile.id === 'fruit-ninja';
       }
       player.motion?.center({}, performance.now());
     }

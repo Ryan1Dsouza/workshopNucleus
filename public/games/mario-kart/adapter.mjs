@@ -47,10 +47,6 @@ export class MarioKartAdapter {
       }, { once: true });
     });
 
-    this.frame.src = '/games/mario-kart/index.html';
-    container.append(this.frame);
-    await ready;
-
     this.feedback = (event) => {
       if (event.source !== this.frame.contentWindow || event.origin !== location.origin) return;
       if (event.data?.type === 'game-feedback') {
@@ -58,14 +54,17 @@ export class MarioKartAdapter {
       } else if (event.data?.type === 'game-state') {
         this.paused = !!event.data.paused;
         this.context.onState?.({ paused: this.paused });
-      } else if (event.data?.type === 'kart-controller-layout') {
-        const layout = event.data.layout;
-        if (['menu', 'gyro', 'dpad'].includes(layout)) {
-          this.context.setControllerProfile?.(layout === 'menu' ? MARIO_KART_PROFILE : kartRaceProfile(layout));
-        }
       }
     };
     window.addEventListener('message', this.feedback);
+    this.frame.addEventListener('kart-controller-layout', ({detail:layout}) => {
+      if (['menu', 'gyro', 'dpad'].includes(layout)) {
+        this.context.setControllerProfile?.(layout === 'menu' ? MARIO_KART_PROFILE : kartRaceProfile(layout));
+      }
+    });
+    this.frame.src = '/games/mario-kart/index.html';
+    container.append(this.frame);
+    await ready;
   }
 
   input(slot, state) {

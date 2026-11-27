@@ -40,14 +40,14 @@ export class MotionInput {
   suspend() {
     this.pointer.suspend();
     this.path.length = 0;
-    this.display.reset(this.pointer.position);
+    this.display.reset(this.pointer.display);
     this.wheelDisplay.reset({x:0,y:0});
   }
 
   resetSession() {
     this.suspend();
     this.pointer.recentre();
-    this.display.reset(this.pointer.position);
+    this.display.reset(this.pointer.display);
     this.lastSampleAt = 0;
     this.lastSample = null;
     this.clockOffset = this.offsetUpdatedAt = this.lastSensorTime = null;
@@ -95,7 +95,8 @@ export class MotionInput {
     this.lastSample = sample;
     this.lastSampleAt = measuredAt;
     this.pointer.update(sample, dt, measuredAt);
-    this.display.push(this.pointer.position, poseTime, now, this.pointer.pending.reset);
+    // Draw the filtered aim while retaining every measured endpoint for slicing.
+    this.display.push(this.pointer.display, poseTime, now, this.pointer.pending.reset);
     if (this.collectPath) {
       // A stalled display cannot accumulate an unbounded or disconnected stroke.
       if (this.path.length >= 32) { this.path.length = 0; this.pointer.pending = {reset:true,cutting:false}; }
@@ -126,14 +127,14 @@ export class MotionInput {
     }
     // Neither centering nor a late anchor may harvest fruit along the snap.
     this.pointer.pending = { cutting: false, reset: true };
-    this.display.reset(this.pointer.position);
+    this.display.reset(this.pointer.display);
     if (hasPose(command.pose)) {
       // A newly received captured anchor is fresh input. Seed its measured
       // timestamp so the first subsequent pose interpolates instead of snapping,
       // and the watchdog cannot immediately suspend this new calibration.
       const nativeOffset = source === 'bluetooth-native' ? this.clockOffset : null;
       this.lastSampleAt = nativeOffset === null ? now : Math.min(now, captureTime(newer) + nativeOffset);
-      this.display.push(this.pointer.position,captureTime(newer),now,true);
+      this.display.push(this.pointer.display,captureTime(newer),now,true);
       if (now - this.lastSampleAt > this.timeout) this.suspend();
     }
     if (newer) this.lastSensorTime = captureTime(newer);

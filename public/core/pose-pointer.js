@@ -8,7 +8,7 @@ const validPose = s => s && (Array.isArray(s.quat) && s.quat.length === 4 && s.q
 // Position is a direct function of the measured pose relative to Center blade.
 // Drawing another frame cannot integrate a rate, predict a swing or heal drift.
 export class PosePointer {
-  constructor({ sensitivity = 1, degPerScreen = 60, aspect = 0.6, noiseDegrees = 0.04, smoothing = false } = {}) {
+  constructor({ sensitivity = 1, degPerScreen = 60, aspect = 0.6, noiseDegrees = 0.04, smoothing = false, smoothDisplay = false } = {}) {
     this.sensitivity = sensitivity; this.degPerScreen = degPerScreen; this.aspect = aspect;
     this.noiseDegrees = noiseDegrees; this.invertX = this.invertY = false;
     this.pos = { x: 0.5, y: 0.5 }; this.rateDps = { yaw: 0, pitch: 0 };
@@ -19,8 +19,9 @@ export class PosePointer {
     this.poseStreak = 0; this.lastDirection = null; this.lastChangeAt = -Infinity;
     this.smoothing=smoothing;this.filterYaw=new OneEuroFilter();this.filterPitch=new OneEuroFilter();
     this.rawPosition={...this.pos};this.lastPoseTime=null;
+    this.smoothDisplay=smoothDisplay;this.filteredPosition={...this.pos};
   }
-  get display() { return this.pos; }
+  get display() { return this.smoothDisplay ? this.filteredPosition : this.pos; }
   get position() { return this.pos; }
   get pixels() { return { x: this.pos.x * this.w, y: this.pos.y * this.h }; }
   setViewport(w, h) { this.w = Math.max(1, w); this.h = Math.max(1, h); this.aspect = this.h / this.w; }
@@ -31,8 +32,10 @@ export class PosePointer {
     const position=(a,b)=>({x:clamp(.5+a*this.sensitivity*(this.invertX?-1:1)/this.degPerScreen,0,1),y:clamp(.5-b*this.sensitivity*(this.invertY?-1:1)/pitchSpan,0,1)});
     this.rawPosition=position(yaw,pitch);
     if(reset){this.filterYaw.reset(yaw,time);this.filterPitch.reset(pitch,time);}
-    const a=this.smoothing?this.filterYaw.filter(yaw,time):yaw,b=this.smoothing?this.filterPitch.filter(pitch,time):pitch;
-    Object.assign(this.pos,position(a,b));
+    if (this.smoothing || this.smoothDisplay) {
+      Object.assign(this.filteredPosition,position(this.filterYaw.filter(yaw,time),this.filterPitch.filter(pitch,time)));
+    }
+    Object.assign(this.pos,this.smoothing ? this.filteredPosition : this.rawPosition);
   }
   suspend() {
     // Missing events mean no new movement, not a new pointing reference.
@@ -44,6 +47,7 @@ export class PosePointer {
   recentre(sample = null, now = 0) {
     this.reference = null; this.beam = null; this.yaw = this.pitch = 0;
     this.pos.x = this.pos.y = 0.5; this.rateDps = { yaw: 0, pitch: 0 };
+    Object.assign(this.filteredPosition,this.pos);
     this.pending = { cutting: false, reset: true };
     this.poseStreak = 0; this.lastDirection = null; this.lastChangeAt = -Infinity;
     this.filterYaw.reset();this.filterPitch.reset();this.rawPosition={...this.pos};this.lastPoseTime=null;

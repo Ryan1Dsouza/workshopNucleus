@@ -11,6 +11,15 @@ export let steering = localStorage.getItem('openwii.kart.steering') === 'gyro' ?
 export let confirmed = false;
 export let step = 'driver';
 let controls, pendingStart = false;
+let layout = 'menu';
+
+export function phoneLayout(next) {
+  if (layout === next) return;
+  layout = next;
+  // The adapter owns this same-origin iframe. Deliver the choice in the
+  // click handler so a queued course-loading task cannot delay BLE setup.
+  window.frameElement?.dispatchEvent(new CustomEvent('kart-controller-layout', {detail:layout}));
+}
 
 async function cursorSound() {
   if (controls) return controls.onCursor();
@@ -24,6 +33,7 @@ export function setStep(next) {
   const intro = $('intro');
   intro.classList.toggle('driver-confirmed', confirmed);
   intro.dataset.menuStep = step;
+  phoneLayout(step === 'steering' ? steering : 'menu');
   const copy = {
     driver: 'Choose your driver',
     laps: 'Choose race length · Press A to continue',
@@ -68,10 +78,12 @@ function showSteering() {
 }
 export function setSteeringMode(value) {
   if (value !== 'dpad' && value !== 'gyro') return;
-  if (steering !== value) void cursorSound();
+  const changed = steering !== value;
   steering = value;
   localStorage.setItem('openwii.kart.steering', value);
   showSteering();
+  setStep('steering');
+  if (changed) void cursorSound();
 }
 
 export function navigate(direction) {

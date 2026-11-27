@@ -25,11 +25,18 @@ try {
       await page.locator('#pair'+slot).click();
       await page.waitForFunction(slot=>__controllerkit.controllers.player(slot).ready,slot);
     }
+    const kartProfileEpoch = game==='kart-racing' && await page.evaluate(()=>{
+      const phone=__fakeBle.phones[0];
+      if(phone.profile.layout!=='kart-gyro' || __controllerkit.adapter().api.race.state!=='ready')
+        throw new Error('The phone must have gyro controls before Start.');
+      return phone.profile.profileEpoch;
+    });
     await page.evaluate(()=>{
       const handles=[];
       for(const d of __fakeBle.phones.slice(0,__controllerkit.current().id==='kart-racing'?1:2)){
         const base=d.time, start=performance.now();
-        const neutral=()=>{d.time=base+Math.round(performance.now()-start);d.pose();};
+        d.captureClock=now=>base+Math.round(now-start);
+        const neutral=()=>d.pose();
         neutral();handles.push(setInterval(neutral,22));
       }
       window.stopWarmup=()=>handles.forEach(clearInterval);
@@ -37,6 +44,7 @@ try {
     if (count===2) await page.locator('#roundMode').selectOption('practice');
     await page.locator('#startGame').click();
     await page.waitForFunction(()=>{const api=__controllerkit.adapter().api;return api.race?.state==='racing'||api.game?.state.phase==='playing';});
+    if(game==='kart-racing')assert.equal(await page.evaluate(()=>__fakeBle.phones[0].profile.profileEpoch),kartProfileEpoch);
     report.games[game]=await page.evaluate(async count=>{
       stopWarmup();
       const api=__controllerkit.adapter().api,kart=!!api.race;
@@ -45,7 +53,6 @@ try {
         const epoch=phones[0].profile.profileEpoch;
         phones[0].control.emit([0x44,1,epoch&255,epoch>>>8]);
       }
-      const offset=phones.map(d=>d.time+40);
       const captures=[],arrivals=[],frames=[],readings=[],measured=[],live=[],batchSizes=[];
       const accepted=phones.map(()=>0);
       const pts=__controllerkit.controllers.player(0).motion.pointer;
@@ -72,6 +79,7 @@ try {
         if (__controllerkit.controllers.player(slot).motion.lastSensorTime===d.time) accepted[slot]++;
       }
       const start=performance.now(), lanes=phones.map(()=>({minX:1,maxX:0,minY:1,maxY:0}));
+      const offset=phones.map(d=>Math.max(d.time+1,d.captureClock(start)));
       let done=false;
       const sample=()=>{
         const t=performance.now()-start;
@@ -109,7 +117,7 @@ try {
         // Interpolate the signed crossing between adjacent observed frames.
         // Skip the initial deadband and first warm-up cycle.
         for(let half=2;400+half*period/2<duration-200;half++){
-          const cross=400+half*period/2,dir=half%2?-1:1;
+          const cross=400+half*period/2,dir=(half%2?-1:1)*(kart?-1:1);
           const k=values.findIndex((v,i)=>i>0 && frames[i]>=cross && frames[i]<cross+400 && v*dir>0 && values[i-1]*dir<=0);
           if(k>0)lag.push(frames[k-1]+(frames[k]-frames[k-1])*Math.abs(values[k-1]/(values[k]-values[k-1]))-cross);
         }
