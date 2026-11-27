@@ -30,6 +30,7 @@ try {
     page.on('pageerror',e=>errors.push(e.message));
     page.on('console',e=>{if(e.type()==='error')errors.push(e.text());});
     await page.goto(base+'/host/');
+    await page.waitForFunction(()=>!!window.__controllerkit?.online);
     await page.locator('#pair0').click();
     await page.waitForFunction(()=>__controllerkit.controllers.player(0).ready);
     await page.locator('#onlineTab').click();
