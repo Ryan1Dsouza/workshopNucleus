@@ -11,7 +11,9 @@ export function onlineLobby({select,inviteOrigin,adapter,current,paired,centerFr
   let socket=null,room=null,active=false,slot=-1,playing=false;
   let gameId=null,mount=null,loaded=false,round=null,started=null,startTimer,pump;
   let reported=false,played=false,offset=0,localGame,returnTimer=null;
-  let epoch=0,notice='',invite=new URL(location.href).searchParams.get('join');
+  let epoch=0,invite=new URL(location.href).searchParams.get('join'),notice='';
+  const inviteOnly=Boolean(invite && invite.trim());
+  if(inviteOnly)$('joinCode').value=invite.trim();
   let outage=null;
   let linkTimer;
   const clearReturn=()=>{clearTimeout(returnTimer);returnTimer=null;};
@@ -211,8 +213,11 @@ export function onlineLobby({select,inviteOrigin,adapter,current,paired,centerFr
     }
     $('roomSetup').hidden=$('leaveRoom').hidden=!room;
     $('lobbyBrowser').hidden=!!room;
+    $('createLobbyGroup').hidden=inviteOnly;
+    $('joinRoomButton').className=inviteOnly?'primary-button':'secondary-button';
     syncCreateOptions();
-    $('createRoom').disabled=$('joinForm').querySelector('button').disabled=!!outage||!socket?.connected;
+    $('createRoom').disabled=inviteOnly||!!outage||!socket?.connected;
+    $('joinRoomButton').disabled=!!outage||!socket?.connected;
     $('directory').inert=!!outage;
     if(!room){status(outage?'':notice || (socket?.connected?'Lobby server connected.':'Connecting to lobby server…'));return;}
     const cap=room.capacity??2, o=room.options, kart=o.game==='kart-racing';
@@ -357,6 +362,7 @@ export function onlineLobby({select,inviteOrigin,adapter,current,paired,centerFr
   $('createCapacity').onchange=()=>{if($('createGame').value==='kart-racing')lastKartCapacity=$('createCapacity').value;};
   $('createBots').onchange=()=>{if($('createGame').value==='kart-racing')lastKartBots=$('createBots').value;syncCreateOptions();};
   $('createRoom').onclick=()=>{
+    if(inviteOnly)return;
     const name=requireName();
     if(!name)return;
     void emit('create',{public:$('visibility').value==='public',game:$('createGame').value,
@@ -364,6 +370,9 @@ export function onlineLobby({select,inviteOrigin,adapter,current,paired,centerFr
       bots:$('createGame').value==='kart-racing'?$('createBots').value!=='false':false,name,ble:paired()});
   };
   $('joinForm').onsubmit=e=>{e.preventDefault();join($('joinCode').value);};
+  $('onlineName').addEventListener('keydown',e=>{
+    if(e.key==='Enter' && inviteOnly && !room){e.preventDefault();join($('joinCode').value);}
+  });
   $('leaveRoom').onclick=async()=>{if(await emit('leave')){clearRoom();notice='Left lobby.';render();}};
   $('matchFullscreen').onclick=()=>{
     const stage=document.querySelector('.play-area');

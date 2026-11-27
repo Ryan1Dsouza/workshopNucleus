@@ -974,7 +974,7 @@ function draw(dt, now) {
         for (const axis of ["x", "y", "z"]) {
           desired.eye[axis] = THREE.MathUtils.lerp(playerPose[axis] + landingCamera.eye[axis], desired.eye[axis], blend);
           desired.aim[axis] = THREE.MathUtils.lerp(playerPose[axis] + landingCamera.aim[axis], desired.aim[axis], blend);
-          desired.uplayerPose[axis] = THREE.MathUtils.lerp(landingCamera.uplayerPose[axis], desired.uplayerPose[axis], blend);
+          desired.up[axis] = THREE.MathUtils.lerp(landingCamera.up[axis], desired.up[axis], blend);
         }
         if (blend === 1) landingCamera = null;
       }
@@ -987,8 +987,8 @@ function draw(dt, now) {
     const basis = roadFrame(playerPose.s, playerPose.lateral, playerPose.heading, playerPose.surfaceForward, playerPose.surfaceNormal);
     const angle = Math.PI * (1 - finishBlend), radius = THREE.MathUtils.lerp(9.6, 8, finishBlend);
     for (const axis of ['x', 'y', 'z']) {
-      desired.eye[axis] = playerPose[axis] + radius * (basis.forward[axis] * Math.cos(angle) + basis.right[axis] * Math.sin(angle)) + basis.uplayerPose[axis] * THREE.MathUtils.lerp(3.65, 2.8, finishBlend);
-      desired.aim[axis] = THREE.MathUtils.lerp(desired.aim[axis], playerPose[axis] + basis.uplayerPose[axis] * 1.4, finishBlend);
+      desired.eye[axis] = playerPose[axis] + radius * (basis.forward[axis] * Math.cos(angle) + basis.right[axis] * Math.sin(angle)) + basis.up[axis] * THREE.MathUtils.lerp(3.65, 2.8, finishBlend);
+      desired.aim[axis] = THREE.MathUtils.lerp(desired.aim[axis], playerPose[axis] + basis.up[axis] * 1.4, finishBlend);
     }
   }
   if (race.state === "ready") {

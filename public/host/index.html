@@ -56,14 +56,14 @@
         <p class="online-note" id="onlineNotice">Mario Kart supports 2–8 players (empty seats fill with bots) and Fruit Ninja supports 2. Same Wi-Fi or home networks connect directly; separate strict networks share a limited monthly relay quota, so try the same Wi-Fi, a hotspot, or Local play if a cross-network room fails to link.</p>
         <div id="lobbyBrowser">
           <div class="create-lobby"><label class="online-field">Your name<input id="onlineName" maxlength="32" autocomplete="nickname" placeholder="Enter your name" required></label>
-          <div class="online-row">
+          <div class="online-row" id="createLobbyGroup">
             <label class="online-field">Game<select id="createGame"><option value="fruit-ninja">Fruit Ninja</option><option value="kart-racing">Mario Kart</option></select></label>
             <label class="online-field" id="createCapacityWrap">Max players<select id="createCapacity"><option value="2">2 players (6 bots)</option><option value="3">3 players (5 bots)</option><option value="4">4 players (4 bots)</option><option value="5">5 players (3 bots)</option><option value="6">6 players (2 bots)</option><option value="7">7 players (1 bot)</option><option value="8" selected>8 players (all human)</option></select></label>
             <label class="online-field" id="createBotsWrap">CPU bots<select id="createBots"><option value="true" selected>Fill to 8 with bots</option><option value="false">No bots (humans only)</option></select></label>
             <label class="online-field">Visibility<select id="visibility"><option value="public">Public</option><option value="private">Private</option></select></label>
             <button class="primary-button" id="createRoom">Create lobby</button>
           </div>
-          <form class="online-row" id="joinForm"><label class="online-field">Room code<input id="joinCode" maxlength="10" autocomplete="off" required></label><button class="secondary-button">Join lobby</button></form>
+          <form class="online-row" id="joinForm"><label class="online-field">Room code<input id="joinCode" maxlength="10" autocomplete="off" required></label><button id="joinRoomButton" class="secondary-button">Join lobby</button></form>
           </div><div class="public-directory"><h3>Available players / lobbies online</h3><div id="directory"></div></div>
         </div>
         <div id="roomSetup" hidden>
