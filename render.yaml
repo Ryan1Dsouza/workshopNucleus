@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: workshopnucleus-lobbies
+    runtime: node
+    plan: free
+    buildCommand: npm ci --omit=dev
+    startCommand: node server/index.cjs
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: LOCAL_HTTPS
+        value: "0"
+      - key: LOBBY_ORIGINS
+        value: https://workshopnucleus.vercel.app

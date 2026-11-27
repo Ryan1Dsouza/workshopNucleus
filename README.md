@@ -74,6 +74,10 @@ For online play each person opens the host on their own laptop and pairs their p
 
 ### Deploy the frontend and signaling service
 
+For the published WorkshopNucleus site, sign in to Render and deploy the free lobby service using the repository's preset. When Render shows **Live**, copy the service's public `https://…onrender.com` address. In the Vercel project **workshopnucleus**, set the Production environment variable `SIGNAL_URL` to that address and redeploy. The preset already allows connections from `https://workshopnucleus.vercel.app`. [Deploy the lobby service on Render](https://render.com/deploy?repo=https://github.com/Ryan1Dsouza/workshopNucleus)
+
+For a different frontend domain or hosting provider, configure both services as follows.
+
 1. Deploy this repository to a persistent Node 22 web service on Render, Fly.io or Railway. Install with `npm ci --omit=dev`, start with `node server/index.cjs`, and set `LOCAL_HTTPS=0` behind the provider's HTTPS proxy. Enable WebSocket upgrades and use one service instance. Rooms live in memory and expire on host disconnect or server restart.
 2. Import the repository into Vercel. The supplied configuration builds with `npm run build` and publishes `dist/web`. Set `SIGNAL_URL` to the HTTPS origin of the Node service. On the service, set `LOBBY_ORIGINS` to the comma-separated frontend origins. Redeploy after changing these values.
 3. Set Vercel's `ICE_SERVERS` build variable to a JSON array such as `[{"urls":"stun:stun.example.org:3478"},{"urls":"turn:turn.example.org:3478?transport=udp","username":"player","credential":"temporary-password"}]`. The default supplies a public STUN server. For restrictive NATs, supply a working UDP TURN relay. These values are visible to browsers. Use client-scoped TURN credentials and rotate them before expiry.
