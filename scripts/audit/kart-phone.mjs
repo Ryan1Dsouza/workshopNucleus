@@ -59,6 +59,8 @@ try {
     },20);
   });
   await page.locator('#startGame').click();
+  assert.equal(await page.evaluate(()=>__controllerkit.adapter().api.race.state),'ready');
+  await page.locator('#startGame').click();
   await page.waitForFunction(()=>__controllerkit.adapter()?.api?.race.state==='racing');
   await page.locator('#gameStage iframe').focus();
   await page.keyboard.down('w');
@@ -108,10 +110,14 @@ try {
       d.writeDelay=30;
       tap(2);tap(8);tap(2); // last selection wins, still on the confirmed menu epoch
       const layout=__controllerkit.profile().layout;
-      tap(16);
-      return {laps,steering,duringLaps,layout,pending:w.document.getElementById('start').getAttribute('aria-busy')};
+      const browsing=step();
+      d.buttons(16);d.buttons(16); // a held Confirm is only one edge
+      const confirmed=step(), firstBusy=w.document.getElementById('start').hasAttribute('aria-busy');
+      d.buttons(0);tap(8);const edited=step();
+      tap(2);tap(16);tap(16);
+      return {laps,steering,duringLaps,layout,browsing,confirmed,firstBusy,edited,pending:w.document.getElementById('start').getAttribute('aria-busy')};
     });
-    assert.deepEqual(result,{laps:'laps',steering:'steering',duringLaps:0,layout:'kart-gyro',pending:'true'});
+    assert.deepEqual(result,{laps:'laps',steering:'steering',duringLaps:0,layout:'kart-gyro',browsing:'steering',confirmed:'start',firstBusy:false,edited:'steering',pending:'true'});
     // Check one isolated mode change's actual acknowledgement and write count.
     await page.waitForFunction(()=>__controllerkit.controllers.player(0).ready && __fakeBle.phones[0].profile.layout==='kart-gyro');
     loadCourse();
@@ -121,13 +127,31 @@ try {
       const d=__fakeBle.phones[0];
       __controllerkit.adapter().api.resetGame();
       await __controllerkit.ble.devices.get(0).profileTask;
+      const ctx=__controllerkit.adapter().api.audio.engine.ctx;
+      if(ctx.state!=='running')throw Error('Phone-only menu audio is suspended');
+      const times=[], restore=[];
+      for(const prototype of [AudioBufferSourceNode.prototype,OscillatorNode.prototype]){
+        const start=prototype.start;
+        prototype.start=function(...args){if(this.context===ctx)times.push(performance.now());return start.apply(this,args);};
+        restore.push(()=>{prototype.start=start;});
+      }
+      const tapAt=performance.now();
+      try{d.buttons(2);d.buttons(0);}finally{for(const undo of restore)undo();}
+      if(times.length!==1)throw Error('Expected exactly one audio source during a D-pad character change, got '+times.length);
       const before=d.control.writes.length,start=performance.now();
       document.querySelector('#gameStage iframe').contentDocument.querySelector('[data-steering="gyro"]').click();
       await __controllerkit.ble.devices.get(0).profileTask;
       if(d.profile.layout!=='kart-gyro')throw Error('Phone did not apply the selected layout');
-      return {writes:d.control.writes.length-before,ms:Math.round(performance.now()-start)};
+      return {writes:d.control.writes.length-before,ms:Math.round(performance.now()-start),dpadSoundScheduledMs:+(times[0]-tapAt).toFixed(1)};
     });
     assert.ok(fast?timing.writes===1:timing.writes>40);
+    const states=await page.evaluate(()=>{
+      const d=__fakeBle.phones[0],api=__controllerkit.adapter().api,states=[api.race.state,api.menuStep];
+      d.buttons(16);d.buttons(16);states.push(api.race.state,api.menuStep);
+      d.buttons(0);d.buttons(16);d.buttons(0);states.push(api.race.state);
+      return states;
+    });
+    assert.deepEqual(states,['ready','steering','ready','start','countdown']);
     console.log((fast?'Preset APK':'Legacy APK')+' at 30 ms/write: '+JSON.stringify(timing)+'; phone-only menu and queued Start passed.');
   }
   assert.deepEqual(errors,[]);

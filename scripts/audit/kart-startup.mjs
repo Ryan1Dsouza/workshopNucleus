@@ -24,6 +24,9 @@ try {
       for(const selector of ['[data-driver="luigi"]','[data-laps="1"]','[data-steering="gyro"]'])
         assert.equal(await menu.locator(selector).getAttribute('aria-pressed'),'true');
       await menu.locator('#start').click();
+      assert.equal(await menu.locator('#intro').getAttribute('data-menu-step'),'start');
+      assert.equal(await menu.locator('#start').getAttribute('aria-busy'),null);
+      await page.keyboard.press('Enter');
       assert.equal(await menu.locator('#start').getAttribute('aria-busy'),'true');
       const frame=page.frames().find(f=>f.url().includes('/games/mario-kart/'));
       assert.equal(await frame.evaluate(()=>!!window.__openwii),false);
@@ -32,7 +35,7 @@ try {
       assert.deepEqual(await frame.evaluate(()=>[__openwii.race.player.character.id,__openwii.race.laps,__openwii.steeringMode]),['luigi',1,'gyro']);
       if(embedded)assert.equal(await page.locator('#modeBadge').innerText(),'Playing');
       assert.deepEqual(errors,[]);
-      console.log((embedded?'Host':'Standalone')+' accepted all four mouse actions before game.js loaded and started the selected race.');
+      console.log((embedded?'Host':'Standalone')+' confirmed steering separately and started the selected race on Enter.');
     } finally {release();await page.close();}
   }
 } finally {await browser.close();}

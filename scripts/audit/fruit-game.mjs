@@ -82,6 +82,15 @@ export async function checkFruitGame(host) {
     check(await game.evaluate(()=>__openwii.game.state.score>0&&!__openwii.game.paused),'first Play immediately allows a held mouse slice');
     fruitId=await place();await sweep(fruitId,.3,.7,false);
     check(await game.evaluate(fruitId=>__openwii.game.fruits.some(f=>f.id===fruitId)&&!__openwii.game.getPlayer(0).cutting,fruitId),'hover shows the pointer without cutting');
+    await page.mouse.move(field.x+field.width*.5,field.y+field.height*.5);
+    const fling=()=>game.evaluate(async()=>{
+      const {FRUIT_TYPES}=await import('/games/fruit-ninja/logic.js'), g=__openwii.game;
+      g.state.nextSpawn=Infinity;
+      g.fruits=[{id:93321,x:0,y:-2,vx:0,vy:12,r:.62,rot:0,spin:0,spinAxis:{x:1,y:0,z:0},kind:FRUIT_TYPES[3]}];
+      return g.state.score;
+    });
+    await game.waitForFunction(score=>__openwii.game.state.score>score,await fling());
+    checks.push('fruit entering the parked mouse dot scores without a click or drag');
     await page.click('#pair0');await page.waitForFunction(()=>__controllerkit.controllers.player(0).ready);
     await page.evaluate(()=>{__phoneStream=setInterval(()=>__fakeBle.phones[0].pose(0,0),16);});
     await page.waitForFunction(()=>__controllerkit.controllers.player(0).motion.pointer.live);
@@ -93,6 +102,8 @@ export async function checkFruitGame(host) {
     check(firstPlayState.score>0&&!firstPlayState.paused,'first Play accepts mouse input while a phone is live: '+JSON.stringify(firstPlayState));
     await game.waitForFunction(()=>__openwii.pointer.live&&!__openwii.game.getPlayer(0).cutting);
     check(await game.evaluate(()=>__openwii.game.getPlayer(0).trail.points.length<=1),'mouse release returns to phone without a phantom stroke');
+    await game.waitForFunction(score=>__openwii.game.state.score>score,await fling());
+    checks.push('fruit entering a stationary live BLE blade scores without a swing');
     const box=await page.locator('#gameStage iframe').boundingBox();
     await page.mouse.move(box.x+box.width*.15,box.y+box.height*.7);
     await page.evaluate(()=>clearInterval(__phoneStream));

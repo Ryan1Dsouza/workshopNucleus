@@ -960,6 +960,7 @@ button {font-weight:normal!important;}
 .race-option button[aria-pressed="true"] {background:linear-gradient(#fff67e,#ffd331);border-color:#fff6a0;box-shadow:0 2px 0 #bd931a;}
 .race-option > span, .race-option button {white-space:nowrap;}
 #intro[data-menu-step="laps"] #lap-options button[aria-pressed="true"],#intro[data-menu-step="steering"] #steering-options button[aria-pressed="true"],.race-option button:focus-visible {outline:3px solid #fff;outline-offset:2px;}
+#intro[data-menu-step="start"] #start {outline:3px solid #fff;outline-offset:2px;}
 
 @media (max-height: 560px) {
   #intro { padding: 14px 0 12px 4vw; overflow-y: auto; }

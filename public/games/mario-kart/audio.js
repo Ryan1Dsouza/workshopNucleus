@@ -124,9 +124,16 @@ export class KartAudio {
   get resultsReady(){return this.original.ready ? this.original.resultsReady : !this.engine.ctx || this.engine.ctx.state !== 'running' || this.engine.ctx.currentTime >= (this.fallbackFinishUntil || 0);}
   presentResults(race,duration){this.original.presentResults(race,duration);}
   async ui(kind='confirm') {
-    if (!await this.unlock() || !this.engine.enabled || this.stopped) return;
+    if (!this.engine.enabled || this.stopped || !this.engine.ensureCtx()) return;
+    const request=this.latestUi=(this.latestUi||0)+1;
+    if (this.engine.ctx.state !== 'running') {
+      const at=performance.now();
+      if (!await this.unlock() || request!==this.latestUi || performance.now()-at>100 || this.stopped || !this.engine.enabled) return;
+    } else if (!this.setup) {
+      void this.unlock();
+    }
     const key={cursor:'uiCursor',confirm:'uiConfirm',cancel:'uiCancel',start:'uiStart'}[kind];
-    if(this.original.ready&&this.original.buffers.has(key))this.original.play(key,{bus:'ui'});
+    if(this.original.buffers.has(key))this.original.play(key,{bus:'ui'});
     else this.engine.tone({freq:kind==='cursor'?880:660,dur:.055,gain:.06,type:'sine'});
   }
   event(e, race) {
@@ -200,6 +207,6 @@ export class KartAudio {
       this.motor.override?.stop();
       this.motor = null;
     }
-    this.engine.ctx?.suspend();
+    if(this.engine.ctx && this.engine.ctx.state!=='closed')void this.engine.ctx.suspend().catch(()=>{});
   }
 }

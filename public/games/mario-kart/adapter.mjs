@@ -11,6 +11,14 @@ export class MarioKartAdapter {
 
   async mount(container) {
     this.frame = document.createElement('iframe');
+    // The game-card click activates the host document. A BLE notification
+    // cannot unlock a fresh AudioContext in the subsequently loaded iframe.
+    const Ctx=window.AudioContext || window.webkitAudioContext;
+    if (Ctx) {
+      this.audioContext=new Ctx({latencyHint:'interactive'});
+      this.frame.kartAudioContext=this.audioContext;
+      if (navigator.userActivation?.hasBeenActive) void this.audioContext.resume().catch(()=>{});
+    }
     this.frame.title = 'Mario Kart game';
     this.frame.allow = 'autoplay';
     this.frame.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:0;display:block;';
@@ -25,6 +33,7 @@ export class MarioKartAdapter {
         if (event.data?.type === 'kart-menu-ready') {
           // The interactive menu can accept Start even on a slow course download.
           this.context.setPhoneMenu?.(this.frame.contentWindow.kartPhoneMenu);
+          if(document.activeElement?.matches('[data-game="kart-racing"]'))this.frame.contentWindow.focus();
           clearTimeout(timer);
         } else if (event.data?.type === 'kart-ready') {
           this.api = this.frame.contentWindow.__openwii;
@@ -111,6 +120,7 @@ export class MarioKartAdapter {
       this.frame.remove();
       this.frame.src = 'about:blank';
     }
+    if(this.audioContext && this.audioContext.state!=='closed')void this.audioContext.close().catch(()=>{});
     this.api = null;
   }
 }

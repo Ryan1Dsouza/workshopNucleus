@@ -26,10 +26,10 @@ const EXTENSIONS = ['mp3', 'wav', 'ogg'];
 export const AUDIO_MUTED = false;
 
 export class AudioEngine {
-  constructor({ basePath = '/audio', volume = 0.7, muted = AUDIO_MUTED } = {}) {
+  constructor({ basePath = '/audio', volume = 0.7, muted = AUDIO_MUTED, context = null } = {}) {
     this.muted = muted;
     this.basePath = basePath;
-    this.ctx = null;
+    this.ctx = context;
     this.master = null;
     this.musicGain = null;
     this.synths = new Map();
@@ -77,6 +77,8 @@ export class AudioEngine {
       const Ctx = window.AudioContext || window.webkitAudioContext;
       if (!Ctx) return false;
       this.ctx = new Ctx();
+    }
+    if (!this.master) {
       this.master = this.ctx.createGain();
       this.master.gain.value = this.volume;
       this.master.connect(this.ctx.destination);

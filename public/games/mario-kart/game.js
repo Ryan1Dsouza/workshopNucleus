@@ -432,8 +432,7 @@ function onEvent(e) {
   if (e.type === "coin") burst(race.player, 10, "#ffdf46");
 }
 function cancelDriver() {
-  if(menu.step==='steering'){menu.setStep('laps');audio.ui('cancel');}
-  else if(menu.confirmed){menu.setStep('driver');audio.ui('cancel');}
+  menu.backStep();
 }
 function chooseDriver(index) {
   if (race.state === 'ready') menu.chooseDriver(index);
@@ -469,9 +468,7 @@ function confirm() {
     return;
   }
   if (race.state === 'ready') {
-    if (menu.step === 'driver') {menu.setStep('laps');audio.ui('confirm');}
-    else if (menu.step === 'laps') {menu.setStep('steering');audio.ui('confirm');}
-    else begin();
+    menu.confirmStep();
   }
   else if (race.state === "results" && resultsPresentation?.done) {
     constructRace();
@@ -510,7 +507,7 @@ function resume() {
 }
 document.addEventListener('click', e => {
   const button=e.target.closest('button, a');
-  if(!button || button.matches('.character,[data-laps],#start,#again,#resume'))return;
+  if(!button || button.matches('.character,[data-laps],[data-steering],#start,#again,#resume'))return;
   if(button.matches('a[href="/"]')&&!e.metaKey&&!e.ctrlKey&&!e.shiftKey&&!e.altKey){
     e.preventDefault();audio.ui('cancel').then(()=>setTimeout(()=>location.href='/',100));
   }else audio.ui('confirm');
@@ -540,30 +537,15 @@ function handleKey(e) {
     if (keys.delete(e.code)) e.preventDefault();
     return;
   }
+  if (race?.state === 'ready' && !paused && !['KeyI','KeyR'].includes(e.code)) {
+    menu.menuKey(e);
+    return;
+  }
   if (["Enter","Space"].includes(e.code) && e.target.closest?.("button:focus-visible,a:focus-visible")) return;
   e.preventDefault();
   if (e.repeat) return;
   keys.add(e.code);
-  if (race.state === 'ready') {
-    if (e.code.startsWith('Arrow')) {
-      navigateDriver(e.code.slice(5).toLowerCase());
-      return;
-    }
-    const wasdDir = { KeyW: 'up', KeyS: 'down', KeyA: 'left', KeyD: 'right' }[e.code];
-    if (wasdDir) {
-      navigateDriver(wasdDir);
-      return;
-    }
-    if (e.code === 'Space') {
-      begin();
-      return;
-    }
-  }
-  if (e.code === 'Escape' && race.state === 'ready') { cancelDriver(); return; }
-  if (e.code === "Enter") {
-    if (race.state === 'ready') begin();
-    else confirm();
-  }
+  if (e.code === "Enter") confirm();
   if (e.code === "Space") itemPulse = true;
   if (e.code === "Escape") paused ? resume() : pause();
   if (e.code === "KeyR") {
@@ -1502,12 +1484,11 @@ function setControllerState(slot, state) {
   const p = state.pressed || {};
   const b = state.buttons || {};
   if (race?.state === "ready") {
-    if (state.pressedActions?.['steering-mode']) menu.setSteeringMode(menu.steering === 'gyro' ? 'dpad' : 'gyro');
-    for (const dir of ["left", "right", "up", "down"]) {
-      if (p[dir]) navigateDriver(dir);
-    }
-    if (p.two || p.a) confirm();
-    if (p.one || p.b) cancelDriver();
+    const dir=["left","right","up","down"].find(key=>p[key]);
+    if (dir) navigateDriver(dir);
+    else if (state.pressedActions?.['steering-mode']) menu.setSteeringMode(menu.steering === 'gyro' ? 'dpad' : 'gyro');
+    else if (p.two || p.a) confirm();
+    else if (p.one || p.b) cancelDriver();
   } else if (race?.state === "results" && resultsPresentation?.done) {
     if (p.two || p.a) confirm();
   } else if (paused) {
@@ -1534,6 +1515,7 @@ function setControllerState(slot, state) {
 
 window.__openwii = {
   get steeringMode() { return menu.steering; },
+  get menuStep() { return menu.step; },
   setSteeringMode:menu.setSteeringMode,
   get race() { return race; },
   startMatch(setup) {
@@ -1579,10 +1561,11 @@ window.__openwii = {
 };
 
 export function connectMenu() {
+  if (audio.engine.ctx?.state==='running') void audio.unlock();
   if (race.player.character.id !== menu.driver.id) constructRace(true);
   race.laps = menu.laps;
   menu.connectRace({
-    onCursor: () => audio.ui('cursor'),
+    onSound: kind => audio.ui(kind),
     onDriver() { constructRace(true); },
     onLaps() { race.laps = menu.laps; },
     start: begin,

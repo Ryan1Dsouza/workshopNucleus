@@ -147,7 +147,7 @@ export class FruitNinja {
     p.cursor.x = x;
     p.cursor.y = y;
     p.cursor.active = true;
-    p.lastActiveAt = now;
+    p.lastActiveAt = reset ? -Infinity : now;
     p.cutting = cutting;
     const queued = p.trail.segments.length;
     p.trail.push(x, y, captureAt, true);
@@ -289,7 +289,7 @@ export class FruitNinja {
     return clamp(0.06 + ((now - this.state.startedAt) / 1000) * 0.003, 0, 0.25);
   }
 
-  update(now, dt) {
+  update(now, dt, parkedMouse = null) {
     if (this.paused) return;
     this.stepDebris(dt);
     if (this.state.phase !== 'playing') return;
@@ -317,11 +317,15 @@ export class FruitNinja {
       if(p.finishedCuts.length)pending.unshift(...p.finishedCuts.splice(0));
       const segments = pending.filter(segment => now - segment.at <= 100);
       if (this.network && p.slot !== this.network.slot) continue;
-      if (segments.length) activeBlades.push({ player: p, segments });
+      const age=now-p.lastActiveAt;
+      const tip=parkedMouse?.slot===p.slot && parkedMouse.since<=now-dt*1000 ? parkedMouse :
+        p.cursor.active && age>=-dt*1000 && age<=150 ? p.cursor : null;
+      if (segments.length || tip) activeBlades.push({ player: p, segments, tip });
     }
 
     for (let i = this.fruits.length - 1; i >= 0; i -= 1) {
       const f = this.fruits[i];
+      const fromX=f.x, fromY=f.y;
       f.vy -= GRAVITY * dt;
       f.x += f.vx * dt;
       f.y += f.vy * dt;
@@ -336,13 +340,21 @@ export class FruitNinja {
 
       let cutBy = null;
       let cutSeg = null;
-      for (const { player, segments } of activeBlades) {
+      for (const { player, segments, tip } of activeBlades) {
         if (this.splitScreen && player.slot !== f.lane) continue;
         for (const s of segments) {
           if (segmentDistance(f.x, f.y, s.x1, s.y1, s.x2, s.y2) > f.r) continue;
           cutBy = player;
           cutSeg = s;
           break;
+        }
+        // Fruit can travel through a stationary blade between two frames.
+        // Require entry from outside so recentering onto fruit or hovering
+        // over it never manufactures a swipe.
+        if (!cutBy && tip && Math.hypot(fromX-tip.x,fromY-tip.y)>f.r &&
+            segmentDistance(tip.x,tip.y,fromX,fromY,f.x,f.y)<=f.r) {
+          cutBy=player;
+          cutSeg={x1:fromX,y1:fromY,x2:f.x,y2:f.y};
         }
         if (cutBy) break;
       }

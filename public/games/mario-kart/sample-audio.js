@@ -14,10 +14,10 @@ export class SampledKartAudio {
       if(!response.ok)return false;
       this.manifest=await response.json();
       if(!this.engine.ensureCtx())return false;
-      const priority=['countdown','go','roulette','decide','engine','race','final','lap','finalLap','finish','coin','boost','turbo','hit','uiCursor','uiConfirm','uiStart','uiCancel',
+      const priority=['uiCursor','uiConfirm','uiCancel','uiStart','countdown','go','roulette','decide','engine','race','final','lap','finalLap','finish','coin','boost','turbo','hit',
         'use-banana','use-green','use-red','use-blue','hit-banana','hit-blue','shellConfirm'];
       const allEntries=Object.entries(this.manifest.cues);
-      const essential=allEntries.filter(([k])=>priority.includes(k));
+      const essential=priority.filter(k=>this.manifest.cues[k]).map(k=>[k,this.manifest.cues[k]]);
       const rest=allEntries.filter(([k])=>!priority.includes(k));
       const decodeOne=async([key,cue])=>{
         if(this.buffers.has(key))return;
@@ -47,13 +47,14 @@ export class SampledKartAudio {
   }
   note(key,extra={}){this.log.push({key,at:this.engine.ctx.currentTime,...extra});if(this.log.length>240)this.log.shift();}
   play(key,{bus='effects',gain=1,loop=false,offset=0,pan=0,delay=0,when,record=true}={}){
-    const buffer=this.buffers.get(key);if(!buffer||!this.ready)return null;
+    const buffer=this.buffers.get(key);if(!buffer||(!this.ready && bus!=='ui'))return null;
     const ctx=this.engine.ctx,cue=this.manifest.cues[key],src=ctx.createBufferSource(),g=ctx.createGain();
     src.buffer=buffer;src.loop=loop;
     if(loop){src.loopStart=cue.loopStart||0;src.loopEnd=Math.min(buffer.duration,cue.loopEnd||buffer.duration);}
     const base=(cue.gain??.6)*gain;g.gain.value=base;
     src.connect(g);
-    let panner=null;if(pan){panner=ctx.createStereoPanner();panner.pan.value=Math.max(-1,Math.min(1,pan));g.connect(panner).connect(this.buses[bus]);}else g.connect(this.buses[bus]);
+    const output=this.buses?.[bus] || this.engine.master;
+    let panner=null;if(pan){panner=ctx.createStereoPanner();panner.pan.value=Math.max(-1,Math.min(1,pan));g.connect(panner).connect(output);}else g.connect(output);
     const node={src,g,key,base,panner,bus};this.nodes.add(node);
     src.onended=()=>{this.nodes.delete(node);src.disconnect();g.disconnect();panner?.disconnect();};
     src.start(when??ctx.currentTime+delay,Math.min(offset,buffer.duration-.001));

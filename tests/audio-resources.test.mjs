@@ -46,3 +46,16 @@ test('kart menu plays each click immediately even while the sample pack is loadi
   await kart.ui('cursor');
   assert.equal(clicks.length,2);
 });
+
+test('a suspended menu does not replay a backlog of driver navigation sounds',async()=>{
+  const kart=new KartAudio(), played=[];
+  kart.engine.ctx={state:'suspended',currentTime:0};kart.engine.master={};
+  let resume;
+  const resumed=new Promise(resolve=>{resume=resolve;});
+  kart.unlock=()=>resumed;
+  kart.engine.tone=opts=>played.push(opts.freq);
+  const cues=[kart.ui('cursor'),kart.ui('confirm'),kart.ui('cursor')];
+  kart.engine.ctx.state='running';resume(true);
+  await Promise.all(cues);
+  assert.deepEqual(played,[880]);
+});

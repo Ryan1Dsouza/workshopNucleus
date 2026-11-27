@@ -759,12 +759,15 @@ function visualFor(slot) {
 }
 visualFor(0);
 
+function hasPhone(slot) {
+  return bluetooth.devices.get(slot)?.connected || link.slots.some(s=>s.slot===slot&&s.occupied);
+}
 function drawTrail(now = performance.now()) {
   for (const [slot, player] of game.players) {
     const v = visualFor(slot), inp = inputs.get(slot);
     // A pause between sensor packets ends a stroke, but the phone still owns
     // its dot. Only a deliberate drag takes it away from a paired player.
-    const phonePresent=bluetooth.devices.get(slot)?.connected || link.slots.some(s=>s.slot===slot&&s.occupied);
+    const phonePresent=hasPhone(slot);
     const mousePreview=slot===localSlot()&&mouse.visible&&(mouse.active||!phonePresent&&!inp?.pointer.live);
     const externalAim=!mousePreview?inp?.externalAim:null;
     const localAim = mousePreview?{x:mouse.x,y:mouse.y}:inp && (externalAim || (smoothBlade ? inp.display.sampleAt(now) : inp.pointer.position));
@@ -985,6 +988,7 @@ function recentreSlot(slot, command = {}) {
   if (!inp.center(command, performance.now())) return;
   visualFor(slot).trail.clear();
   const player = game.getPlayer(slot);
+  player.lastActiveAt=-Infinity;
   player.trail.clear(); player.cutting = false;
   if (player.cursor.active) {const aim=laneAim(slot,inp.pointer.position);Object.assign(player.cursor,toWorld(aim.x,aim.y));}
   flash(controllerCount() > 1 ? `P${slot + 1} re-centred` : 're-centred');
@@ -993,6 +997,7 @@ function recentreSlot(slot, command = {}) {
 function suspendSlot(slot) {
   const inp = inputFor(slot), player = game.getPlayer(slot);
   inp.suspend(); visualFor(slot).trail.clear();
+  player.lastActiveAt=-Infinity;
   player.trail.clear(); player.cutting = false;
   // Cursor visibility follows connection state; freshness only gates cuts.
 }
@@ -1304,6 +1309,7 @@ function setControllerState(slot,state) {
   if(mouseOwns){if(newlyConnected)syncHud();return;}
   inp.lastSampleAt=now;inp.session=state.session;inp.pointer.lastSeen=now;
   inp.pointer.source='bluetooth-native';inp.pointer.live=state.motionLive&&state.ready;
+  if(!inp.pointer.live)player.lastActiveAt=-Infinity;
   inp.pointer.setFromMouse(state.axes.x,state.axes.y);
   const boundary=inp.externalReset || inp.externalSession!==state.session;
   const reset=state.reset||boundary||inp.pointer.pending.reset;
@@ -1407,15 +1413,21 @@ function frame(now) {
     }
   }
 
+  const slot=localSlot();
+  let parkedMouse=null;
+  if (mouse.visible && !mouse.active && !inputs.get(slot)?.pointer.live && !hasPhone(slot)) {
+    const aim=laneAim(slot,mouse,true);
+    parkedMouse={...toWorld(aim.x,aim.y),slot,since:mouse.movedAt};
+  }
   if (game.network) {
     // Identical fixed-step waves on both displays, independent of render rate.
     // Drain a background backlog over several frames so the peer channel and
     // input handlers still run while this display catches up.
     for(let steps=0;steps<32 && game.network.simTime+1000/120<=now && game.state.phase==='playing';steps++) {
       game.network.simTime += 1000/120;
-      game.update(game.network.simTime, 1/120);
+      game.update(game.network.simTime, 1/120, parkedMouse);
     }
-  } else if (!game.paused && !document.hidden && !bladeOnly) game.update(now, dt);
+  } else if (!game.paused && !document.hidden && !bladeOnly) game.update(now, dt, parkedMouse);
   syncTimer();
   syncScene(now);
 
@@ -1427,10 +1439,12 @@ function frame(now) {
 }
 
 // ── Input ──────────────────────────────────────────────────────────────────
-const mouse = { x: 0.5, y: 0.5, active: false, visible: false, trail: new Trail({minStep:.004}) };
+const mouse = { x: 0.5, y: 0.5, active: false, visible: false, movedAt:0, trail: new Trail({minStep:.004}) };
 function mousePosition(e){
   if(!e.isPrimary)return;
-  mouse.x=clamp(e.clientX/window.innerWidth,0,1);mouse.y=clamp(e.clientY/window.innerHeight,0,1);mouse.visible=true;
+  const x=clamp(e.clientX/window.innerWidth,0,1),y=clamp(e.clientY/window.innerHeight,0,1);
+  if(!mouse.visible || x!==mouse.x || y!==mouse.y)mouse.movedAt=e.timeStamp;
+  mouse.x=x;mouse.y=y;mouse.visible=true;
 }
 function recordDrag(e, reset=false) {
   mousePosition(e);

@@ -57,6 +57,28 @@ test('a slow drag through a fruit does not slice it', () => {
   assert.equal(g.state.score, 0, 'no score');
 });
 
+test('a moving fruit crossing a stationary live tip is sliced even between frames',()=>{
+  const g=game();
+  g.setCursor(0,0,10,0,{cutting:false});
+  put(g,-2,0).vx=240;
+  g.update(26,.016);
+  assert.equal(g.fruits.length,0);
+  assert.ok(g.state.score>0);
+});
+
+test('parked mouse contact respects entry, lane ownership and bomb damage',()=>{
+  const g=game();g.setSplitScreen(true);g.getPlayer(0);
+  const tip={slot:0,x:0,y:0,since:10};
+  const other=put(g,.65,1);other.lane=1;other.vy=-50;
+  const bomb=put(g,-.65,1,true);bomb.lane=0;bomb.vy=-50;
+  g.update(30,.02,tip);
+  assert.equal(g.fruits.length,1);assert.equal(g.fruits[0],other);
+  assert.equal(g.state.lives,2);
+  const inside=put(g,-2,0);inside.lane=0;
+  g.update(50,.02,{...tip,x:-2});
+  assert.ok(g.fruits.includes(inside));
+});
+
 test('a released between-frame swipe survives a phone handoff and is consumed once', () => {
   const g=game();
   put(g,0,0);

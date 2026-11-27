@@ -208,7 +208,12 @@ function flushPendingPlay(){
 }
 function play(options={}){
   if(online?.active||!adapter||current?.id==='remote')return;backgroundRound=null;
-  if(preparingPhones()){
+  if(current.id==='kart-racing' && adapter.api?.race.state==='ready' && adapter.api.menuStep==='steering'){
+    adapter.api.confirm();return;
+  }
+  // Kart holds its countdown on the track until the controller is ready.
+  // A pending host start must never fire later during menu navigation.
+  if(current.id!=='kart-racing' && preparingPhones()){
     pendingPlay={selection,options,required:controllers.players.filter(p=>ble.has(p.slot)).map(p=>p.slot)};paused=true;
     if(!adapter.paused)adapter.pause(true);
     $('modeBadge').textContent='Preparing phones';$('pauseGame').textContent='Cancel start';notice('Preparing phone controls. Your round starts automatically when ready.');$('notice').classList.add('pending');return;
