@@ -1,6 +1,15 @@
 const { randomBytes, randomInt, randomUUID } = require('node:crypto');
 const drivers = require('../public/core/kart-roster.json').map(driver => driver.id);
 const capacity = game => game === 'kart-racing' ? drivers.length : 2;
+const parseCapacity = (game, value) => {
+  if (game !== 'kart-racing') return 2;
+  if (value === undefined || value === null || value === '') return drivers.length;
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 2 || n > drivers.length) {
+    throw new LobbyError(`Choose between 2 and ${drivers.length} players.`);
+  }
+  return n;
+};
 const roomCode = () => randomBytes(5).toString('hex').toUpperCase();
 
 class LobbyError extends Error {}
@@ -11,15 +20,17 @@ function requireRule(condition, message) {
 function newRoom(code, request) {
   const game = request.game === 'kart-racing' ? 'kart-racing' : 'fruit-ninja';
   return {
-    room: { code, public: request.public === true, capacity: capacity(game), players: [], match: null,
-      options: { game, duration: 60, practice: true, laps: 1, drivers: ['mario', 'luigi'] } },
+    room: { code, public: request.public === true, capacity: parseCapacity(game, request.capacity), players: [], match: null,
+      options: { game, duration: 60, practice: true, laps: 1, bots: game === 'kart-racing' ? request.bots !== false : false, drivers: ['mario', 'luigi'] } },
     links: {}
   };
 }
 
 function listing({room}) {
   if (!room.public || room.match || room.players.length >= room.capacity) return null;
-  return { code: room.code, name: room.players[0].name, game: room.options.game, count: room.players.length, capacity: room.capacity };
+  const entry = { code: room.code, name: room.players[0].name, game: room.options.game, count: room.players.length, capacity: room.capacity };
+  if (room.options.game === 'kart-racing' && room.options.bots === false) entry.bots = false;
+  return entry;
 }
 
 function updateLinks({room, links}) {
@@ -35,7 +46,9 @@ function joinRoom(state, id, request) {
   if (room.players.length === room.options.drivers.length)
     room.options.drivers.push(drivers.find(d => !room.options.drivers.includes(d)));
   for (const p of room.players) p.ready = false;
-  const name = String(request.name || '').trim().slice(0, 32) || 'Player';
+  const name = String(request.name || '').trim().slice(0, 32);
+  requireRule(name.length > 0, 'Enter your name first.');
+  requireRule(!room.players.some(p => p.name.toLowerCase() === name.toLowerCase()), 'That name is already taken in this lobby.');
   room.players.push({id, name, ble: !!request.ble, linked: false, ready: false, finished: false});
   links[id] = [];
   updateLinks(state);
@@ -104,12 +117,16 @@ function changeRoom(state, id, request, now = Date.now()) {
       requireRule(host && !room.match, 'Only the host can change setup between matches.');
       const o = request.options;
       requireRule(o && ['fruit-ninja', 'kart-racing'].includes(o.game) && [30,60,120].includes(o.duration)
-        && [1,3].includes(o.laps) && room.players.length <= capacity(o.game)
+        && [1,3].includes(o.laps),
+        'Choose valid match options.');
+      const nextCapacity = parseCapacity(o.game, o.capacity !== undefined ? o.capacity : (o.game === room.options.game ? room.capacity : undefined));
+      requireRule(room.players.length <= nextCapacity
         && Array.isArray(o.drivers) && o.drivers.length === Math.max(2, room.players.length)
         && new Set(o.drivers).size === o.drivers.length && o.drivers.every(d => drivers.includes(d)),
         'Choose distinct drivers and a game with enough seats.');
-      room.capacity = capacity(o.game);
-      room.options = {game:o.game, duration:o.duration, practice:!!o.practice, laps:o.laps, drivers:[...o.drivers]};
+      room.capacity = nextCapacity;
+      const bots = o.game === 'kart-racing' ? (o.bots !== undefined ? o.bots !== false : (room.options.game === 'kart-racing' ? room.options.bots !== false : true)) : false;
+      room.options = {game:o.game, duration:o.duration, practice:!!o.practice, laps:o.laps, bots, drivers:[...o.drivers]};
       for (const p of room.players) p.ready = false;
       break;
     }

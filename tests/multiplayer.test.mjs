@@ -133,3 +133,25 @@ test('kart replication preserves local authority, wraps the finish line and repl
   host.hit(host.racers[1],'green',0);b.receive(a.snapshot(),230,0);assert.ok(local.spin>0);
   local.spin=local.invulnerable=0;b.receive(a.snapshot(),250,0);assert.equal(local.spin,0);
 });
+
+test('kart matches without bots race only human drivers and sync smaller podiums',()=>{
+  for(const count of [2,3]){
+    const drivers=CHARACTERS.slice(0,count).map(c=>c.id);
+    const names=drivers.map((_,i)=>'Player '+String.fromCharCode(65+i));
+    const matches=drivers.map((_,slot)=>new KartMatch(new Race({drivers,names,slot,bots:false}),slot));
+    const host=matches[0];
+    for(const match of matches){
+      assert.equal(match.race.racers.length,count);
+      assert.equal(match.race.racers.filter(r=>!r.remote).length,1);
+      assert.equal(match.race.player.playerName,names[match.slot]);
+    }
+    for(const match of matches)match.race.player.finishTime=80-match.slot;
+    for(const match of matches.slice(1))host.receive(match.snapshot(),100,match.slot);
+    const order=host.resultStandings().map(r=>r.character.id);
+    assert.deepEqual(order,drivers.toReversed());
+    for(const match of matches.slice(1)){
+      for(const sender of matches)if(sender!==match)match.receive(sender.snapshot(),120,sender.slot);
+      assert.deepEqual(match.resultStandings().map(r=>r.character.id),order);
+    }
+  }
+});

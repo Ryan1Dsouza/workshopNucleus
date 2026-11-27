@@ -21,7 +21,7 @@ export const RACING_PROFILE = Object.freeze({ id: 'kart-racing', title: 'Pocket 
   ] });
 
 export const MARIO_KART_PROFILE = Object.freeze({ id: 'kart-racing', title: 'Mario Kart', orientation: 'landscape', motion: 'none',
-  instruction: 'Choose a driver with the D-pad. Press A to confirm, then A again to race. Use − to switch steering.', centerLabel: 'Center steering',
+  instruction: 'D-pad chooses, A confirms: Driver → Laps → D-pad / Gyro → Race. B goes back.', centerLabel: 'Center steering',
   controls: [
     ...['left','right','up','down'].map(id => ({id, label:id, action:id})),
     {id:'a',label:'Confirm',action:'confirm'}, {id:'two',label:'OK',action:'confirm'},

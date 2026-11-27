@@ -67,8 +67,8 @@ export function topSpeed(coins = 0) {
 export function turboTier(charge) {
   return charge >= 3.4 ? 3 : charge >= 2 ? 2 : charge >= 0.8 ? 1 : 0;
 }
-export function rollItem(position, rng = Math.random) {
-  const rear = clamp((position - 1) / 7, 0, 1);
+export function rollItem(position, rng = Math.random, total = 8) {
+  const rear = clamp((position - 1) / Math.max(1, total - 1), 0, 1);
   const weights = [
     0.42 * (1 - rear) + 0.04,
     0.36 * (1 - rear) + 0.07,
@@ -145,8 +145,9 @@ function racerWallBounds(racer, time) {
   return {min, max};
 }
 export class Race {
-  constructor({ seed = 381, character = "mario", laps = 3, drivers, slot=0, onEvent = () => {} } = {}) {
+  constructor({ seed = 381, character = "mario", laps = 3, drivers, names, slot=0, bots = true, onEvent = () => {} } = {}) {
     this.laps = laps === 1 ? 1 : 3;
+    this.bots = !!bots;
     this.finishedAt = null;
     this.seed = seed;
     this.rng = seeded(seed);
@@ -157,13 +158,16 @@ export class Race {
     this.accumulator = 0;
     const chosen = CHARACTERS.find((c) => c.id === character) || CHARACTERS[0];
     const humans=drivers?.map(id=>CHARACTERS.find(c=>c.id===id)) || [chosen];
-    const order=[...humans,...CHARACTERS.filter(c=>!humans.includes(c))];
+    const order=this.bots?[...humans,...CHARACTERS.filter(c=>!humans.includes(c))]:[...humans];
     this.racers = order.map((driver,i)=>{
       const grid = drivers ? (i<humans.length ? order.length-1-i : i-humans.length) : undefined;
       const racer = makeRacer(driver,i,grid);
       if (drivers) {
         racer.ownerSlot = i<humans.length ? i : 0;
         racer.remote = racer.ownerSlot !== slot;
+        if (i < humans.length && Array.isArray(names) && typeof names[i] === 'string' && names[i].trim()) {
+          racer.playerName = names[i].trim();
+        }
       }
       return racer;
     });
@@ -328,7 +332,7 @@ export class Race {
     if (r.roulette > 0) {
       r.roulette -= dt;
       if (r.roulette <= 0) {
-        r.item = rollItem(this.position(r), this.rng);
+        r.item = rollItem(this.position(r), this.rng, this.racers.length);
         this.emit("itemReady", r, { item: r.item });
       }
     }

@@ -10,7 +10,14 @@ document.documentElement.dataset.stage=stage;
 $('stageLabel').textContent='Workshop · Stage '+stage;
 $('keyboardButton').hidden=$('previewButton').hidden=!features.buttons;
 $('extensionCard').hidden=!features.extension;
-const MotionInput=features.motion?(await import('../core/motion-input.js')).MotionInput:null;
+$('onlineTab').hidden=!features.fruit;
+const [motionMod,registryMod,catalogMod,lobbyMod]=await Promise.all([
+  features.motion?import('../core/motion-input.js'):null,
+  features.profiles?import('../core/game-registry.js'):null,
+  features.profiles?import('../games/catalog.mjs'):null,
+  features.fruit?import('./lobby.mjs'):null,
+]);
+const MotionInput=motionMod?.MotionInput||null;
 // Smooth presentation once, using capture timestamps; keep measured aim direct.
 const controllers=new ControllerState({createMotion:MotionInput?()=>new MotionInput({smoothing:false}):undefined});
 let splitAim=false, online=null;
@@ -167,7 +174,7 @@ function togglePause(){
 }
 let games=[];
 if(features.profiles){
-  const {GameRegistry}=await import('../core/game-registry.js');const {registerGames}=await import('../games/catalog.mjs');
+  const {GameRegistry}=registryMod;const {registerGames}=catalogMod;
   registry=new GameRegistry();registerGames(registry,features);games=registry.list();
 }else if(features.buttons){
   const {ControllerLab}=await import('../games/controller-lab/adapter.mjs');
@@ -176,7 +183,6 @@ if(features.profiles){
 function renderLibrary(){ $('gameList').replaceChildren();for(const game of games)renderCard(game);$('libraryCount').textContent=games.length;for(const card of document.querySelectorAll('.game-card')){const selected=card.dataset.game===current?.id;card.classList.toggle('selected',selected);card.setAttribute('aria-pressed',String(selected));} }
 function registerGame(game){if(!registry)throw new Error('Game registration is available from Stage 4.');registry.register(game);games=registry.list();renderLibrary();return registry;}
 renderLibrary();
-if(games.length)await select('remote');else{notice('The Bluetooth host is ready. Install the app, then connect a player.');$('gameList').textContent='Connect your phone to get started.';}
 for(const slot of [0,1]){
   $('pair'+slot).disabled=false;
   $('pair'+slot).addEventListener('click',async()=>{
@@ -287,6 +293,15 @@ $('previewDialog').addEventListener('close',()=>{previewMask=0;submitDemo();});
 $('phonePreview').addEventListener('load',previewProfile);
 $('previewButton').addEventListener('click',()=>{if(!$('phonePreview').getAttribute('src'))$('phonePreview').src='/controller?preview=1';$('previewDialog').showModal();previewProfile();});
 let inviteOrigin=location.origin;
+if(lobbyMod) {
+  online=lobbyMod.onlineLobby({select,inviteOrigin:()=>inviteOrigin,adapter:()=>adapter,current:()=>current,paired:()=>ble.connected(0),centerFruit,
+    phonesReady:()=>!ble.has(0)||controllers.player(0).ready});
+}
+const joiningOnline=!!online && new URLSearchParams(location.search).has('join');
+if(joiningOnline)void online.open();
+else if(games.length)void select('remote');
+else{notice('The Bluetooth host is ready. Install the app, then connect a player.');$('gameList').textContent='Connect your phone to get started.';}
+window.__controllerkit={controllers,ble,online,registry,registerGame,profile:()=>profile,current:()=>current,adapter:()=>adapter,select,play,togglePause,enableDemo,stage,features};
 try{
   const info=staticSite?{}:await fetch('/connection-info').then(response=>response.json()),origins=downloadOrigins(info,location);
   for(const origin of origins){const option=document.createElement('option');option.value=origin;option.textContent=origin;$('downloadAddress').append(option);}
@@ -305,10 +320,3 @@ try{
   $('downloadAddress').addEventListener('change',draw);draw();
   if(origins[0]===location.origin&&['localhost','127.0.0.1'].includes(location.hostname))$('downloadCaption').textContent='Connect the laptop to your phone’s network to generate a reachable download QR.';
 }catch(error){$('downloadCaption').textContent='Open /downloads/ on the laptop’s LAN address.';console.error(error);}
-if(features.fruit) {
-  const {onlineLobby}=await import('./lobby.mjs');
-  online=onlineLobby({select,inviteOrigin:()=>inviteOrigin,adapter:()=>adapter,current:()=>current,paired:()=>ble.connected(0),centerFruit,
-    phonesReady:()=>!ble.has(0)||controllers.player(0).ready});
-  if(new URLSearchParams(location.search).has('join'))void online.open();
-}
-window.__controllerkit={controllers,ble,online,registry,registerGame,profile:()=>profile,current:()=>current,adapter:()=>adapter,select,play,togglePause,enableDemo,stage,features};

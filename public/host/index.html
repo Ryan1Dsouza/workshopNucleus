@@ -8,6 +8,12 @@
   <title>ControllerKit · Play anything</title>
   <link rel="stylesheet" href="./host.css">
   <link rel="stylesheet" href="./online.css">
+  <link rel="modulepreload" href="./hub.mjs">
+  <link rel="modulepreload" href="../stage.mjs">
+  <link rel="modulepreload" href="../core/motion-input.js">
+  <link rel="modulepreload" href="../core/game-registry.js">
+  <link rel="modulepreload" href="../games/catalog.mjs">
+  <link rel="modulepreload" href="./lobby.mjs">
 </head>
 <body>
   <header class="topbar">
@@ -17,7 +23,7 @@
     </a>
     <nav aria-label="Workspace">
       <button class="nav-item active" id="playTab" aria-current="page">Local play</button>
-      <button class="nav-item" id="onlineTab" hidden>Online</button>
+      <button class="nav-item" id="onlineTab">Online</button>
       <button class="nav-item" id="workshopTab">Workshop</button>
     </nav>
     <div class="top-actions">
@@ -47,10 +53,13 @@
       </aside>
       <section class="online-panel" id="onlinePanel" aria-labelledby="onlineTitle" hidden>
         <div class="online-heading"><h2 id="onlineTitle">Online multiplayer</h2><button class="text-button" id="leaveRoom" hidden>Leave lobby</button></div>
+        <p class="online-note" id="onlineNotice">Mario Kart supports 2–8 players (empty seats fill with bots) and Fruit Ninja supports 2. Same Wi-Fi or home networks connect directly; separate strict networks share a limited monthly relay quota, so try the same Wi-Fi, a hotspot, or Local play if a cross-network room fails to link.</p>
         <div id="lobbyBrowser">
-          <div class="create-lobby"><label class="online-field">Your name<input id="onlineName" maxlength="32" autocomplete="nickname" placeholder="Player"></label>
+          <div class="create-lobby"><label class="online-field">Your name<input id="onlineName" maxlength="32" autocomplete="nickname" placeholder="Enter your name" required></label>
           <div class="online-row">
             <label class="online-field">Game<select id="createGame"><option value="fruit-ninja">Fruit Ninja</option><option value="kart-racing">Mario Kart</option></select></label>
+            <label class="online-field" id="createCapacityWrap">Max players<select id="createCapacity"><option value="2">2 players (6 bots)</option><option value="3">3 players (5 bots)</option><option value="4">4 players (4 bots)</option><option value="5">5 players (3 bots)</option><option value="6">6 players (2 bots)</option><option value="7">7 players (1 bot)</option><option value="8" selected>8 players (all human)</option></select></label>
+            <label class="online-field" id="createBotsWrap">CPU bots<select id="createBots"><option value="true" selected>Fill to 8 with bots</option><option value="false">No bots (humans only)</option></select></label>
             <label class="online-field">Visibility<select id="visibility"><option value="public">Public</option><option value="private">Private</option></select></label>
             <button class="primary-button" id="createRoom">Create lobby</button>
           </div>
@@ -64,6 +73,8 @@
             <button type="button" id="retryPeer" class="text-button" hidden>Retry laptop connection</button>
           <fieldset class="online-row" id="matchOptions"><legend>Match options</legend>
             <label class="online-field">Game<select id="roomGame"><option value="fruit-ninja">Fruit Ninja</option><option value="kart-racing">Mario Kart</option></select></label>
+            <label class="online-field kart-option">Max players<select id="roomCapacity"><option value="2">2 players (6 bots)</option><option value="3">3 players (5 bots)</option><option value="4">4 players (4 bots)</option><option value="5">5 players (3 bots)</option><option value="6">6 players (2 bots)</option><option value="7">7 players (1 bot)</option><option value="8">8 players (no bots)</option></select></label>
+            <label class="online-field kart-option">CPU bots<select id="roomBots"><option value="true">Fill to 8 with bots</option><option value="false">No bots (humans only)</option></select></label>
             <label class="online-field fruit-option">Split-screen mode<select id="roomPractice"><option value="true">Practice</option><option value="false">Classic</option></select></label>
             <label class="online-field fruit-option">Timer<select id="roomDuration"><option value="30">30 seconds</option><option value="60">1 minute</option><option value="120">2 minutes</option></select></label>
             <label class="online-field kart-option">Laps<select id="roomLaps"><option>1</option><option>3</option></select></label>
@@ -73,6 +84,17 @@
         </div>
         <p id="lobbyStatus" class="lobby-status" role="status"></p>
       </section>
+      <div id="onlineMatchBar" class="online-match-bar" hidden>
+        <div class="online-match-info">
+          <strong id="matchBarTitle">Online match</strong>
+          <span id="matchBarMeta" class="match-bar-meta"></span>
+        </div>
+        <div class="online-match-actions">
+          <span id="matchBarStatus" class="match-bar-status" role="status"></span>
+          <button type="button" class="secondary-button" id="matchFullscreen">Fullscreen</button>
+          <button type="button" class="primary-button" id="returnLobby" hidden>Return to lobby</button>
+        </div>
+      </div>
       <div class="play-heading">
         <div><h1 id="selectedTitle">Your phone. Every game.</h1><p id="selectedDescription">Connect a controller to get started.</p></div>
         <div class="play-meta"><span class="mode-badge" id="modeBadge">Ready to pair</span><span class="game-category" id="gameCategory">Controller workspace</span><span class="expanded-hint" id="expandedHint" hidden>Esc to restore</span></div>

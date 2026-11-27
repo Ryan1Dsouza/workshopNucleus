@@ -8,6 +8,7 @@
 .online-heading {justify-content:space-between;align-items:center;margin-bottom:12px}
 .online-heading h2,.online-panel h3,.room-players {margin:0}
 .online-heading h2 {font-size:22px}
+.online-note {margin:0 0 14px;padding:10px 14px;font-size:13.5px;line-height:1.45;color:#33475e;background:#f4f7fb;border:1px solid var(--line);border-left:3px solid var(--blue);border-radius:10px}
 .online-panel h3,.online-panel legend {margin-top:16px;font-size:15px;font-weight:700}
 .online-row {margin:10px 0}
 .online-drivers {flex:1 1 100%;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(150px,100%),1fr));gap:10px 14px}
@@ -32,16 +33,20 @@
 .lobby-status {color:#40536a;margin:10px 0 0}
 body.online-mode .game-toolbar,body.online-mode #gameHint,body.online-mode .play-heading,body.online-mode #playerCard1,body.online-mode .library {display:none}
 body.online-mode .play-area {grid-column:1/-1}
-body.online-mode:not(.online-game) #gameStage {display:none}
-body.online-mode .game-stage {width:min(100%,1000px);height:auto;aspect-ratio:16/9;margin:0 auto}
-body.online-game .online-panel {padding-top:10px;padding-bottom:10px}
-body.online-playing #matchOptions,body.online-playing #readyPlayer,body.online-playing #startMatch {display:none}
-body.online-playing .room-players {display:flex;gap:16px;flex-wrap:wrap}
-body.online-playing .room-players li {padding:0;border:0;background:none}
-body.online-playing .room-players small {display:inline;margin-left:8px}
+body.online-mode:not(.online-playing) #gameStage,body.online-mode:not(.online-playing) #onlineMatchBar {display:none}
 body.online-mode .workspace {display:block;max-width:1064px}
 body.online-mode .player-dock {grid-template-columns:minmax(250px,1fr) auto}
 body.online-mode .quick-install {grid-column:auto;border-top:0}
+body.online-playing .topbar,body.online-playing #onlinePanel,body.online-playing .controllers-panel,body.online-playing .page-footer {display:none}
+body.online-playing .play-area {position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;width:100vw;height:100dvh;padding:0;margin:0;background:#0b1322}
+body.online-playing #onlineMatchBar {flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 14px;min-height:48px;padding:6px 16px;background:#111c30;border-bottom:1px solid #263954;color:#eef4fb}
+.online-match-info {display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 14px;min-width:0}
+.online-match-info strong {font-size:15px;letter-spacing:-0.01em}
+.match-bar-meta,.match-bar-status {font-size:13px;color:#b7c8de}
+.online-match-actions {display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.online-match-actions .secondary-button {min-height:34px;padding:6px 12px;font-size:13px;background:#1d2e47;border-color:#354d6e;color:#eef4fb}
+.online-match-actions .primary-button {min-height:34px;padding:6px 14px;font-size:13px}
+body.online-playing .game-stage {flex:1 1 auto;width:100%;height:auto;min-height:0;margin:0;border:0;border-radius:0;box-shadow:none;background:#070d18}
 #lobbyBrowser:not([hidden]) {display:grid;grid-template-columns:1fr 1fr;gap:22px}
 .public-directory {border-left:1px solid var(--line);padding-left:22px}
 .public-directory h3 {margin-top:0}
@@ -51,4 +56,5 @@ body.online-mode .quick-install {grid-column:auto;border-top:0}
   .topbar {flex-wrap:wrap}
   .topbar nav {order:3;width:100%;justify-content:flex-start}
   .online-panel {padding:14px}
+  body.online-playing #onlineMatchBar {padding:6px 10px}
 }

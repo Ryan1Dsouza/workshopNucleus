@@ -9,6 +9,7 @@ export let driver = drivers[0];
 export let laps = localStorage.getItem('openwii.kart.laps') === '1' ? 1 : 3;
 export let steering = localStorage.getItem('openwii.kart.steering') === 'gyro' ? 'gyro' : 'dpad';
 export let confirmed = false;
+export let step = 'driver';
 let controls, pendingStart = false;
 
 async function cursorSound() {
@@ -17,10 +18,22 @@ async function cursorSound() {
     audioEngine.tone({freq:880,dur:.055,gain:.06});
 }
 
+export function setStep(next) {
+  step = ['laps', 'steering'].includes(next) ? next : 'driver';
+  confirmed = step !== 'driver';
+  const intro = $('intro');
+  intro.classList.toggle('driver-confirmed', confirmed);
+  intro.dataset.menuStep = step;
+  const copy = {
+    driver: 'Choose your driver',
+    laps: 'Choose race length · Press A to continue',
+    steering: 'Choose phone steering · Press A to start race',
+  };
+  document.querySelector('.intro-copy').textContent = copy[step];
+}
+
 export function setConfirmed(value) {
-  confirmed = value;
-  $('intro').classList.toggle('driver-confirmed', value);
-  document.querySelector('.intro-copy').textContent = value ? 'Choose race length · Turn your phone sideways' : 'Choose your driver';
+  setStep(value ? 'laps' : 'driver');
 }
 
 export function chooseDriver(index) {
@@ -62,8 +75,15 @@ export function setSteeringMode(value) {
 }
 
 export function navigate(direction) {
-  if (confirmed) {
+  if (step === 'laps') {
     if (direction === 'left' || direction === 'right') selectLaps(laps === 1 ? 3 : 1);
+    else if (direction === 'down') { void cursorSound(); setStep('steering'); }
+    else if (direction === 'up') { void cursorSound(); setStep('driver'); }
+    return;
+  }
+  if (step === 'steering') {
+    if (direction === 'left' || direction === 'right') setSteeringMode(steering === 'dpad' ? 'gyro' : 'dpad');
+    else if (direction === 'up') { void cursorSound(); setStep('laps'); }
     return;
   }
   chooseDriver(drivers.indexOf(driver) + {left:-1,right:1,up:-4,down:4}[direction]);

@@ -256,7 +256,9 @@ function constructRace(reuseGrid = false) {
     character: onlineSetup?.options.drivers[onlineSetup.slot] ?? menu.driver.id,
     laps: onlineSetup?.options.laps ?? menu.laps,
     drivers:onlineSetup?.options.drivers,
+    names:onlineSetup?.options.names,
     slot:onlineSetup?.slot,
+    bots: onlineSetup ? onlineSetup.options.bots !== false : true,
     seed: onlineSetup?.seed ?? (new URLSearchParams(location.search).has("evidence")
       ? 42
       : Math.floor(performance.now()) % 100000),
@@ -430,7 +432,8 @@ function onEvent(e) {
   if (e.type === "coin") burst(race.player, 10, "#ffdf46");
 }
 function cancelDriver() {
-  if(menu.confirmed){menu.setConfirmed(false);audio.ui('cancel');}
+  if(menu.step==='steering'){menu.setStep('laps');audio.ui('cancel');}
+  else if(menu.confirmed){menu.setStep('driver');audio.ui('cancel');}
 }
 function chooseDriver(index) {
   if (race.state === 'ready') menu.chooseDriver(index);
@@ -466,7 +469,8 @@ function confirm() {
     return;
   }
   if (race.state === 'ready') {
-    if (!menu.confirmed) {menu.setConfirmed(true);audio.ui('confirm');}
+    if (menu.step === 'driver') {menu.setStep('laps');audio.ui('confirm');}
+    else if (menu.step === 'laps') {menu.setStep('steering');audio.ui('confirm');}
     else begin();
   }
   else if (race.state === "results" && resultsPresentation?.done) {
@@ -1135,16 +1139,27 @@ function updateHUD() {
     $("results").hidden = false;
     $("hud").hidden = true;
     $("result-summary").textContent =
-      `${p.character.name} · ${ordinal(standings.findIndex(r=>r.id===0)+1)} place · ${formatTime(p.finishTime)}`;
+      `${p.playerName ? `${p.playerName} (${p.character.name})` : p.character.name} · ${ordinal(standings.findIndex(r=>r.id===0)+1)} place · ${formatTime(p.finishTime)}`;
     resultsPresentation={started:performance.now(),duration:1.2,done:false,times:standings.map(r=>r.finishTime)};
     $('again').disabled=true;
     audio.presentResults(race,resultsPresentation.duration);
-    $("standings").innerHTML = standings
-      .map(
-        (r, i) =>
-          `<div class="standing ${r.id === 0 ? "me" : ""}" style="--row:${i}"><b>${i + 1}</b><img src="${portrait(r.character)}" alt=""><span>${r.character.name}</span><span class="time">${r.finishTime === null ? "—" : formatTime(0)}</span></div>`,
-      )
-      .join("");
+    $("standings").replaceChildren(...standings.map((r, i) => {
+      const row = document.createElement("div");
+      row.className = `standing ${r.id === 0 ? "me" : ""}`;
+      row.style.setProperty("--row", i);
+      const rank = document.createElement("b");
+      rank.textContent = String(i + 1);
+      const avatar = document.createElement("img");
+      avatar.src = portrait(r.character);
+      avatar.alt = "";
+      const label = document.createElement("span");
+      label.textContent = r.playerName ? `${r.playerName} (${r.character.name})` : r.character.name;
+      const clock = document.createElement("span");
+      clock.className = "time";
+      clock.textContent = r.finishTime === null ? "—" : formatTime(0);
+      row.append(rank, avatar, label, clock);
+      return row;
+    }));
   }
   if(resultsShown&&resultsPresentation&&!resultsPresentation.done){
     const elapsed=(performance.now()-resultsPresentation.started)/1000;

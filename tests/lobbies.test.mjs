@@ -21,11 +21,14 @@ test('lobby directory, host permissions, readiness and match identities survive 
   async function afterDirectory(action){
     const published=once(observer,'directory');await action();await published;
   }
+  assert.ok((await send(host,'create',{public:false,name:'   '})).error);
   await afterDirectory(()=>send(host,'create',{public:false,name:'A'}));
   const privateCode=state.code;
   assert.equal(list.length,0);
-  await afterDirectory(async()=>assert.ok((await send(guest,'join',{code:privateCode.toLowerCase()})).ok));
-  assert.ok((await send(observer,'join',{code:privateCode})).error);
+  assert.ok((await send(guest,'join',{code:privateCode.toLowerCase()})).error);
+  assert.ok((await send(guest,'join',{code:privateCode.toLowerCase(),name:'a'})).error);
+  await afterDirectory(async()=>assert.ok((await send(guest,'join',{code:privateCode.toLowerCase(),name:'B'})).ok));
+  assert.ok((await send(observer,'join',{code:privateCode,name:'Obs'})).error);
   assert.ok((await send(guest,'options',{options:state.options})).error);
   assert.ok((await send(host,'start')).error);
   const packet=once(host,'signal');guest.emit('signal',{to:host.id,candidate:{candidate:'candidate UDP'}});assert.equal((await packet)[0].from,guest.id);
@@ -42,17 +45,17 @@ test('lobby directory, host permissions, readiness and match identities survive 
   const closed=once(guest,'closed');await afterDirectory(()=>send(host,'leave'));await closed;
   await afterDirectory(()=>send(host,'create',{public:true,name:'Alex',game:'kart-racing'}));
   assert.deepEqual(list,[{name:'Alex',code:state.code,game:'kart-racing',count:1,capacity:8}]);
-  await afterDirectory(()=>send(guest,'join',{code:state.code}));
+  await afterDirectory(()=>send(guest,'join',{code:state.code,name:'Guest'}));
   assert.equal(list[0].count,2);
   await afterDirectory(()=>guest.disconnect());assert.equal(list[0].count,1);assert.equal(state.players[0].ready,false);
   const party=[host];
   for(let i=1;i<8;i++){
     const peer=await client();party.push(peer);
-    await afterDirectory(()=>send(peer,'join',{code:state.code}));
+    await afterDirectory(()=>send(peer,'join',{code:state.code,name:'Player '+(i+1)}));
     assert.equal(state.players.length,i+1);assert.equal(list.length,i===7?0:1);
   }
   assert.equal(new Set(state.options.drivers).size,8);
-  assert.ok((await send(observer,'join',{code:state.code})).error);
+  assert.ok((await send(observer,'join',{code:state.code,name:'Obs'})).error);
   assert.ok((await send(host,'options',{options:{...state.options,game:'fruit-ninja'}})).error);
   const assigned=new Map(state.players.map((p,i)=>[p.id,state.options.drivers[i]]));
   const departed=party.splice(3,1)[0];
@@ -70,9 +73,31 @@ test('lobby directory, host permissions, readiness and match identities survive 
   }
   await afterDirectory(()=>send(host,'start'));
   assert.ok(state.match);assert.equal(list.length,0);
-  assert.ok((await send(observer,'join',{code:state.code})).error);
+  assert.ok((await send(observer,'join',{code:state.code,name:'Obs'})).error);
   for(const p of party.slice(1))await send(p,'finish',{match:state.match.id});
   assert.ok(state.match);
   await afterDirectory(()=>send(host,'finish',{match:state.match.id}));
   assert.equal(list[0].count,7);
+  await afterDirectory(()=>send(host,'leave'));
+  await afterDirectory(()=>send(host,'create',{public:true,name:'BotHost',game:'kart-racing',capacity:3}));
+  assert.equal(state.capacity,3);
+  assert.equal(list[0].capacity,3);
+  const second=await client(), third=await client();
+  await afterDirectory(()=>send(second,'join',{code:state.code,name:'Second'}));
+  await afterDirectory(()=>send(third,'join',{code:state.code,name:'Third'}));
+  assert.ok((await send(observer,'join',{code:state.code,name:'Obs'})).error);
+  await afterDirectory(()=>send(host,'options',{options:{...state.options,capacity:4}}));
+  assert.equal(state.capacity,4);
+  assert.equal(list[0].capacity,4);
+  assert.ok((await send(host,'options',{options:{...state.options,capacity:2}})).error);
+  await afterDirectory(()=>send(host,'options',{options:{...state.options,bots:false}}));
+  assert.equal(state.options.bots,false);
+  assert.equal(list[0].bots,false);
+  await afterDirectory(()=>send(host,'options',{options:{...state.options,bots:true}}));
+  assert.equal(state.options.bots,true);
+  assert.equal(list[0].bots,undefined);
+  await afterDirectory(()=>send(host,'leave'));
+  await afterDirectory(()=>send(host,'create',{public:true,name:'NoBotHost',game:'kart-racing',capacity:2,bots:false}));
+  assert.equal(state.options.bots,false);
+  assert.deepEqual(list,[{name:'NoBotHost',code:state.code,game:'kart-racing',count:1,capacity:2,bots:false}]);
 });

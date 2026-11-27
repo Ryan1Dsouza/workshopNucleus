@@ -1208,12 +1208,21 @@ function syncHud() {
   const connected = game.splitScreen ? [{slot:0},{slot:1}] : activePlayers();
   if (game.splitScreen || connected.length > 1) {
     board.classList.add('on');
-    const html = connected.map(({ slot }) => {
+    const nodes = connected.map(({ slot }) => {
       const p = game.getPlayer(slot);
-      return `<div class="prow"><span class="pdot" style="background:${cssTint(slot)}"></span>`
-        + `P${slot + 1} <b>${p.score}</b></div>`;
-    }).join('');
-    if(board.innerHTML !== html)board.innerHTML = html;
+      const row = document.createElement('div');
+      row.className = 'prow';
+      const dot = document.createElement('span');
+      dot.className = 'pdot';
+      dot.style.background = cssTint(slot);
+      const label = document.createTextNode(`${game.playerNames?.[slot] || `P${slot + 1}`} `);
+      const score = document.createElement('b');
+      score.textContent = String(p.score);
+      row.append(dot, label, score);
+      return row;
+    });
+    const sig = nodes.map(n => n.textContent).join('|');
+    if (board.dataset.sig !== sig) { board.dataset.sig = sig; board.replaceChildren(...nodes); }
   } else {
     board.classList.remove('on');
   }
@@ -1516,6 +1525,7 @@ requestAnimationFrame(frame);
 window.__openwii = {
   startGame, pauseGame, resumeGame, setControllerState, configureRound, laneAim,
   startMatch({slot,seed,options,elapsed}) {
+    game.playerNames = Array.isArray(options?.names) ? options.names : null;
     game.network=fruitMatch(game,slot,seed);
     resize();
     game.infiniteLives=options.practice;

@@ -47,11 +47,11 @@ test('the production API distinguishes an exhausted allowance from a temporary s
 
 test('hosted joins reserve the last seat once, retry safely, and keep peer signaling private',async()=>{
   const db=storage(), send=(i,q)=>hosted.handleLobby(db,secret(i),q);
-  const create=request('create',{public:false});
+  const create=request('create',{public:false,name:'Host'});
   const host=await send(1,create), code=host.room.code;
   assert.equal((await send(1,create)).room.code,code);
   assert.deepEqual((await send(3,{action:'directory'})).directory,[]);
-  const joins=await Promise.allSettled([2,3].map(i=>send(i,request('join',{code}))));
+  const joins=await Promise.allSettled([2,3].map(i=>send(i,request('join',{code,name:'Guest '+i}))));
   assert.equal(joins.filter(r=>r.status==='fulfilled').length,1);
   const winner=joins[0].status==='fulfilled'?2:3, guest=joins[winner-2].value, outsider=winner===2?3:2;
   const packet={to:guest.id,description:{type:'offer',sdp:'offer'}};
@@ -69,8 +69,8 @@ test('hosted joins reserve the last seat once, retry safely, and keep peer signa
 test('hosted rooms renew active players, expire abandoned guests, and close after host loss',async()=>{
   const db=storage();let now=1_000_000;
   const send=(i,q)=>hosted.handleLobby(db,secret(i),q,now);
-  const {room:{code}}=await send(1,request('create',{public:true,game:'kart-racing'}));
-  await send(2,request('join',{code}));
+  const {room:{code}}=await send(1,request('create',{public:true,game:'kart-racing',name:'Host'}));
+  await send(2,request('join',{code,name:'Guest'}));
   assert.equal((await send(3,{action:'directory'})).directory[0].count,2);
   now+=90000;
   await send(1,{action:'poll',code});
@@ -84,8 +84,8 @@ test('hosted rooms renew active players, expire abandoned guests, and close afte
 
 test('only the host can remove a guest and release their seat and signaling state',async()=>{
   const db=storage(), send=(i,q)=>hosted.handleLobby(db,secret(i),q);
-  const {room:{code},id:host}=await send(1,request('create',{public:true,game:'kart-racing'}));
-  const {id:guest}=await send(2,request('join',{code}));
+  const {room:{code},id:host}=await send(1,request('create',{public:true,game:'kart-racing',name:'Host'}));
+  const {id:guest}=await send(2,request('join',{code,name:'Guest'}));
   await assert.rejects(send(2,request('remove',{code,player:host})),/Only the host/);
   await assert.rejects(send(1,request('remove',{code,player:host})),/Choose a guest/);
   await send(1,request('signals',{code,packets:[{to:guest,retry:true}]}));
@@ -103,5 +103,5 @@ test('only the host can remove a guest and release their seat and signaling stat
   assert.equal(result.room,undefined);
   assert.equal((await send(3,{action:'directory'})).directory[0].count,1);
   await assert.rejects(send(2,request('signals',{code,packets:[{to:host,retry:true}]})),/Join a lobby/);
-  assert.deepEqual((await send(2,request('join',{code}))).signals,[]);
+  assert.deepEqual((await send(2,request('join',{code,name:'Guest'}))).signals,[]);
 });

@@ -71,9 +71,9 @@ export class KartMatch {
         if(p)p.respawn=Math.max(p.respawn,e.type==='coin'?5:1);
       }
     }
-    if(senderSlot===0 && !this.results && Array.isArray(frame.results) && frame.results.length===8){
+    if(senderSlot===0 && !this.results && Array.isArray(frame.results) && frame.results.length===race.racers.length){
       const rows=frame.results;
-      if(rows.every(row=>byDriver(row?.driver) && (row.time===null || Number.isFinite(row.time))) && new Set(rows.map(row=>row.driver)).size===8)
+      if(rows.every(row=>byDriver(row?.driver) && (row.time===null || Number.isFinite(row.time))) && new Set(rows.map(row=>row.driver)).size===race.racers.length)
         this.results=rows;
     }
     this.interpolate(now);
