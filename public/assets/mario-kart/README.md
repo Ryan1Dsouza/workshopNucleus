@@ -11,6 +11,8 @@ The game reads the separate audio manifest after the first interaction.
 - Prepared music, sound effects, and voices: Nintendo game recordings obtained
   through The Sounds Resource and KHInsider. The audio manifest records source
   filenames, source hashes, and playback settings. [Source collection details](../../games/mario-kart/SOUND-DESIGN.md).
+- ControllerKit supplies original synthesized cues for banana placement and slips,
+  green, red and blue shell launches, blue-shell impacts and successful item hits.
 - UI lettering and portraits: derived from an extracted game UI sheet; see
   `ui/provenance.json`. Stadium TV artwork has its own provenance record.
 

@@ -229,7 +229,7 @@ let paused = false,
   renderCount = 0,
   lastFrame = performance.now(),
   resultsShown = false, resultsPresentation = null;
-const audio = new KartAudio(),
+const audio = new KartAudio(menu.audioEngine),
   wheel = new WheelInput({
     invert: localStorage.getItem("openwii.chargeInvert2") === "1",
   }),
@@ -437,7 +437,6 @@ function navigateDriver(direction) {
 }
 function begin() {
   if (race.state !== "ready") return;
-  ensureAudio();
   void audio.ui('start');
   wheel.reset();
   captureUntil = performance.now() + 3000;
@@ -1435,13 +1434,6 @@ if (new URLSearchParams(location.search).get("evidence") === "1") {
 function controlDistancesFor() {
   return 310;
 }
-// Defer audio decoding until first user interaction so startup stays light and fast
-let audioPrepared = false;
-const ensureAudio = () => {
-  if (audioPrepared) return;
-  audioPrepared = true;
-  audio.prepare();
-};
 constructRace();
 syncPickupPools();
 await renderer.compileAsync(scene, camera);
@@ -1548,10 +1540,10 @@ window.__openwii = {
 export function connectMenu() {
   if (race.player.character.id !== menu.driver.id) constructRace(true);
   race.laps = menu.laps;
-  const cursorSound = () => requestAnimationFrame(()=>setTimeout(()=>audio.ui('cursor'),0));
   menu.connectRace({
-    onDriver() { constructRace(true); cursorSound(); },
-    onLaps() { race.laps = menu.laps; cursorSound(); },
+    onCursor: () => audio.ui('cursor'),
+    onDriver() { constructRace(true); },
+    onLaps() { race.laps = menu.laps; },
     start: begin,
   });
 }

@@ -1,5 +1,8 @@
 import drivers from '../../core/kart-roster.json' with {type:'json'};
 import {portrait} from './icons.js';
+import {AudioEngine} from '../../core/audio.js';
+
+export const audioEngine = new AudioEngine({volume:.55});
 
 const $ = id => document.getElementById(id);
 export let driver = drivers[0];
@@ -7,6 +10,12 @@ export let laps = localStorage.getItem('openwii.kart.laps') === '1' ? 1 : 3;
 export let steering = localStorage.getItem('openwii.kart.steering') === 'gyro' ? 'gyro' : 'dpad';
 export let confirmed = false;
 let controls, pendingStart = false;
+
+async function cursorSound() {
+  if (controls) return controls.onCursor();
+  if (audioEngine.enabled && await audioEngine.unlock())
+    audioEngine.tone({freq:880,dur:.055,gain:.06});
+}
 
 export function setConfirmed(value) {
   confirmed = value;
@@ -25,7 +34,7 @@ export function chooseDriver(index) {
     button.setAttribute('aria-pressed', String(selected));
   }
   $('chosen').textContent = driver.name;
-  if (changed) controls?.onDriver();
+  if (changed) { void cursorSound(); controls?.onDriver(); }
 }
 
 function showLaps() {
@@ -37,6 +46,7 @@ export function selectLaps(value) {
   laps = value === 1 ? 1 : 3;
   localStorage.setItem('openwii.kart.laps', String(laps));
   showLaps();
+  void cursorSound();
   controls?.onLaps();
 }
 function showSteering() {
@@ -45,6 +55,7 @@ function showSteering() {
 }
 export function setSteeringMode(value) {
   if (value !== 'dpad' && value !== 'gyro') return;
+  if (steering !== value) void cursorSound();
   steering = value;
   localStorage.setItem('openwii.kart.steering', value);
   showSteering();
@@ -59,6 +70,8 @@ export function navigate(direction) {
 }
 function requestStart() {
   if (controls) return controls.start();
+  if (pendingStart) return;
+  void cursorSound();
   pendingStart = true;
   $('start').disabled = true;
   $('start').setAttribute('aria-busy','true');

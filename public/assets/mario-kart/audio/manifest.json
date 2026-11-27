@@ -1,6 +1,55 @@
 {
   "version": 1,
   "cues": {
+    "use-banana": {
+      "file": "use-banana.wav",
+      "source": "ControllerKit original synthesized effect",
+      "sha256": "ace592f1b54db18b1556df47efa82c53fea7e0e014a19734d330558f250db033",
+      "gain": 0.84,
+      "duration": 0.19002267573696144
+    },
+    "use-green": {
+      "file": "use-green.wav",
+      "source": "ControllerKit original synthesized effect",
+      "sha256": "eecef2b56b1103c7046772938f525487a05d509f45876ffb9d6d577cc1dadd48",
+      "gain": 0.69,
+      "duration": 0.31002267573696146
+    },
+    "use-red": {
+      "file": "use-red.wav",
+      "source": "ControllerKit original synthesized effect",
+      "sha256": "e9df383e02891cafc14145f4cba8ac282ce800d678e46ff3fb58d57da6bf5111",
+      "gain": 0.65,
+      "duration": 0.36997732426303853
+    },
+    "use-blue": {
+      "file": "use-blue.wav",
+      "source": "ControllerKit original synthesized effect",
+      "sha256": "47e87244e0919a8f8bf2fdcd595c166b0a27553ce41a6fcdf10bf9a52a29cfca",
+      "gain": 0.72,
+      "duration": 0.46
+    },
+    "hit-banana": {
+      "file": "hit-banana.wav",
+      "source": "ControllerKit original synthesized effect",
+      "sha256": "0da65cd6304d1c8c3bf3634a9f857984a0fe57f14b3008071572c5605ea5d390",
+      "gain": 0.72,
+      "duration": 0.34
+    },
+    "hit-blue": {
+      "file": "hit-blue.wav",
+      "source": "ControllerKit original synthesized effect",
+      "sha256": "b443e9396fa757e7541e44f84ae667b17ed493c5dcca8ee41ccaf3768f259396",
+      "gain": 0.88,
+      "duration": 0.5500226757369614
+    },
+    "shellConfirm": {
+      "file": "shellConfirm.wav",
+      "source": "ControllerKit original synthesized effect",
+      "sha256": "9b520985917111ab1d172b020796ae68763076e315fdc3451e42e86974ebe277",
+      "gain": 0.54,
+      "duration": 0.26
+    },
     "countdown": {
       "file": "countdown.wav",
       "source": "sfx/race/Race Sounds/SE_RC_321.wav",

@@ -10,8 +10,8 @@ export function engineFrequency(speed) {
   return 48 + Math.min(60, Math.abs(Number.isFinite(speed) ? speed : 0)) * 3.1;
 }
 export class KartAudio {
-  constructor() {
-    this.engine = new AudioEngine({ volume: 0.55 });
+  constructor(engine = new AudioEngine({ volume: 0.55 })) {
+    this.engine = engine;
     this.original = new SampledKartAudio(this.engine);
     this.motor = null;
     this.music = null;
@@ -72,17 +72,18 @@ export class KartAudio {
   }
   prepare() { return this.original.prepare(); }
   async unlock() {
-    await this.engine.unlock();
-    if (!this.engine.ctx) return;
-    if (await this.prepare()) {
-      this.engine.master.gain.setValueAtTime(this.engine.enabled ? this.engine.volume : 0, this.engine.ctx.currentTime);
-      return;
-    }
+    if (!await this.engine.unlock()) return false;
     this.stopped = false;
     this.engine.master.gain.setValueAtTime(
       this.engine.enabled ? this.engine.volume : 0,
       this.engine.ctx.currentTime,
     );
+    this.setup ??= this.prepare().then(ready => {
+      if (!ready && !this.stopped) this.startFallback();
+    });
+    return true;
+  }
+  startFallback() {
     if (!this.motor) {
       const ctx = this.engine.ctx,
         g = ctx.createGain(),
@@ -123,8 +124,7 @@ export class KartAudio {
   get resultsReady(){return this.original.ready ? this.original.resultsReady : !this.engine.ctx || this.engine.ctx.state !== 'running' || this.engine.ctx.currentTime >= (this.fallbackFinishUntil || 0);}
   presentResults(race,duration){this.original.presentResults(race,duration);}
   async ui(kind='confirm') {
-    await this.unlock();
-    if (!this.engine.enabled) return;
+    if (!await this.unlock() || !this.engine.enabled || this.stopped) return;
     const key={cursor:'uiCursor',confirm:'uiConfirm',cancel:'uiCancel',start:'uiStart'}[kind];
     if(this.original.ready&&this.original.buffers.has(key))this.original.play(key,{bus:'ui'});
     else this.engine.tone({freq:kind==='cursor'?880:660,dur:.055,gain:.06,type:'sine'});
@@ -188,10 +188,12 @@ export class KartAudio {
   stop() {
     this.original.stop();
     this.stopped = true;
+    this.setup = null;
     if (this.music) {
       try {
         this.music.stop();
       } catch {}
+      this.music = this.musicGain = null;
     }
     if (this.motor) {
       this.motor.osc.stop();

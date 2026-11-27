@@ -14,7 +14,8 @@ export class SampledKartAudio {
       if(!response.ok)return false;
       this.manifest=await response.json();
       if(!this.engine.ensureCtx())return false;
-      const priority=['countdown','go','roulette','decide','engine','race','final','lap','finalLap','finish','coin','boost','turbo','hit','uiCursor','uiConfirm','uiStart','uiCancel'];
+      const priority=['countdown','go','roulette','decide','engine','race','final','lap','finalLap','finish','coin','boost','turbo','hit','uiCursor','uiConfirm','uiStart','uiCancel',
+        'use-banana','use-green','use-red','use-blue','hit-banana','hit-blue','shellConfirm'];
       const allEntries=Object.entries(this.manifest.cues);
       const essential=allEntries.filter(([k])=>priority.includes(k));
       const rest=allEntries.filter(([k])=>!priority.includes(k));
@@ -136,7 +137,7 @@ export class SampledKartAudio {
       // The player's contact event already represents this pair. Never double it.
       if(e.type==='contact' && e.other===0)return true;
       const p=race.player,dx=r.x-p.x,dz=r.z-p.z,distance=Math.hypot(dx,r.y-p.y,dz);if(distance>25)return true;
-      if(e.type==='useItem'&&e.projectile!=null){this.launch(e,.24*Math.max(0,1-distance/25),(dx*Math.cos(p.heading)+dz*Math.sin(p.heading))/12);return true;}
+      if(e.type==='useItem'&&(e.projectile!=null||e.item==='banana')){this.launch(e,.24*Math.max(0,1-distance/25),(dx*Math.cos(p.heading)+dz*Math.sin(p.heading))/12);return true;}
       const key=e.type==='turbo'?'turbo':e.type==='useItem'?'equip':e.type;
       this.play(key,{gain:(e.type==='contact'?.10:.24)*Math.max(0,1-distance/25),pan:(dx*Math.cos(p.heading)+dz*Math.sin(p.heading))/12});return true;
     }
