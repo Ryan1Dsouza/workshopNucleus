@@ -1,5 +1,6 @@
 node_modules/
 .local/
+.vscode/
 archive/
 test-results/
 .playwright-mcp/

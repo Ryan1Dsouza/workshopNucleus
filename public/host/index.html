@@ -110,7 +110,7 @@
         </div>
         <div class="game-tools" id="gameTools" hidden><button class="primary-button" id="startGame" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 3 10 7-10 7Z"/></svg>Play</button><button class="secondary-button" id="pauseGame" disabled>Pause</button><button class="secondary-button" id="restartGame" disabled>Restart</button><button class="secondary-button" id="enlargeGame" aria-controls="gameStage" aria-pressed="false" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg><span id="enlargeLabel">Enlarge game</span></button></div>
         <div id="notice" class="notice" role="status">Starting your workspace…</div>
-        <div class="input-tools"><button class="keyboard-button" id="keyboardButton"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h.1M10 9h.1M14 9h.1M18 9h.1M6 12h.1M10 12h.1M14 12h.1M18 12h.1M7 15h10"/></svg>Use keyboard</button><button id="previewButton" class="text-button" aria-haspopup="dialog">Preview controller</button></div>
+        <div class="input-tools"><button class="keyboard-button" id="controlsButton" aria-haspopup="dialog" aria-controls="controlsDialog"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h.1M10 9h.1M14 9h.1M18 9h.1M6 12h.1M10 12h.1M14 12h.1M18 12h.1M7 15h10"/></svg>Controls guide</button><button id="previewButton" class="text-button" aria-haspopup="dialog">Preview controller</button></div>
       </div>
       <p class="game-note" id="gameHint">Pairing stays available while you switch games.</p>
     </section>
@@ -164,6 +164,29 @@
   <dialog id="previewDialog" aria-labelledby="previewHeading">
     <div class="dialog-heading"><h2 id="previewHeading">Meet your controller</h2><button class="close-button" data-close="previewDialog" aria-label="Close preview">×</button></div>
     <div class="preview-layout"><div class="preview-copy"><h3>Same remote. New controls.</h3><p>The selected game supplies its buttons, labels and actions. The phone handles the layout and wrist motion.</p><p>Try the buttons with your mouse. Pair the phone app for Bluetooth gameplay.</p><dl class="preview-key"><dt>Z / X</dt><dd>A / B buttons</dd><dt>Arrow keys</dt><dd>Directional pad</dd><dt>C</dt><dd>Center motion</dd></dl></div><iframe id="phonePreview" title="Shared Wii-style controller preview"></iframe></div>
+  </dialog>
+
+  <dialog id="controlsDialog" aria-labelledby="controlsHeading">
+    <div class="dialog-heading">
+      <div>
+        <h2 id="controlsHeading">Controls guide</h2>
+        <p id="controlsSubtitle" class="controls-subtitle">Mario Kart controls</p>
+      </div>
+      <button class="close-button" data-close="controlsDialog" aria-label="Close controls guide">×</button>
+    </div>
+    <div class="controls-tabs" role="tablist" aria-label="Control scheme">
+      <button type="button" class="controls-tab active" id="tabKeyboard" role="tab" aria-selected="true" aria-controls="controlsPanel" data-scheme="keyboard">Keyboard</button>
+      <button type="button" class="controls-tab" id="tabGyro" role="tab" aria-selected="false" aria-controls="controlsPanel" data-scheme="gyro">Phone gyro</button>
+      <button type="button" class="controls-tab" id="tabDpad" role="tab" aria-selected="false" aria-controls="controlsPanel" data-scheme="dpad">Phone D-pad</button>
+    </div>
+    <section id="controlsPanel" class="controls-panel" role="tabpanel" aria-labelledby="tabKeyboard" tabindex="0">
+      <p id="controlsLead" class="controls-lead"></p>
+      <dl id="controlsList" class="controls-list"></dl>
+      <div id="controlsFooter" class="controls-footer">
+        <p id="controlsTip" class="controls-tip"></p>
+        <button type="button" id="activateKeyboardBtn" class="secondary-button" hidden>Activate Player 1 virtual keys</button>
+      </div>
+    </section>
   </dialog>
 
   <dialog id="workshopDialog" aria-labelledby="workshopHeading">

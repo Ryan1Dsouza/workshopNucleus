@@ -8,7 +8,7 @@ import { downloadOrigins } from './download-origin.js';
 const $=id=>document.getElementById(id);
 document.documentElement.dataset.stage=stage;
 $('stageLabel').textContent='Workshop · Stage '+stage;
-$('keyboardButton').hidden=$('previewButton').hidden=!features.buttons;
+$('controlsButton').hidden=$('previewButton').hidden=!features.buttons;
 $('extensionCard').hidden=!features.extension;
 $('onlineTab').hidden=!features.fruit;
 const [motionMod,registryMod,catalogMod,lobbyMod]=await Promise.all([
@@ -89,7 +89,7 @@ const demoButtons=new ButtonStore(()=>submitDemo());
 function enableDemo(){
   if(ble.has(0))return false;
   if(controllers.player(0).session!=='desktop')controllers.connect(0,'desktop','Keyboard / UI preview');
-  controllers.markReady(0,controllers.profileEpoch);deviceText[0]='Desktop input · Z=A, X=B';$('keyboardButton').classList.add('active');return true;
+  controllers.markReady(0,controllers.profileEpoch);deviceText[0]='Desktop input · Z=A, X=B';return true;
 }
 function submitDemo(){if(enableDemo())controllers.buttons(0,{mask:demoButtons.mask|previewMask,sequence:(demoSequence++)&65535,profileEpoch:controllers.profileEpoch},'desktop');}
 function releaseDemo(){previewMask=0;demoButtons.clear();if(controllers.player(0).session==='desktop')controllers.release(0);}
@@ -279,7 +279,154 @@ window.addEventListener('message',event=>{
   if(event.data?.type==='controller-preview-buttons'){previewMask=event.data.mask&2047;submitDemo();}
   else if(event.data?.type==='controller-preview-center'&&features.motion)controllers.center(0,{});
 });
-$('keyboardButton').addEventListener('click',()=>{if(enableDemo())notice('Keyboard ready: Z=A, X=B, arrows=D-pad, C=Center.');});
+const CONTROLS_GUIDE={
+  'kart-racing':{
+    title:'Mario Kart controls',
+    keyboard:{
+      lead:'Play immediately with your keyboard across menus, solo races, and online lobbies.',
+      items:[
+        [['W','↑','Z'],'Accelerate (Gas)'],[['S','↓','X'],'Brake / Reverse'],
+        [['A / ←','D / →'],'Steer left & right'],[['Shift'],'Drift (hold in turns, release for mini-turbo)'],
+        [['Space'],'Use held item or confirm menu'],[['Enter','Esc'],'Confirm menu step / Pause & back'],
+        [['R','I'],'Center phone steering / Invert wheel tilt']
+      ],
+      tip:'Keyboard works right away once Mario Kart is loaded.'
+    },
+    gyro:{
+      lead:'Select Gyro on step 3 of the menu (Driver → Race length → Phone steering) to tilt-steer in landscape.',
+      items:[
+        [['Tilt sideways'],'Steer left & right'],[['Gas','2'],'Accelerate'],
+        [['Brake','1'],'Brake / Reverse'],[['Drift','A'],'Hold through turns for mini-turbo'],
+        [['Item','▶'],'Use held item (right-pad shortcut)'],[['Center wheel','-'],'Recalibrate straight ahead'],
+        [['+','Home'],'Pause race / Exit to library']
+      ],
+      tip:'Level your phone sideways briefly when the countdown begins.'
+    },
+    dpad:{
+      lead:'Select D-pad on step 3 of the menu for enlarged touch controls in landscape.',
+      items:[
+        [['◀','▶'],'Steer left & right'],[['Gas','2'],'Large right-thumb throttle'],
+        [['Brake','1'],'Brake / Reverse'],[['Drift','A'],'Hold through turns for mini-turbo'],
+        [['Item','B'],'Use held item'],[['+','Home'],'Pause race / Exit to library']
+      ],
+      tip:'In menus: D-pad moves selection, A confirms, and B steps back.'
+    }
+  },
+  'fruit-ninja':{
+    title:'Fruit Ninja controls',
+    keyboard:{
+      lead:'Start rounds or navigate modes from your keyboard while using a paired phone to slice.',
+      items:[
+        [['Z'],'Play (A)'],[['X'],'Practice mode (B)'],
+        [['1'],'Classic mode'],[['2','-'],'Restart round'],
+        [['+'],'Pause / Resume'],[['C'],'Center blade aim']
+      ],
+      tip:'Activate Player 1 virtual keys below to send Z / X / D-pad as a test controller.'
+    },
+    gyro:{
+      lead:'Rotate your wrist naturally to sweep the blade across fruit; buttons sit beneath your thumb.',
+      items:[
+        [['Rotate wrist'],'Aim and slice fruit'],[['Center aim','C'],'Reset pointer to crosshair'],
+        [['Play (A)','Practice (B)'],'Start Classic or Practice'],[['Restart','2 / -'],'Start a new round'],
+        [['+','Home'],'Pause / Exit to library']
+      ],
+      tip:'Connecting two phones automatically enables 2-player split screen.'
+    },
+    dpad:{
+      lead:'Fruit Ninja uses wrist motion for slicing rather than D-pad movement.',
+      items:[
+        [['A / B'],'Play / Practice'],[['1 / 2'],'Classic / Restart'],
+        [['+','Home'],'Pause / Exit to library']
+      ],
+      tip:'Connect a phone with a gyroscope to slice cleanly over Bluetooth.'
+    }
+  },
+  remote:{
+    title:'Controller Lab controls',
+    keyboard:{
+      lead:'Test virtual Player 1 button inputs from your laptop keyboard without pairing a phone.',
+      items:[
+        [['Z','X'],'A / B buttons'],[['↑ ↓ ← →','WASD'],'Directional pad'],
+        [['1','2'],'1 / 2 buttons'],[['+','-'],'Plus / Minus buttons'],
+        [['C'],'Center motion pointer'],[['Esc'],'Back to Controller Lab']
+      ],
+      tip:'Press any mapped key or click below to attach virtual Player 1 controls.'
+    },
+    gyro:{
+      lead:'Pair ControllerKit with Motion enabled to inspect real-time wrist tracking on the grid.',
+      items:[
+        [['Move wrist'],'Move Player 1 / 2 aim dot'],[['Center motion'],'Zero pointer to center'],
+        [['Face buttons'],'Verify live press & release latency']
+      ],
+      tip:'Both Player 1 and Player 2 display live RTT latency in the dock below.'
+    },
+    dpad:{
+      lead:'Press any touch button on ControllerKit to highlight matching live chips on screen.',
+      items:[
+        [['▲ ▼ ◀ ▶'],'Multi-touch D-pad'],[['A / B'],'Primary & secondary buttons'],
+        [['- Home +'],'Utility row'],[['1 / 2'],'Number buttons']
+      ],
+      tip:'Open Controller options in the APK to toggle vibration or check app updates.'
+    }
+  }
+};
+let controlScheme='keyboard';
+function syncActivateKeyboardButton(){
+  const btn=$('activateKeyboardBtn');
+  if(!btn)return;
+  btn.hidden=controlScheme!=='keyboard'||!features.buttons;
+  const active=controllers.player(0).session==='desktop';
+  btn.disabled=active||ble.has(0);
+  btn.textContent=ble.has(0)?'Phone paired to Player 1':active?'Virtual Player 1 active':'Activate Player 1 virtual keys';
+}
+function renderControlsGuide(scheme=controlScheme){
+  controlScheme=scheme;
+  const activeId=document.documentElement.dataset.game||current?.id;
+  const gameId=CONTROLS_GUIDE[activeId]?activeId:'remote';
+  const pack=CONTROLS_GUIDE[gameId], data=pack[scheme]||pack.keyboard;
+  $('controlsSubtitle').textContent=pack.title;
+  $('controlsLead').textContent=data.lead;
+  $('controlsTip').textContent=data.tip;
+  const list=$('controlsList');
+  list.replaceChildren(...data.items.map(([keys,desc])=>{
+    const item=document.createElement('div');item.className='controls-item';
+    const dt=document.createElement('dt');
+    keys.forEach((label,i)=>{if(i>0)dt.append(' ');const k=document.createElement('kbd');k.className='keycap';k.textContent=label;dt.append(k);});
+    const dd=document.createElement('dd');dd.textContent=desc;
+    item.append(dt,dd);return item;
+  }));
+  const tabs=[...document.querySelectorAll('.controls-tab')];
+  for(const tab of tabs){
+    const selected=tab.dataset.scheme===scheme;
+    tab.classList.toggle('active',selected);
+    tab.setAttribute('aria-selected',String(selected));
+    tab.tabIndex=selected?0:-1;
+    if(selected)$('controlsPanel').setAttribute('aria-labelledby',tab.id);
+  }
+  syncActivateKeyboardButton();
+}
+for(const tab of document.querySelectorAll('.controls-tab')){
+  tab.addEventListener('click',()=>renderControlsGuide(tab.dataset.scheme));
+  tab.addEventListener('keydown',event=>{
+    const tabs=[...document.querySelectorAll('.controls-tab')];
+    const index=tabs.indexOf(tab);
+    if(event.key==='ArrowRight'||event.key==='ArrowLeft'){
+      event.preventDefault();
+      const next=tabs[(index+(event.key==='ArrowRight'?1:tabs.length-1))%tabs.length];
+      next.focus();renderControlsGuide(next.dataset.scheme);
+    }
+  });
+}
+$('controlsButton').addEventListener('click',()=>{
+  const activeId=document.documentElement.dataset.game||current?.id;
+  const defaultScheme=activeId==='kart-racing'?(profile.layout==='kart-gyro'?'gyro':profile.layout==='kart-dpad'?'dpad':'keyboard'):'keyboard';
+  renderControlsGuide(defaultScheme);
+  $('controlsDialog').showModal();
+});
+$('activateKeyboardBtn').addEventListener('click',()=>{
+  if(enableDemo())notice('Virtual Player 1 ready: Z=A, X=B, arrows=D-pad, C=Center.');
+  syncActivateKeyboardButton();
+});
 $('startGame').addEventListener('click',()=>play());$('pauseGame').addEventListener('click',togglePause);$('restartGame').addEventListener('click',()=>play());
 $('enlargeGame').addEventListener('click',()=>setExpanded(!expanded));
 $('fullscreen').addEventListener('click',()=>{if(document.fullscreenElement)void document.exitFullscreen?.();else void document.documentElement.requestFullscreen?.().catch(()=>{});});
