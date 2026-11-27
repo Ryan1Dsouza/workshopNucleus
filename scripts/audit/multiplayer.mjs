@@ -1,3 +1,4 @@
+import { openChannel } from './channels.mjs';
 import {chromium} from 'playwright';
 import assert from 'node:assert/strict';
 import {mkdir,writeFile} from 'node:fs/promises';
@@ -79,7 +80,7 @@ async function captureSweep(p){
 try{
   const a=await session(base);
   await a.route('**/*',route=>new URL(route.request().url()).origin===new URL(base).origin?route.continue():route.abort());
-  await a.locator('[data-game="fruit-ninja"]').click();
+  await openChannel(a,'fruit-ninja');
   await a.waitForFunction(()=>__controllerkit.current()?.id==='fruit-ninja');
   await pair(a,0);await pair(a,1);
   await a.locator('#roundMode').selectOption('practice');
@@ -96,7 +97,7 @@ try{
   await a.locator('#pair1').click();
   await a.unroute('**/*');
   const b=await session(guestBase);await pair(b,0);
-  for(const [p,name] of [[a,'Alex'],[b,'Sam']]){await p.locator('#onlineTab').click();await p.locator('#onlineName').fill(name);}
+  for(const [p,name] of [[a,'Alex'],[b,'Sam']]){await openChannel(p,'online');await p.locator('#onlineName').fill(name);}
   await a.locator('#createRoom').click();
   const listed=b.locator('.directory-room',{hasText:'Alex'});
   await listed.waitFor();assert.match(await listed.innerText(),/Fruit Ninja.*1\/2/);
@@ -229,7 +230,7 @@ try{
   report.rtcFrames=await a.evaluate(()=>__controllerkit.online.peer.pc.getStats().then(stats=>[...stats.values()].find(s=>s.type==='data-channel')?.messagesSent));
   await ready(a,b);
   await b.locator('#leaveRoom').click();await a.waitForFunction(()=>__controllerkit.online.room.players.length===1 && !__controllerkit.online.playing);
-  await a.locator('#playTab').click();await a.waitForFunction(()=>__controllerkit.current()?.id==='fruit-ninja' && !__controllerkit.online.active);
+  await openChannel(a,'fruit-ninja');await a.waitForFunction(()=>__controllerkit.current()?.id==='fruit-ninja' && !__controllerkit.online.active);
   await a.locator('#roundPlayers').selectOption('1');
   await a.locator('#startGame').click();
   await a.waitForFunction(()=>{const g=__controllerkit.adapter().api.game;return g.state.phase==='playing' && !g.splitScreen && !g.network;});

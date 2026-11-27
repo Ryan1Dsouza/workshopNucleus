@@ -11,60 +11,18 @@ button { border: 0; }
 button:disabled { opacity: .5; }
 h1, h2, h3 { font-family: var(--heading-font); }
 
-.topbar {
-  display: flex;
-  align-items: center;
-  gap: 36px;
-  min-height: 76px;
-  padding: 12px 32px;
-  background: var(--porcelain);
-  border-bottom: 1px solid var(--line);
-}
 .brand { display: inline-flex; align-items: center; gap: 12px; font-family: var(--heading-font); font-size: 20px; font-weight: 800; letter-spacing: -.6px; white-space: nowrap; }
 .brand-icon { display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 auto; border-radius: 14px; color: white; background: var(--ink); font-size: 28px; }
 .brand-icon svg { width: 30px; height: 30px; }
 .brand small { display: block; margin-top: 1px; font-family: "Source Sans 3", sans-serif; font-size: 12px; font-weight: 400; letter-spacing: 0; color: var(--slate); }
-.workspace-links { display: flex; align-items: center; justify-content: space-between; flex: 1; gap: 8px; }
-.topbar nav, .top-actions { display: flex; align-items: center; gap: 8px; }
-.nav-item { min-height: 44px; padding: 0 18px; background: transparent; color: var(--slate); border-radius: 10px; font-size: 15px; font-weight: 600; }
-.nav-item.active { color: var(--blue); background: #e7eefb; }
-.nav-item:hover { background: #e7edf4; }
-.top-actions { margin-left: auto; gap: 20px; }
-.connection-count { display: flex; align-items: center; gap: 8px; font-size: 14px; white-space: nowrap; color: var(--slate); }
-.connection-count i { width: 7px; height: 7px; border-radius: 50%; background: #96a4b2; }
-.connection-count.has-controllers i { background: var(--green); }
 .connect-button { min-height: 44px; padding: 0 18px; color: var(--blue); background: transparent; border: 1px solid #aebfd7; border-radius: 10px; font-weight: 600; }
 .connect-button:hover { background: #e7eefb; border-color: var(--blue); }
 .icon-button { display: grid; place-items: center; width: 44px; height: 44px; color: var(--slate); background: transparent; border: 1px solid var(--line); border-radius: 10px; }
 .icon-button svg { width: 20px; height: 20px; }
 
-.workspace { display: grid; grid-template-columns: 236px minmax(0, 1fr); column-gap: 32px; row-gap: 16px; max-width: 1600px; padding: 24px 32px; margin: 0 auto; align-items: start; }
-.library { grid-row: 1 / 3; }
 .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .section-heading h2 { margin: 0; font-size: 16px; font-weight: 800; letter-spacing: -.35px; }
 .section-heading > span { font-size: 13px; color: var(--slate); background: #dce4ed; min-width: 24px; padding: 2px 6px; border-radius: 6px; text-align: center; }
-.section-caption { margin: 6px 0 22px; color: var(--slate); font-size: 14px; line-height: 1.5; }
-.game-list { display: flex; flex-direction: column; gap: 8px; }
-.game-card { display: grid; grid-template-columns: 56px minmax(0, 1fr); align-items: center; gap: 12px; width: 100%; padding: 12px; text-align: left; color: var(--ink); background: transparent; border: 1px solid transparent; border-radius: 12px; transition: background .15s, border-color .15s; }
-.game-card:hover { background: #f3f6fa; }
-.game-card.selected { background: var(--porcelain); border-color: #a9bbd3; box-shadow: inset 3px 0 var(--blue); }
-.game-art { position: relative; display: grid; place-items: center; width: 56px; height: 64px; border-radius: 10px; overflow: hidden; }
-.art-remote { background: #dce7f8; color: var(--blue); }
-.art-remote svg { width: 49px; height: 56px; stroke-width: 1.6; }
-.art-fruit { background: #f9e6c4; }
-.art-fruit::before { content: ""; width: 28px; height: 28px; border-radius: 50%; background: #e99138; box-shadow: 16px 4px 0 -4px #8ea65d, -12px 13px 0 -6px #cf5960; transform: rotate(-18deg); }
-.art-fruit::after { content: ""; position: absolute; width: 55px; height: 2px; background: white; transform: rotate(-30deg); }
-.art-kart { background: linear-gradient(135deg, #2a6df4 0%, #5e35b1 55%, #e53935 100%); overflow: hidden; box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); }
-.art-kart::before { content: ""; width: 34px; height: 18px; background: #ff2e2e; border-radius: 6px 6px 4px 4px; border: 2px solid #fff; box-shadow: 0 5px 0 -1px #1e2430, 0 0 10px rgba(0,0,0,.35); transform: translateY(-4px); }
-.art-kart::after { content: ""; position: absolute; bottom: 7px; left: 50%; transform: translateX(-50%); width: 46px; height: 6px; background: repeating-conic-gradient(#fff 0% 25%, #1e2430 0% 50%) 50% / 8px 8px; border-radius: 2px; }
-.game-info { min-width: 0; }
-.game-card strong { display: block; font-family: var(--heading-font); font-size: 15px; font-weight: 800; line-height: 1.25; }
-.card-description { display: block; margin-top: 5px; color: var(--slate); font-size: 12px; line-height: 1.4; }
-.game-genre, .card-tag { display: none; }
-.extension-card { display: grid; grid-template-columns: 28px 1fr; column-gap: 10px; margin: 28px 8px 0; padding-top: 24px; border-top: 1px solid #cfd9e4; }
-.extension-icon { display: grid; place-items: center; grid-row: 1 / 4; width: 28px; height: 28px; color: var(--blue); border: 1px solid #acbed5; border-radius: 8px; font-size: 22px; }
-.extension-card h3 { margin: 2px 0 7px; font-size: 14px; font-weight: 800; }
-.extension-card p { margin: 0 0 8px; font-size: 13px; color: var(--slate); line-height: 1.5; }
 .text-button { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0; background: none; color: var(--blue); font-size: 14px; font-weight: 600; text-align: left; }
 .text-button:hover, .download-link:hover { text-decoration: underline; text-underline-offset: 4px; }
 
@@ -75,7 +33,7 @@ h1, h2, h3 { font-family: var(--heading-font); }
 .play-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex-shrink: 0; }
 .mode-badge { display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; font-size: 13px; font-weight: 600; color: var(--blue); background: #e0e9f8; border-radius: 20px; }
 .mode-badge::before { content: ""; width: 5px; height: 5px; background: currentColor; border-radius: 50%; }
-.game-category { font-size: 12px; color: var(--slate); }
+
 .game-stage { position: relative; width: 100%; height: clamp(300px, calc(100dvh - 450px), 650px); background: white; border: 1px solid #cbd6e3; border-radius: 20px; overflow: hidden; box-shadow: 0 8px 24px #23304408; }
 .game-stage > iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
 .empty-stage { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px; text-align: center; }
@@ -96,11 +54,11 @@ h1, h2, h3 { font-family: var(--heading-font); }
 .expanded-hint { font-size: 13px; color: var(--slate); }
 body.game-expanded { overflow: hidden; }
 body.game-expanded .topbar, body.game-expanded .library,
-body.game-expanded .controllers-panel, body.game-expanded .page-footer { visibility: hidden; }
+body.game-expanded .controllers-panel { visibility: hidden; }
 .play-area.is-expanded { position: fixed; inset: 0; z-index: 30; display: flex; flex-direction: column; padding: 16px 24px; background: var(--porcelain); }
 .play-area.is-expanded .play-heading { flex: 0 0 auto; min-height: 40px; margin-bottom: 12px; }
 .play-area.is-expanded .play-heading h1 { font-size: 24px; }
-.play-area.is-expanded .play-heading p, .play-area.is-expanded .game-category { display: none; }
+.play-area.is-expanded .play-heading p { display: none; }
 .play-area.is-expanded .play-meta { flex-direction: row; align-items: center; gap: 14px; }
 .play-area.is-expanded .game-stage { flex: 1 1 auto; min-height: 0; height: auto; }
 .play-area.is-expanded .game-toolbar { flex: 0 0 auto; }
@@ -149,9 +107,6 @@ body.game-expanded .controllers-panel, body.game-expanded .page-footer { visibil
 .quick-install-copy strong { display: block; font-family: var(--heading-font); font-size: 14px; font-weight: 800; line-height: 1.3; }
 .quick-install-copy p { margin: 5px 0; color: var(--slate); font-size: 12px; line-height: 1.4; }
 .quick-install-copy .text-button { min-height: 32px; font-size: 12px; }
-.page-footer { display: flex; gap: 24px; max-width: 1600px; margin: auto; padding: 0 32px 24px; font-size: 12px; color: var(--slate); }
-.page-footer span:nth-child(2) { margin-left: auto; }
-.page-footer a { color: var(--blue); }
 
 .input-lab { position: absolute; inset: 0; display: flex; flex-direction: column; padding: 24px; background: var(--porcelain); }
 .lab-title { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
@@ -185,8 +140,7 @@ dialog::backdrop { background: #23304466; }
 .close-button { display: grid; place-items: center; width: 44px; height: 44px; flex: 0 0 auto; border-radius: 12px; color: var(--slate); background: #e6edf5; font-size: 26px; }
 .close-button:hover { background: #d7e1ee; }
 .dialog-intro { font-size: 16px; color: var(--slate); margin: 0 0 24px; }
-body > .player-guide { width: min(calc(100% - 48px), 880px); margin: 20px auto 0; padding: 24px 28px; border: 1px solid #cbd6e3; border-radius: 20px; background: var(--porcelain); }
-body:is(.online-mode, .local-room, .game-expanded) > .player-guide { display: none; }
+
 .connection-layout { display: grid; grid-template-columns: minmax(0, 1fr) 238px; gap: 32px; align-items: start; }
 .install-card { padding: 22px; border: 1px solid #cfdcea; border-radius: 18px; background: #e9f0fa; text-align: center; }
 .install-card h3 { margin: 0; font-size: 17px; font-weight: 800; }
@@ -231,13 +185,6 @@ body:is(.online-mode, .local-room, .game-expanded) > .player-guide { display: no
 .keycap { display: inline-flex; align-items: center; min-height: 26px; padding: 2px 8px; border: 1px solid #c3d1e2; border-bottom-width: 2px; border-radius: 7px; background: #f3f6fb; color: var(--ink); font-family: var(--heading-font); font-size: 12px; font-weight: 700; white-space: nowrap; }
 .controls-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
 .controls-tip { flex: 1 1 260px; margin: 0; font-size: 13px; line-height: 1.5; color: var(--slate); }
-.workshop-stages { margin: 24px 0; padding-left: 27px; }
-.workshop-stages li { padding: 10px 0 10px 10px; font-size: 15px; color: var(--slate); }
-.workshop-stages li::marker { font-weight: 600; color: var(--blue); }
-.workshop-stages b { display: block; font-family: var(--heading-font); font-weight: 800; color: var(--ink); font-size: 16px; }
-.workshop-stages span { display: block; margin-top: 4px; }
-.dialog-downloads { display: flex; flex-wrap: wrap; gap: 12px; }
-
 .download-page { max-width: 900px; margin: 52px auto; padding: 0 28px; }
 .download-page h1 { margin: 36px 0 14px; font-size: clamp(30px, 4vw, 42px); font-weight: 800; letter-spacing: -1.2px; }
 .download-page .intro { color: var(--slate); font-size: 17px; line-height: 1.65; max-width: 640px; }
@@ -251,19 +198,7 @@ body:is(.online-mode, .local-room, .game-expanded) > .player-guide { display: no
 .download-platform .primary-button, .download-platform .secondary-button { margin: 8px 0; }
 .download-page .footer-note { color: var(--slate); font-size: 14px; line-height: 1.7; }
 
-@media (min-width: 1600px) {
-  .workspace { grid-template-columns: 260px minmax(0, 1fr); gap: 32px 40px; }
-  .game-card { grid-template-columns: 64px minmax(0, 1fr); }
-  .game-art { width: 64px; height: 72px; }
-}
 @media (max-width: 1100px) {
-  .topbar { gap: 24px; padding: 16px 24px; }
-  .top-actions { gap: 12px; }
-  .connection-count { display: none; }
-  .workspace { grid-template-columns: 205px minmax(0, 1fr); gap: 24px; padding: 24px; }
-  .game-card { grid-template-columns: 44px minmax(0, 1fr); gap: 10px; padding: 10px; }
-  .game-art { width: 44px; height: 54px; }
-  .game-card strong { font-size: 14px; }
   .player-card { padding: 14px; column-gap: 8px; }
   .pair-button { font-size: 12px; padding: 0 10px; gap: 6px; }
   .player-top p { max-width: 135px; }
@@ -273,53 +208,30 @@ body:is(.online-mode, .local-room, .game-expanded) > .player-guide { display: no
   .quick-install-copy p, .quick-install-copy .text-button { font-size: 14px; }
 }
 @media (max-width: 920px) {
-  .topbar { gap: 16px; padding: 8px 20px; min-height: 64px; }
-  .nav-item { padding-inline: 12px; }
-  .workspace { grid-template-columns: minmax(0, 1fr); gap: 18px; padding: 18px 20px; }
-  .library { grid-row: auto; }
-  .library .section-caption { display: none; }
-  .game-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(135px, 100%), 1fr)); margin-top: 8px; }
-  .game-card { grid-template-columns: auto minmax(0, 1fr); min-width: 0; background: #f3f6fa; border-color: var(--line); }
-  .game-card .card-description, .extension-card { display: none; }
   .controllers-panel { grid-column: 1; }
   .play-heading h1 { font-size: 27px; }
   .game-stage { height: clamp(330px, 52dvh, 580px); }
   .game-tools { flex-wrap: wrap; }
   .player-card { padding: 16px; }
-  .page-footer { padding: 0 20px 24px; }
+
   .preview-layout { grid-template-columns: 1fr; }
   .preview-copy { display: none; }
   #phonePreview { max-width: 400px; height: 75dvh; margin: auto; }
   .connection-layout { grid-template-columns: minmax(0, 1fr) 210px; gap: 24px; }
   .install-card { padding: 18px; }
 }
-@media (max-width: 700px) {
-  .topbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; }
-  .top-actions { grid-column: 2; grid-row: 1; gap: 6px; }
-  .workspace-links { grid-column: 1 / -1; grid-row: 2; flex-wrap: wrap; gap: 2px 6px; border-top: 1px solid var(--line); }
-  .connection-count { display: flex; }
-}
 @media (max-width: 560px) {
-  .topbar { padding: 8px 12px 4px; }
   .brand { font-size: 18px; gap: 8px; }
   .brand-icon { width: 38px; height: 38px; border-radius: 12px; }
   .brand small { font-size: 11px; }
-  .topbar nav { gap: 0; }
-  .nav-item { padding: 0 9px; font-size: 14px; }
-  .connection-count { font-size: 12px; }
+
   .connect-button { min-height: 44px; padding: 0 12px; font-size: 13px; }
-  .workspace { padding: 14px 12px; gap: 16px; }
-  .game-list { grid-template-columns: repeat(auto-fit, minmax(min(86px, 100%), 1fr)); gap: 6px; }
-  .game-card { grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; align-content: start; gap: 5px; padding: 8px 4px; }
-  .game-card.selected { box-shadow: inset 0 -3px var(--blue); }
-  .game-art { width: 48px; height: 36px; }
-  .art-remote svg { height: 34px; }
-  .game-card strong { font-size: 13px; }
+
   .play-heading { gap: 12px; }
   .play-heading h1 { font-size: 25px; }
   .play-heading p { font-size: 14px; }
   .play-meta { align-self: flex-start; }
-  .game-category { display: none; }
+
   .mode-badge { font-size: 12px; padding: 5px 8px; }
   .game-toolbar { gap: 6px; }
   .game-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; width: 100%; }
@@ -343,12 +255,10 @@ body:is(.online-mode, .local-room, .game-expanded) > .player-guide { display: no
   .lab-chip { min-width: 23px; height: 25px; padding: 0 4px; font-size: 11px; }
   .lab-buttons { gap: 3px; }
   .lab-state { display: none; }
-  .page-footer { flex-wrap: wrap; column-gap: 16px; row-gap: 6px; }
-  .page-footer span:nth-child(2) { margin-left: 0; }
+
   dialog { width: calc(100vw - 24px); padding: 20px; border-radius: 20px; }
   .dialog-heading h2 { font-size: 22px; }
-  body > .player-guide { width: calc(100% - 24px); margin-top: 12px; padding: 16px; }
-  body > .player-guide .install-card { display: none; }
+
   .connection-layout { grid-template-columns: 1fr; }
   .install-card { padding: 18px; }
   .download-qr { margin-top: 14px; }
@@ -364,12 +274,6 @@ body:is(.online-mode, .local-room, .game-expanded) > .player-guide { display: no
   :root[data-game="kart-racing"] body:not(.online-playing):not(.local-racing) .play-area:not(.is-expanded) .game-stage {
     height: clamp(490px, 65dvh, 660px);
   }
-}
-@media (max-width: 359px) {
-  .topbar .brand { font-size: 16px; gap: 5px; }
-  .topbar .brand-icon { width: 30px; height: 34px; }
-  .topbar .brand-icon svg { width: 24px; }
-  .topbar .connect-button, .nav-item { padding-inline: 6px; }
 }
 @media (max-width: 920px) and (max-height: 500px) {
   .play-area.is-expanded { padding: 4px 10px; }

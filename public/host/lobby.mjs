@@ -6,11 +6,11 @@ import { lobbyClient } from './lobby-client.mjs';
 const $=id=>document.getElementById(id);
 const gameNames={'fruit-ninja':'Fruit Ninja','kart-racing':'Mario Kart'};
 
-export function onlineLobby({select,inviteOrigin,adapter,current,paired,centerFruit,phonesReady}) {
+export function onlineLobby({select,channelMenu,inviteOrigin,adapter,current,paired,centerFruit,phonesReady}) {
   const peers=new Map(), finishedPeers=new Set();
   let socket=null,room=null,active=false,slot=-1,playing=false;
   let gameId=null,mount=null,loaded=false,round=null,started=null,startTimer,pump;
-  let reported=false,played=false,offset=0,localGame,returnTimer=null;
+  let reported=false,played=false,offset=0,returnTimer=null;
   let epoch=0,invite=new URL(location.href).searchParams.get('join'),notice='';
   const inviteOnly=Boolean(invite && invite.trim());
   if(inviteOnly)$('joinCode').value=invite.trim();
@@ -213,10 +213,6 @@ export function onlineLobby({select,inviteOrigin,adapter,current,paired,centerFr
     $('lobbyOutage').hidden=!active||!outage;
     if(outage)$('outageDetail').textContent=outage+' '+(playing?'Your connected match can continue.':'We’ll retry automatically. Local play is available.');
     $('onlineTitle').textContent='Online multiplayer';
-    for(const [id,selected] of [['playTab',!active],['onlineTab',active]]){
-      $(id).classList.toggle('active',selected);
-      if(selected)$(id).setAttribute('aria-current','page');else $(id).removeAttribute('aria-current');
-    }
     $('roomSetup').hidden=$('leaveRoom').hidden=!room;
     $('lobbyBrowser').hidden=!!room;
     $('createLobbyGroup').hidden=inviteOnly;
@@ -300,9 +296,11 @@ export function onlineLobby({select,inviteOrigin,adapter,current,paired,centerFr
   }
   async function open(){
     if(active)return;
-    active=true;localGame=current()?.id||'remote';const token=++epoch;
+    active=true;const token=++epoch;
     if(current()?.id!=='remote')void select('remote');
     render();directory([]);
+    $('onlineTitle').focus({preventScroll:true});
+    window.scrollTo(0,0);
     try{
       const client=await lobbyClient();
       if(token!==epoch)return;
@@ -334,12 +332,11 @@ export function onlineLobby({select,inviteOrigin,adapter,current,paired,centerFr
   function close(){
     ++epoch;active=false;
     socket?.disconnect();socket=null;clearRoom();outage=null;notice='';render();
-    void select(localGame||'remote');
   }
   $('onlineTab').hidden=false;$('onlineTab').onclick=open;
   $('retryLobby').onclick=()=>{if(socket)socket.retry();else {active=false;void open();}};
   $('retryPeer').onclick=()=>{noteActivity();notice='';for(const peer of peers.values())peer.retry();};
-  $('outageLocal').onclick=close;
+  $('outageLocal').onclick=channelMenu;
   let lastKartCapacity='8', lastKartBots='true';
   function updateCapacityLabels(select,kart,withBots) {
     for(const opt of select.options){

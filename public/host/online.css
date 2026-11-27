@@ -49,7 +49,7 @@ body.online-mode:not(.online-playing) #gameStage,body.online-mode:not(.online-pl
 body.online-mode .workspace {display:block;max-width:1064px}
 body.online-mode .player-dock {grid-template-columns:minmax(250px,1fr) auto}
 body.online-mode .quick-install {grid-column:auto;border-top:0}
-body.online-playing .topbar,body.online-playing #onlinePanel,body.online-playing .controllers-panel,body.online-playing .page-footer {display:none}
+body.online-playing .topbar,body.online-playing #onlinePanel,body.online-playing .controllers-panel {display:none}
 body.online-playing .play-area {position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;width:100vw;height:100dvh;padding:0;margin:0;background:#0b1322}
 body.online-playing #onlineMatchBar {flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 14px;min-height:48px;padding:6px 16px;background:#111c30;border-bottom:1px solid #263954;color:#eef4fb}
 .online-match-info {display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 14px;min-width:0}

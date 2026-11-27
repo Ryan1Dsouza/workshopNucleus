@@ -1,6 +1,7 @@
+import { openChannel } from './channels.mjs';
 // Real browser regressions for mouse ownership, two BLE lanes and lifecycle.
 // The caller supplies a page whose context has the simulated GATT fixture.
-function usePhoneClocks(){
+export function usePhoneClocks(){
   const start=performance.now();
   for(const phone of __fakeBle.phones){
     const base=phone.time;
@@ -14,7 +15,7 @@ export async function checkPendingPhoneStart(host,{screenshot}={}){
     await page.evaluate(usePhoneClocks);
     await page.click('#pair0');await page.waitForFunction(()=>__controllerkit.controllers.player(0).ready);
     await page.evaluate(()=>{__fakeBle.phones[0].writeDelay=60;__setupMotion=setInterval(()=>__fakeBle.phones[0].pose(0,0),16);});
-    await page.click('[data-game="fruit-ninja"]');await page.waitForFunction(()=>__controllerkit.adapter()?.api);
+    await openChannel(page,'fruit-ninja');await page.waitForFunction(()=>__controllerkit.adapter()?.api);
     const frame=page.frames().find(f=>f.url().includes('/games/fruit-ninja/index.html'));
     await page.click('#startGame');
     const waiting=await page.evaluate(()=>({ready:__controllerkit.controllers.player(0).ready,phase:__controllerkit.adapter().api.game.state.phase,badge:document.getElementById('modeBadge').textContent}));
@@ -35,7 +36,7 @@ export async function checkFruitGame(host) {
   try {
     await page.goto(new URL('/host/',host.url()).href);await page.waitForFunction(()=>window.__controllerkit);
     await page.evaluate(usePhoneClocks);
-    await page.click('[data-game="fruit-ninja"]');await page.waitForFunction(()=>__controllerkit.adapter()?.api);
+    await openChannel(page,'fruit-ninja');await page.waitForFunction(()=>__controllerkit.adapter()?.api);
     await page.selectOption('#roundDuration','120');
     let game=page.frames().find(frame=>frame.url().includes('/games/fruit-ninja/index.html'));
     check(await game.evaluate(()=>__openwii.rendererWarmup.programs>0&&__openwii.game.fruits.length===0&&__openwii.game.halves.length===0),'renderer warms materials before Play without spawning gameplay objects');
@@ -101,8 +102,8 @@ export async function checkFruitGame(host) {
     await page.click('#pair0');await page.waitForFunction(()=>__controllerkit.controllers.player(0).ready);
     await page.evaluate(()=>{__phoneStream=setInterval(()=>__fakeBle.phones[0].pose(0,0),16);});
     await page.waitForFunction(()=>__controllerkit.controllers.player(0).motion.pointer.live);
-    await page.click('[data-game="remote"]');await page.waitForFunction(()=>__controllerkit.current().id==='remote'&&__controllerkit.controllers.player(0).ready);
-    await page.click('[data-game="fruit-ninja"]');await page.waitForFunction(()=>__controllerkit.adapter()?.api&&__controllerkit.controllers.player(0).ready);
+    await openChannel(page,'remote');await page.waitForFunction(()=>__controllerkit.current().id==='remote'&&__controllerkit.controllers.player(0).ready);
+    await openChannel(page,'fruit-ninja');await page.waitForFunction(()=>__controllerkit.adapter()?.api&&__controllerkit.controllers.player(0).ready);
     game=page.frames().find(frame=>frame.url().includes('/games/fruit-ninja/index.html'));
     await page.click('#startGame');fruitId=await place();await sweep(fruitId);
     const firstPlayState=await game.evaluate(()=>({score:__openwii.game.state.score,paused:__openwii.game.paused,phase:__openwii.game.state.phase,cursor:__openwii.game.cursor}));

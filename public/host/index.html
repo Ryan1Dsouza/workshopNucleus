@@ -7,6 +7,7 @@
   <meta name="theme-color" content="#e9eef3">
   <title>ControllerKit · Play anything</title>
   <link rel="stylesheet" href="./host.css">
+  <link rel="stylesheet" href="./channels.css">
   <link rel="stylesheet" href="./online.css">
   <link rel="modulepreload" href="./hub.mjs">
   <link rel="modulepreload" href="../stage.mjs">
@@ -15,69 +16,60 @@
   <link rel="modulepreload" href="../games/catalog.mjs">
   <link rel="modulepreload" href="./lobby.mjs">
 </head>
-<body>
+<body class="console-host" data-view="channels">
   <header class="topbar">
-    <a class="brand" href="/host">
-      <span class="brand-icon" aria-hidden="true"><svg viewBox="0 0 28 28"><path d="M8 8h12c3 0 5 3 5 8 0 4-2 5-4 3l-3-3h-8l-3 3c-2 2-4 1-4-3 0-5 2-8 5-8Z"/><path d="M9 10v5m-2.5-2.5h5M19 11h.1M21 14h.1"/></svg></span>
-      <span>ControllerKit<small>Phone-powered play</small></span>
-    </a>
-    <div class="workspace-links">
-      <nav aria-label="Workspace">
-        <button class="nav-item active" id="playTab" aria-current="page">Local play</button>
-        <button class="nav-item" id="onlineTab">Online</button>
-        <button class="nav-item" id="workshopTab">Workshop</button>
-      </nav>
-      <span class="connection-count" id="connectionCount"><i aria-hidden="true"></i>0 / 2 controllers</span>
-    </div>
-    <div class="top-actions">
-      <button class="connect-button" id="controllersTab" aria-haspopup="dialog" aria-controls="connectionDialog">Connect phones</button>
-      <button class="icon-button" id="fullscreen" aria-label="Toggle fullscreen"><svg viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg></button>
-    </div>
+    <span class="brand"><span class="console-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>ControllerKit</span>
+    <nav aria-label="Console">
+      <button type="button" class="nav-item" id="playTab">Channel Menu</button>
+      <button type="button" class="connect-button" id="controllersTab" aria-haspopup="dialog" aria-controls="connectionDialog">Phone setup</button>
+    </nav>
   </header>
 
-  <section class="player-guide" id="playerGuide" aria-labelledby="connectionHeading" hidden>
-    <div class="dialog-heading">
-      <h2 id="connectionHeading">Use your phone as a controller</h2>
-      <button type="button" id="dismissPlayerGuide" class="close-button" aria-label="Close setup guide">×</button>
-    </div>
-    <div class="connection-layout">
-      <div class="connection-steps">
-        <ol>
-          <li><h3>Install the Android app</h3>
-            <p>Download the APK on your phone, open it and tap <b>Install</b>. If asked, allow your browser to install this app.</p>
-            <a class="primary-button" href="/downloads/air-slice-ble.apk" download>Download Android APK</a>
-          </li>
-          <li><h3>Start Bluetooth</h3>
-            <p>Open <b>ControllerKit</b> on your phone, tap <b>Start Bluetooth</b> and allow <b>Nearby devices</b> when prompted.</p>
-          </li>
-          <li><h3>Pair on your laptop</h3>
-            <p>Open this site in <b>Chrome</b> or <b>Edge</b>. Under <b>Player connections</b>, click <b>Connect phone</b>, select your phone, then choose a game.</p>
-          </li>
-        </ol>
-        <a class="text-button" href="/workshop/IPHONE-SETUP.md" download>iPhone setup instructions</a>
-      </div>
-      <aside class="install-card" aria-label="Android download QR code">
-        <h3>Scan with your phone</h3>
-        <div class="download-qr" id="downloadQr" aria-label="Android app download QR code"></div>
-        <a id="downloadLink" class="download-link" href="/downloads/" target="_blank" rel="noopener">Open download page<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8 4H4v12h12v-4M11 3h6v6M17 3l-9 9"/></svg></a>
-        <label class="address-label" id="addressLabel" hidden>Laptop address<select id="downloadAddress" aria-label="Laptop LAN address for downloads"></select></label>
-        <p class="install-caption" id="downloadCaption" hidden></p>
-      </aside>
-    </div>
-  </section>
-
   <main class="workspace">
-    <aside class="library" aria-label="Game library">
-      <div class="section-heading"><h2>Your games</h2><span id="libraryCount">0</span></div>
-      <p class="section-caption">Pick a game. Keep your controller.</p>
-      <div class="game-list" id="gameList"></div>
-      <div class="extension-card" id="extensionCard">
-        <span class="extension-icon" aria-hidden="true">+</span>
-        <h3>Build your next game</h3>
-        <p>Give it a profile. Play it with the same phone.</p>
-        <button id="extensionGuide" class="text-button">Open workshop guide</button>
+    <section class="library" aria-label="Channel Menu">
+      <h1 class="menu-title">Channel Menu</h1>
+      <div class="game-list" id="gameList">
+        <button type="button" id="onlineTab" class="channel-link channel-online" hidden>
+          <span class="game-art art-online" aria-hidden="true"><span class="channel-globe"><i></i><i></i></span></span>
+          <span class="game-info"><strong>Online Play</strong><span class="channel-detail">Public &amp; private lobbies</span></span>
+        </button>
       </div>
-    </aside>
+      <div class="console-bar">
+        <button type="button" id="showPlayers" class="system-button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="2" width="8" height="20" rx="3"/><path d="M10 7h4m-2-2v4m-1 5h2"/><circle cx="12" cy="18" r=".8"/></svg><span>Controllers<span class="connection-count" id="connectionCount">0 connected</span></span></button>
+        <time id="consoleClock"><span id="clockTime"></span><small id="clockDate"></small></time>
+        <button type="button" id="fullscreen" class="system-button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg>Fullscreen</button>
+      </div>
+      <section class="player-guide" id="playerGuide" aria-labelledby="connectionHeading" hidden>
+        <div class="dialog-heading">
+          <h2 id="connectionHeading">Use your phone as a controller</h2>
+          <button type="button" id="dismissPlayerGuide" class="close-button" aria-label="Close setup guide">×</button>
+        </div>
+        <div class="connection-layout">
+          <div class="connection-steps">
+            <ol>
+              <li><h3>Install the Android app</h3>
+                <p>Download the APK on your phone, open it and tap <b>Install</b>. If asked, allow your browser to install this app.</p>
+                <a class="primary-button" href="/downloads/air-slice-ble.apk" download>Download Android APK</a>
+              </li>
+              <li><h3>Start Bluetooth</h3>
+                <p>Open <b>ControllerKit</b> on your phone, tap <b>Start Bluetooth</b> and allow <b>Nearby devices</b> when prompted.</p>
+              </li>
+              <li><h3>Pair on your laptop</h3>
+                <p>Open this site in <b>Chrome</b> or <b>Edge</b>. Under <b>Player connections</b>, click <b>Connect phone</b>, select your phone, then choose a game.</p>
+              </li>
+            </ol>
+            <a class="text-button" href="/workshop/IPHONE-SETUP.md" download>iPhone setup instructions</a>
+          </div>
+          <aside class="install-card" aria-label="Android download QR code">
+            <h3>Scan with your phone</h3>
+            <div class="download-qr" id="downloadQr" aria-label="Android app download QR code"></div>
+            <a id="downloadLink" class="download-link" href="/downloads/" target="_blank" rel="noopener">Open download page<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8 4H4v12h12v-4M11 3h6v6M17 3l-9 9"/></svg></a>
+            <label class="address-label" id="addressLabel" hidden>Laptop address<select id="downloadAddress" aria-label="Laptop LAN address for downloads"></select></label>
+            <p class="install-caption" id="downloadCaption" hidden></p>
+          </aside>
+        </div>
+      </section>
+    </section>
 
     <section class="play-area" aria-label="Selected game">
       <aside id="lobbyOutage" class="lobby-outage" aria-label="Online play status" hidden>
@@ -97,7 +89,7 @@
       </section>
       <div class="online-match-bar" id="localMatchBar" hidden><strong>Mario Kart · Local room</strong><button class="secondary-button" id="localFullscreen">Fullscreen</button><button class="secondary-button" id="backLocalRoom">Return to room</button></div>
       <section class="online-panel" id="onlinePanel" aria-labelledby="onlineTitle" hidden>
-        <div class="online-heading"><h2 id="onlineTitle">Online multiplayer</h2><button class="text-button" id="leaveRoom" hidden>Leave lobby</button></div>
+        <div class="online-heading"><h2 id="onlineTitle" tabindex="-1">Online multiplayer</h2><button class="text-button" id="leaveRoom" hidden>Leave lobby</button></div>
         <p class="online-note" id="onlineNotice">Mario Kart supports 2–8 players (empty seats fill with bots) and Fruit Ninja supports 2. Online races require a direct connection between all laptops. If your network blocks it, switch Wi-Fi or try a mobile hotspot and retry.</p>
         <div id="lobbyBrowser">
           <div class="create-lobby"><label class="online-field">Your name<input id="onlineName" maxlength="32" autocomplete="nickname" placeholder="Enter your name" required></label>
@@ -141,8 +133,8 @@
         </div>
       </div>
       <div class="play-heading">
-        <div><h1 id="selectedTitle">Your phone. Every game.</h1><p id="selectedDescription">Connect a controller to get started.</p></div>
-        <div class="play-meta"><span class="mode-badge" id="modeBadge">Ready to pair</span><span class="game-category" id="gameCategory">Controller workspace</span><span class="expanded-hint" id="expandedHint" hidden>Esc to restore</span></div>
+        <div><h1 id="selectedTitle" tabindex="-1">Your phone. Every game.</h1><p id="selectedDescription">Connect a controller to get started.</p></div>
+        <div class="play-meta"><span class="mode-badge" id="modeBadge">Ready to pair</span><span class="expanded-hint" id="expandedHint" hidden>Esc to restore</span></div>
       </div>
       <div class="game-stage" id="gameStage">
         <div class="empty-stage"><span class="empty-controller" aria-hidden="true"><svg viewBox="0 0 28 28"><path d="M8 8h12c3 0 5 3 5 8 0 4-2 5-4 3l-3-3h-8l-3 3c-2 2-4 1-4-3 0-5 2-8 5-8Z"/><path d="M9 10v5m-2.5-2.5h5M19 11h.1M21 14h.1"/></svg></span><h2>Ready when you are.</h2><p>Install the phone app, start Bluetooth, then connect a player below.</p><button class="primary-button" id="emptyConnect" aria-haspopup="dialog">Get the phone app</button></div>
@@ -154,17 +146,17 @@
           <label>Timer<select id="roundDuration"><option value="60">1 minute</option><option value="120">2 minutes</option><option value="180">3 minutes</option><option value="0">No limit</option></select></label>
         </div>
         <div class="game-tools" id="gameTools" hidden><button class="secondary-button" id="createLocalRoom" hidden>Create local room</button><button class="primary-button" id="startGame" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 3 10 7-10 7Z"/></svg>Play</button><button class="secondary-button" id="pauseGame" disabled>Pause</button><button class="secondary-button" id="restartGame" disabled>Restart</button><button class="secondary-button" id="enlargeGame" aria-controls="gameStage" aria-pressed="false" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg><span id="enlargeLabel">Enlarge game</span></button></div>
-        <div id="notice" class="notice" role="status">Starting your workspace…</div>
+        <div id="notice" class="notice" role="status">Opening channel…</div>
         <div class="input-tools"><button class="keyboard-button" id="controlsButton" aria-haspopup="dialog" aria-controls="controlsDialog"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h.1M10 9h.1M14 9h.1M18 9h.1M6 12h.1M10 12h.1M14 12h.1M18 12h.1M7 15h10"/></svg>Controls guide</button><button id="previewButton" class="text-button" aria-haspopup="dialog">Preview controller</button></div>
       </div>
       <p class="game-note" id="gameHint">Pairing stays available while you switch games.</p>
     </section>
 
-    <aside class="controllers-panel" id="controllersPanel" aria-label="Player connections">
+    <aside class="controllers-panel" id="controllersPanel" tabindex="-1" aria-label="Player connections">
       <div class="section-heading"><h2>Player connections</h2><button class="text-button" id="appButton" aria-haspopup="dialog" aria-controls="connectionDialog">App QR & setup</button></div>
       <div class="player-dock">
         <article class="player-card" id="playerCard0">
-          <div class="player-top"><span class="player-avatar p1" aria-hidden="true">1</span><div><h3>Player 1</h3><p id="playerName0">No controller connected</p></div><span class="player-status" id="playerStatus0"><i aria-hidden="true"></i></span></div>
+          <div class="player-top"><span class="player-avatar p1" aria-hidden="true">1</span><div><h3>Player 1</h3><p id="playerName0">Unpaired</p></div><span class="player-status" id="playerStatus0"><i aria-hidden="true"></i></span></div>
           <p class="player-detail" id="playerDetail0">Start Bluetooth on your phone.</p>
           <button class="pair-button" id="pair0" aria-label="Connect phone for Player 1" disabled>Connect phone <span aria-hidden="true">+</span></button>
           <button class="text-button choose-phone" id="choosePhone0" hidden>Choose another phone</button>
@@ -172,7 +164,7 @@
           <div class="player-reading"><span id="reading0">Waiting for input</span><span id="latency0">—</span></div>
         </article>
         <article class="player-card" id="playerCard1">
-          <div class="player-top"><span class="player-avatar p2" aria-hidden="true">2</span><div><h3>Player 2</h3><p id="playerName1">No controller connected</p></div><span class="player-status" id="playerStatus1"><i aria-hidden="true"></i></span></div>
+          <div class="player-top"><span class="player-avatar p2" aria-hidden="true">2</span><div><h3>Player 2</h3><p id="playerName1">Unpaired</p></div><span class="player-status" id="playerStatus1"><i aria-hidden="true"></i></span></div>
           <p class="player-detail" id="playerDetail1">A second phone plays independently.</p>
           <button class="pair-button" id="pair1" aria-label="Connect phone for Player 2" disabled>Connect phone <span aria-hidden="true">+</span></button>
           <button class="text-button choose-phone" id="choosePhone1" hidden>Choose another phone</button>
@@ -186,8 +178,6 @@
       </div>
     </aside>
   </main>
-
-  <footer class="page-footer"><span>Local games. Bluetooth controls.</span><span id="stageLabel">Controller workshop</span><a href="/workshop/README.md" download>Workshop guide</a></footer>
 
   <dialog id="connectionDialog" aria-labelledby="connectionHeading"></dialog>
 
@@ -219,12 +209,6 @@
     </section>
   </dialog>
 
-  <dialog id="workshopDialog" aria-labelledby="workshopHeading">
-    <div class="dialog-heading"><h2 id="workshopHeading">Build it one layer at a time.</h2><button class="close-button" data-close="workshopDialog" aria-label="Close workshop guide">×</button></div>
-    <p class="dialog-intro">Use OmniRoute and OpenCode to build and explain each stage.</p>
-    <ol class="workshop-stages"><li><b>Host and pairing</b><span>Connect independent player slots over BLE.</span></li><li><b>Wii-style buttons</b><span>Handle presses and releases with a shared remote.</span></li><li><b>Motion and centering</b><span>Turn wrist rotation into calibrated input.</span></li><li><b>Profiles and adapters</b><span>Let games choose controls and consume common state.</span></li><li><b>Fruit Ninja</b><span>Connect the supplied game to the controller.</span></li><li><b>Your own game</b><span>Build with the extension template.</span></li><li><b>Verify and package</b><span>Check behavior and share a matching starter kit.</span></li></ol>
-    <div class="dialog-downloads"><a class="primary-button" href="/workshop/STAGE-PROMPTS.md" download>Download stage prompts</a><a class="secondary-button" href="/workshop/TEACHING-SCRIPT.md" download>Teaching script</a></div>
-  </dialog>
   <script src="/vendor/qrcode.min.js"></script>
   <script type="module" src="./hub.mjs"></script>
 </body>

@@ -1,8 +1,6 @@
 # ControllerKit
 
-A reusable Wii-style phone controller and a neutral laptop game dashboard. Native Android/iPhone bridges provide BLE and sensors; both apps host the same offline HTML/CSS interface. Games receive a shared controller state and choose their button labels, motion mode and actions through profiles.
-
-The workshop release includes Controller Lab, the supplied OpenWii Fruit Ninja game and a small extension template. Racing is a future attendee exercise.
+ControllerKit turns a phone into a Wii-style Bluetooth controller. Open the Channel Menu on your laptop to play Mario Kart or Fruit Ninja, test buttons and wrist motion in Controller Lab, or enter a lobby through Online Play.
 
 ## Run the complete application
 
@@ -22,9 +20,9 @@ npm start
 
 On macOS/Linux Bash or Zsh, use PORT=3001 npm start.
 
-Scan **Scan to install** beside Player connections, or click **Connect phones** for the larger QR and installation guide. Put the phone and laptop on the same Wi-Fi/hotspot, download the supplied [Android APK](public/downloads/air-slice-ble.apk), install it and open ControllerKit. Allow Nearby devices and start Bluetooth. Connect a player in the laptop's player dock, choose a game and center your grip. The QR is for app downloads; gameplay input uses BLE.
+Open **Phone setup** for the download QR and installation guide. For a locally hosted site, connect the phone to the laptop’s Wi-Fi or hotspot to download the app. Install the Android APK, open ControllerKit, allow Nearby devices, and start Bluetooth. On the laptop, select **Controllers**, then **Connect phone**. Choose a channel with the mouse, keyboard, or a paired phone’s D-pad and A button.
 
-Use **Enlarge game** beside Fruit Ninja's Play/Pause/Restart controls for a larger play surface. **Restore size** or Escape returns to the dashboard while preserving the round and paired phones.
+Use **Enlarge game** for a larger play surface. **Restore size** or Escape returns to the same round. Select **Channel Menu** to exit the channel and choose another.
 
 The [iPhone project](native/ios/README.md) needs a Mac, Xcode and signing before installation. Its source and shared UI are supplied; Windows checks do not establish an iOS build or physical Bluetooth readiness.
 

@@ -1,3 +1,4 @@
+import { openChannel } from './channels.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -27,9 +28,22 @@ try{
   await setup.getByRole('button',{name:'Close setup guide'}).click();
   await host.reload();await host.waitForFunction(()=>window.__controllerkit);
   assert.equal(await setup.isVisible(),false);
-  pass('first visit offers the Android APK and returning players go straight to the dashboard');
+  pass('first visit offers the Android APK and returning players go straight to the Channel Menu');
   await host.screenshot({path:path.join(output,'host-dashboard.png'),fullPage:true});
-  pass('neutral dashboard, input lab and LAN download QR load');
+  assert.deepEqual(await host.locator('#gameList strong').allTextContents(),['Mario Kart','Fruit Ninja','Controller Lab','Online Play']);
+  assert.equal(await host.locator('#gameStage').isVisible(),false);
+  assert.equal(await host.locator('#gameStage iframe').count(),0);
+  assert.equal(await host.getByRole('button',{name:/workshop/i}).count(),0);
+  for(const [width,height] of [[320,568],[390,844],[844,390]]){
+    await host.setViewportSize({width,height});
+    assert.equal(await host.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  }
+  await host.setViewportSize({width:1440,height:1000});
+  await host.locator('.game-card[data-game="kart-racing"]').focus();
+  await host.keyboard.press('ArrowDown');
+  assert.equal(await host.evaluate(()=>document.activeElement.dataset.game),'remote');
+  await host.keyboard.press('Enter');await host.locator('.lab-grid').waitFor();
+  pass('four channels open in player order and keyboard navigation launches Controller Lab');
   const labBox=await host.locator('.lab-grid').boundingBox();
   await host.mouse.move(labBox.x+labBox.width*.7,labBox.y+labBox.height*.3);
   await host.waitForFunction(()=>__controllerkit.adapter().players[0].dot.classList.contains('visible')&&Math.abs(__controllerkit.adapter().players[0].position.x-.7)<.01);
@@ -62,11 +76,20 @@ try{
   await host.evaluate(()=>__fakeBle.phones[0].buttons(0));await host.waitForFunction(()=>__controllerkit.controllers.player(0).mask===0);
   assert.equal(await host.evaluate(()=>__controllerkit.controllers.player(1).mask),32);
   pass('simultaneous buttons, releases and per-player isolation work');
+  await host.click('#playTab');
+  await host.evaluate(()=>__fakeBle.phones[0].buttons(8));
+  await host.waitForFunction(()=>document.activeElement.dataset.game==='fruit-ninja');
+  await host.evaluate(()=>__fakeBle.phones[0].buttons(2));
+  await host.waitForFunction(()=>document.activeElement.dataset.game==='remote');
+  await host.evaluate(()=>__fakeBle.phones[0].buttons(16));
+  await host.locator('.lab-grid').waitFor();
+  await host.evaluate(()=>__fakeBle.phones[0].buttons(0));
+  pass('a paired controller navigates the channels with its D-pad and opens the lab with A');
   await host.evaluate(()=>{for(const phone of __fakeBle.phones){phone.pose(0,0);phone.pose(1,60);phone.center(1,true);}});
   await host.waitForTimeout(80);
   assert.equal(await host.evaluate(()=>[...__controllerkit.controllers.players].every(player=>!player.motion.pointer.pending.cutting)),true);
   pass('captured-pose centering resets strokes in either arrival order');
-  await host.click('[data-game="fruit-ninja"]');await host.waitForFunction(()=>__controllerkit.adapter()?.api);
+  await openChannel(host,'fruit-ninja');await host.waitForFunction(()=>__controllerkit.adapter()?.api);
   await host.waitForFunction(()=>__fakeBle.granted.every(phone=>phone.profile.id==='fruit-ninja')&&[0,1].every(slot=>__controllerkit.controllers.player(slot).ready));
   assert.deepEqual(await host.evaluate(()=>__fakeBle.granted.map(phone=>phone.gatt.connects)),[3,1]);
   assert.equal(await host.evaluate(()=>__controllerkit.controllers.players.every(player=>player.mask===0)),true);
@@ -120,8 +143,8 @@ try{
   assert.equal(await host.evaluate(()=>__controllerkit.current().id),'fruit-ninja');
   assert.equal(await game.evaluate(()=>__openwii.game.state.score),roundScore);
   pass('game enlargement and iframe Escape preserve the round, Bluetooth profiles and clean stroke boundaries');
-  await host.click('#workshopTab');await host.keyboard.press('Escape');
-  await host.waitForFunction(()=>!document.getElementById('workshopDialog').open);
+  await host.click('#controlsButton');await host.keyboard.press('Escape');
+  await host.waitForFunction(()=>!document.getElementById('controlsDialog').open);
   assert.equal(await host.evaluate(()=>__controllerkit.current().id),'fruit-ninja');
   pass('dialog keyboard input preserves the selected game');
   const {checkFruitGame,checkPendingPhoneStart}=await import('./fruit-game.mjs');
@@ -181,7 +204,7 @@ try{
   assert.equal(await nativePhone.locator('#hapticsOption').isVisible(),false);
   await nativePhone.close();
   pass('phone native UI sends Center, cancels simultaneous touch, retains button fallback and exposes Stop in options');
-  await host.click('[data-game="remote"]');await host.waitForFunction(()=>__controllerkit.current()?.id==='remote'&&[0,1].every(slot=>__controllerkit.controllers.player(slot).ready));
+  await openChannel(host,'remote');await host.waitForFunction(()=>__controllerkit.current()?.id==='remote'&&[0,1].every(slot=>__controllerkit.controllers.player(slot).ready));
   await host.evaluate(()=>{__fakeBle.phones[1].buttons(32);__fakeBle.phones[0].gatt.disconnect();});
   await host.waitForFunction(()=>!__controllerkit.controllers.player(0).connected);
   assert.equal(await host.evaluate(()=>__controllerkit.controllers.player(1).connected&&__controllerkit.controllers.player(1).mask===32),true);
@@ -189,6 +212,7 @@ try{
   pass('disconnect/reconnect clears only that player and resynchronizes its profile');
   const compact=await context.newPage();compact.on('pageerror',error=>errors.push(error.message));await compact.setViewportSize({width:1366,height:768});
   await compact.goto(origin+'/host');await compact.waitForFunction(()=>window.__controllerkit);
+  await openChannel(compact,'remote');await compact.locator('.lab-player').first().waitFor();
   assert.equal(await compact.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   assert.equal(await compact.evaluate(()=>{const stage=document.getElementById('gameStage').getBoundingClientRect();return [...document.querySelectorAll('.lab-player')].every(row=>row.getBoundingClientRect().bottom<=stage.bottom);}),true);
   await compact.screenshot({path:path.join(output,'host-laptop.png'),fullPage:true});

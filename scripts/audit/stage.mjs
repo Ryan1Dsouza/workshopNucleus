@@ -1,3 +1,5 @@
+import { openChannel } from './channels.mjs';
+import { checkFruitGame, checkPendingPhoneStart, usePhoneClocks } from './fruit-game.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -19,24 +21,26 @@ try{
   browser=await chromium.launch(browserOptions());const context=await browser.newContext({viewport:{width:1366,height:950}});
   await context.addInitScript(installFakeBluetooth);host=await context.newPage();host.on('pageerror',error=>errors.push(error.message));
   await host.goto(origin+'/host');await host.waitForFunction(()=>window.__controllerkit);
+  await host.evaluate(usePhoneClocks);
   assert.equal(await host.evaluate(()=>Number(document.documentElement.dataset.stage)),stage);
   assert.equal(await host.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   for(const slot of [0,1]){
     await host.evaluate(slot=>{__fakeBle.next=slot;if(slot===0)__fakeBle.phones[0].connectFailures=[new DOMException('Connection attempt failed.','NetworkError')];},slot);await host.click('#pair'+slot);
     await host.waitForFunction(slot=>__controllerkit.controllers.player(slot).ready,slot);
   }
-  assert.deepEqual(await host.evaluate(()=>({pickers:__fakeBle.requests.length,connections:__fakeBle.phones.map(p=>p.gatt.connects)})),{pickers:2,connections:[2,1]});
+  assert.deepEqual(await host.evaluate(()=>({pickers:__fakeBle.requests.length,connections:__fakeBle.granted.map(p=>p.gatt.connects)})),{pickers:2,connections:[2,1]});
   pass('first-pairing transient failure retries once with the selected phone and no second picker');
   await host.evaluate(async()=>{__controllerkit.ble.disconnect(0);await __controllerkit.ble.connect(0);});
   await host.waitForFunction(()=>__controllerkit.controllers.player(0).ready);
-  assert.deepEqual(await host.evaluate(()=>({pickers:__fakeBle.requests.length,connections:__fakeBle.phones.map(p=>p.gatt.connects)})),{pickers:2,connections:[3,1]});
+  assert.deepEqual(await host.evaluate(()=>({pickers:__fakeBle.requests.length,connections:__fakeBle.granted.map(p=>p.gatt.connects)})),{pickers:2,connections:[3,1]});
   pass('reconnecting the saved phone reuses browser permission without reopening pairing');
-  assert.deepEqual(await host.evaluate(()=>__fakeBle.phones.map(phone=>phone.profile.player)),[1,2]);
-  assert.equal(await host.evaluate(()=>__fakeBle.phones.every(phone=>phone.profile.motion==='none')), !features.motion);
-  assert.equal(await host.evaluate(()=>__fakeBle.phones.every(phone=>phone.profile.controls.length>0)),features.buttons);
+  assert.deepEqual(await host.evaluate(()=>__fakeBle.granted.map(phone=>phone.profile.player)),[1,2]);
+  assert.equal(await host.evaluate(()=>__fakeBle.granted.every(phone=>phone.profile.motion==='none')), !features.motion);
+  assert.equal(await host.evaluate(()=>__fakeBle.granted.every(phone=>phone.profile.controls.length>0)),features.buttons);
   pass('neutral host and two isolated simulated BLE connections work at Stage '+stage);
   if(!features.buttons){assert.equal(await host.locator('.game-card').count(),0);assert.equal(await host.locator('#previewButton').isVisible(),false);}
   else{
+    await openChannel(host,'remote');await host.locator('.lab-grid').waitFor();
     await host.evaluate(()=>{__fakeBle.phones[0].buttons(24);__fakeBle.phones[1].buttons(32);});
     await host.waitForFunction(()=>__controllerkit.controllers.player(0).mask===24&&__controllerkit.controllers.player(1).mask===32);
     await host.evaluate(()=>__fakeBle.phones[0].buttons(0));await host.waitForFunction(()=>__controllerkit.controllers.player(0).mask===0);
@@ -65,9 +69,9 @@ try{
   }
   if(features.profiles){assert.equal(await host.evaluate(()=>typeof __controllerkit.registerGame),'function');pass('profile catalog and reusable adapter registry are available');}
   if(features.fruit){
-    await host.click('[data-game="fruit-ninja"]');await host.waitForFunction(()=>__controllerkit.adapter()?.api);
-    await host.waitForFunction(()=>__controllerkit.controllers.players.every(player=>player.ready)&&__fakeBle.phones.every(phone=>phone.profile.id==='fruit-ninja'));
-    assert.deepEqual(await host.evaluate(()=>__fakeBle.phones.map(phone=>phone.gatt.connects)),[3,1]);
+    await openChannel(host,'fruit-ninja');await host.waitForFunction(()=>__controllerkit.adapter()?.api);
+    await host.waitForFunction(()=>[0,1].every(slot=>__controllerkit.controllers.player(slot).ready)&&__fakeBle.granted.every(phone=>phone.profile.id==='fruit-ninja'));
+    assert.deepEqual(await host.evaluate(()=>__fakeBle.granted.map(phone=>phone.gatt.connects)),[3,1]);
     await host.click('#enlargeGame');
     await host.waitForFunction(()=>document.querySelector('.play-area').classList.contains('is-expanded'));
     await host.evaluate(()=>__fakeBle.phones[0].buttons(16));await host.waitForFunction(()=>__controllerkit.adapter().api.game.paused===false);
@@ -81,17 +85,16 @@ try{
     for(const angle of [8,4,0,-4,-8,-12]){await host.evaluate(angle=>__fakeBle.phones[0].pose(angle,250),angle);await host.waitForTimeout(25);}
     await game.waitForFunction(previous=>__openwii.game.state.score>previous,score);
     pass('BLE button starts enlarged Fruit Ninja and BLE motion slices a real rendered fruit through the adapter');
-    const {checkFruitGame,checkPendingPhoneStart}=await import('./fruit-game.mjs');
     for(const check of await checkPendingPhoneStart(host))pass(check);
     for(const check of await checkFruitGame(host))pass(check);
     if(!features.extension){await host.click('#enlargeGame');await host.waitForFunction(()=>!document.querySelector('.play-area').classList.contains('is-expanded'));}
   }else assert.equal(await host.locator('[data-game="fruit-ninja"]').count(),0);
   if(features.extension){
     await host.evaluate(async()=>{const {BUTTON_COUNTER_GAME}=await import('/games/extension-template/adapter.mjs');__controllerkit.registerGame(BUTTON_COUNTER_GAME);await __controllerkit.select('button-counter');});
-    await host.waitForFunction(()=>__controllerkit.controllers.players.every(player=>player.ready)&&__fakeBle.phones.every(phone=>phone.profile.id==='button-counter'));
+    await host.waitForFunction(()=>[0,1].every(slot=>__controllerkit.controllers.player(slot).ready)&&__fakeBle.granted.every(phone=>phone.profile.id==='button-counter'));
     await host.evaluate(()=>__fakeBle.phones[0].buttons(16));await host.waitForFunction(()=>__controllerkit.adapter().value===1);
-    await host.evaluate(()=>__fakeBle.phones[0].buttons(0));await host.click('[data-game="remote"]');
-    await host.waitForFunction(()=>__controllerkit.current().id==='remote'&&__controllerkit.controllers.players.every(player=>player.ready));
+    await host.evaluate(()=>__fakeBle.phones[0].buttons(0));await openChannel(host,'remote');
+    await host.waitForFunction(()=>__controllerkit.current().id==='remote'&&[0,1].every(slot=>__controllerkit.controllers.player(slot).ready));
     assert.equal(await host.locator('iframe[title="Fruit Ninja game"]').count(),0);
     pass('extension template changes phone orientation/actions and disposes the previous game');
   }

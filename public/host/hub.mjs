@@ -7,10 +7,7 @@ import { downloadOrigins } from './download-origin.js';
 
 const $=id=>document.getElementById(id);
 document.documentElement.dataset.stage=stage;
-$('stageLabel').textContent='Workshop · Stage '+stage;
 $('controlsButton').hidden=$('previewButton').hidden=!features.buttons;
-$('extensionCard').hidden=!features.extension;
-$('onlineTab').hidden=!features.fruit;
 const [motionMod,registryMod,catalogMod,lobbyMod]=await Promise.all([
   features.motion?import('../core/motion-input.js'):null,
   features.profiles?import('../core/game-registry.js'):null,
@@ -23,6 +20,7 @@ const controllers=new ControllerState({slots:8,createMotion:MotionInput?()=>new 
 let splitAim=false, online=null, couch=null;
 function resizePointers() {
   const stage=$('gameStage');
+  if(!stage.clientWidth || !stage.clientHeight)return;
   for(const player of controllers.players)player.motion?.pointer.setViewport(stage.clientWidth/(splitAim?2:1),stage.clientHeight);
 }
 function centerFruit(split) {
@@ -46,7 +44,7 @@ function setExpanded(value){
   value=!!value&&!!current&&current.id!=='remote';
   if(value===expanded)return;
   expanded=value;playArea.classList.toggle('is-expanded',value);document.body.classList.toggle('game-expanded',value);
-  for(const panel of document.querySelectorAll('.topbar,.library,.controllers-panel,.page-footer'))panel.inert=value;
+  for(const panel of document.querySelectorAll('.topbar,.library,.controllers-panel'))panel.inert=value;
   $('enlargeLabel').textContent=value?'Restore size':'Enlarge game';$('enlargeGame').setAttribute('aria-pressed',String(value));$('expandedHint').hidden=!value;
   if(value&&!document.fullscreenElement&&playArea.requestFullscreen)void playArea.requestFullscreen().catch(()=>{});
   if(!value&&document.fullscreenElement===playArea)void document.exitFullscreen?.().catch(()=>{});
@@ -152,16 +150,45 @@ function setCurrentProfile(next, overrides){
   previewProfile();
 }
 function renderCard(game){
-  const button=document.createElement('button');button.className='game-card';button.dataset.game=game.id;
-  button.type='button';button.setAttribute('aria-pressed','false');
+  const button=document.createElement('button');button.className='game-card channel-link channel-'+game.art;button.dataset.game=game.id;
+  button.type='button';
   const art=document.createElement('div');art.className='game-art art-'+game.art;
   art.setAttribute('aria-hidden','true');
-  if(game.art==='remote')art.innerHTML='<svg viewBox="0 0 80 80" aria-hidden="true"><rect x="27" y="8" width="27" height="64" rx="10"/><path d="M36 21h9m-4.5-4.5v9M35 43h11"/><circle cx="40.5" cy="34" r="4"/><circle cx="40.5" cy="53" r="3"/><circle cx="40.5" cy="62" r="3"/></svg>';
+  if(game.art==='remote')art.innerHTML='<span class="remote-shell"><i></i><i></i><i></i></span>';
   button.append(art);
   const info=document.createElement('span');info.className='game-info';
-  for(const [tag,className,text]of[['strong','',game.title||game.profile.title],['span','card-description',game.description||game.profile.instruction]]){const element=document.createElement(tag);element.className=className;element.textContent=text;info.append(element);}
+  const detail={kart:'Stadium racing',fruit:'Motion slicing',remote:'Buttons & motion'}[game.art] || game.category;
+  for(const [tag,className,text]of[['strong','',game.title||game.profile.title],['span','channel-detail',detail]]){const element=document.createElement(tag);element.className=className;element.textContent=text;info.append(element);}
   button.append(info);
-  button.addEventListener('click',()=>{if(!online?.active)void select(game.id);});$('gameList').append(button);
+  button.addEventListener('click',()=>{if(!online?.active)void openChannel(game.id);});$('gameList').insertBefore(button,$('onlineTab'));
+}
+function openChannel(id){
+  if(!games.some(game=>game.id===id))return;
+  document.body.dataset.view='channel';
+  window.scrollTo(0,0);
+  const mounted=id==='remote' && current?.id===id && document.documentElement.dataset.game===id;
+  const loading=mounted ? Promise.resolve() : select(id);
+  $('selectedTitle').focus({preventScroll:true});
+  return loading;
+}
+function channelMenu(){
+  const tile=online?.active ? $('onlineTab') : [...$('gameList').children].find(card=>card.dataset.game===document.documentElement.dataset.game);
+  if(online?.active)online.close();
+  couch?.close();
+  setExpanded(false);
+  document.body.dataset.view='channels';
+  if(games.length && document.documentElement.dataset.game!=='remote')void select('remote');
+  tile?.focus({preventScroll:true});
+  window.scrollTo(0,0);
+}
+function navigateChannels(direction){
+  const tiles=[...$('gameList').querySelectorAll('button:not([hidden])')];
+  if(!tiles.length)return;
+  const index=tiles.indexOf(document.activeElement);
+  if(direction==='accept'){tiles[Math.max(0,index)].click();return;}
+  const cols=getComputedStyle($('gameList')).gridTemplateColumns.split(' ').length;
+  const step={left:-1,right:1,up:-cols,down:cols}[direction];
+  tiles[index<0?0:Math.max(0,Math.min(tiles.length-1,index+step))].focus();
 }
 async function select(id){
   const game=games.find(entry=>entry.id===id);if(!game)return;
@@ -172,8 +199,7 @@ async function select(id){
   phoneMenu=null;menuButtons=null;menuProfiles=new WeakSet();
   const version=++selection;paused=true;setCurrentProfile(game.profile);
   document.documentElement.dataset.game=id;
-  $('selectedTitle').textContent=game.title;$('gameCategory').textContent=game.category?.toLowerCase().replace(/^./,letter=>letter.toUpperCase())||'Your game';$('selectedDescription').textContent=game.description;
-  for(const card of document.querySelectorAll('.game-card')){const selected=card.dataset.game===id;card.classList.toggle('selected',selected);card.setAttribute('aria-pressed',String(selected));}
+  $('selectedTitle').textContent=game.title;$('selectedDescription').textContent=game.description;
   $('modeBadge').textContent=id==='remote'?'Live input':'Ready to play';
   $('startGame').disabled=$('pauseGame').disabled=$('restartGame').disabled=true;
   $('enlargeGame').disabled=true;
@@ -239,7 +265,12 @@ if(features.profiles){
   const {ControllerLab}=await import('../games/controller-lab/adapter.mjs');
   games=[{id:'remote',title:'Controller Lab',category:'INPUT LAB',art:'remote',badge:'Buttons'+(features.motion?' + motion':''),description:'Test every button'+(features.motion?' and wrist movement.':'.'),profile,create:()=>new ControllerLab()}];
 }
-function renderLibrary(){ $('gameList').replaceChildren();for(const game of games)renderCard(game);$('libraryCount').textContent=games.length;for(const card of document.querySelectorAll('.game-card')){const selected=card.dataset.game===current?.id;card.classList.toggle('selected',selected);card.setAttribute('aria-pressed',String(selected));} }
+function renderLibrary(){
+  $('gameList').querySelectorAll('.game-card').forEach(card=>card.remove());
+  const order=['kart-racing','fruit-ninja','remote'];
+  for(const id of order){const game=games.find(g=>g.id===id);if(game)renderCard(game);}
+  for(const game of games)if(!order.includes(game.id))renderCard(game);
+}
 function registerGame(game){if(!registry)throw new Error('Game registration is available from Stage 4.');registry.register(game);games=registry.list();renderLibrary();return registry;}
 renderLibrary();
 for(const slot of [0,1]){
@@ -264,7 +295,7 @@ function renderPlayers(now){
   const diagnostics=ble.diagnostics(now);
   for(const slot of [0,1]){
     const player=controllers.player(slot),record=ble.devices.get(slot),metric=diagnostics.find(item=>item.slot===slot);
-    $('playerName'+slot).textContent=player.connected?player.name:'No controller connected';
+    $('playerName'+slot).textContent=player.connected?player.name:'Unpaired';
     $('playerStatus'+slot).classList.toggle('connected',player.connected);
     $('playerCard'+slot).classList.toggle('is-connected',player.connected);
     $('playerDetail'+slot).textContent=deviceText[slot];
@@ -275,8 +306,8 @@ function renderPlayers(now){
     $('reading'+slot).textContent=player.connected?(player.ready?(player.motion?.pointer.live?'Wrist motion live':'Buttons ready'):controlsFailed[slot]?'Controls unavailable':'Preparing controls'):'Waiting for input';
     $('latency'+slot).textContent=metric?.rtt?.median!==undefined?Math.round(metric.rtt.median)+' ms RTT':record?'BLE':player.connected?'Desktop':'—';
   }
-  const count=controllers.players.filter(player=>player.connected).length;
-  $('connectionCount').lastChild.textContent=count+' / '+(couch?.active?couch.capacity:2)+' controllers';
+  const count=controllers.players.filter(player=>ble.connected(player.slot)).length;
+  $('connectionCount').textContent=count+' connected';
   couch?.render();
   $('connectionCount').classList.toggle('has-controllers',count>0);
 }
@@ -298,7 +329,15 @@ function frame(now){
       }
       continue;
     }
-    if(current?.id!=='remote'&&state.pressedActions.home){void select('remote');continue;}
+    if(document.body.dataset.view==='channels'){
+      if(slot===0 && ble.connected(0) && !document.querySelector('dialog[open]')){
+        const direction=['left','right','up','down'].find(id=>state.pressed[id]);
+        if(direction)navigateChannels(direction);
+        else if(state.pressed.a || state.pressed.two)navigateChannels('accept');
+      }
+      continue;
+    }
+    if(current?.id!=='remote' && state.pressedActions.home){channelMenu();continue;}
     if(current?.id!=='remote'&&state.pressedActions.pause)togglePause();
     adapter?.input(slot,state);
   }
@@ -313,12 +352,19 @@ window.addEventListener('keydown',event=>{
   if(couch?.active)return;
   if(event.target.closest('input,textarea,select')||online?.active&&(!online.playing||event.key==='Escape'))return;
   if(document.querySelector('dialog[open]'))return;
+  if(!online?.active && document.body.dataset.view==='channels'){
+    if(event.target.closest('#gameList') || event.target===document.body){
+      const direction={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down',KeyZ:'accept'}[event.code];
+      if(direction){event.preventDefault();if(!event.repeat)navigateChannels(direction);}
+    }
+    return;
+  }
   if (adapter?.handleKey && !(['Enter','Space'].includes(event.code) && event.target.closest('button,a'))) {
     if (adapter.handleKey(event)) return;
   }
   if(event.repeat)return;
   if(event.key.toLowerCase()==='c'&&features.motion){controllers.center(0,{});return;}
-  if(event.key==='Escape'){if(current?.id!=='remote')void select('remote');return;}
+  if(event.key==='Escape'){channelMenu();return;}
   const id=keyMap[event.key]||keyMap[event.key.toLowerCase()];if(!id||!features.buttons||!enableDemo())return;
   event.preventDefault();demoButtons.press(id,event.code);
 });
@@ -512,8 +558,16 @@ $('dismissPlayerGuide').addEventListener('click',()=>{
   }
 });
 $('roundPlayers').addEventListener('change',()=>{if(!online?.active && current?.id==='fruit-ninja')adapter.configure(roundOptions());});
-$('playTab').addEventListener('click',()=>{if(online?.active)online.close();else $('gameStage').scrollIntoView({block:'center'});});
-for(const id of ['workshopTab','extensionGuide'])$(id).addEventListener('click',()=>$('workshopDialog').showModal());
+$('playTab').addEventListener('click',channelMenu);
+$('showPlayers').addEventListener('click',()=>{$('controllersPanel').focus();$('controllersPanel').scrollIntoView({block:'center'});});
+const clockTime=new Intl.DateTimeFormat(undefined,{hour:'numeric',minute:'2-digit'});
+const clockDate=new Intl.DateTimeFormat(undefined,{weekday:'short',month:'short',day:'numeric'});
+function showTime(){
+  const now=new Date();$('consoleClock').dateTime=now.toISOString();
+  $('clockTime').textContent=clockTime.format(now);$('clockDate').textContent=clockDate.format(now);
+  setTimeout(showTime,60000-now.getSeconds()*1000-now.getMilliseconds());
+}
+showTime();
 for(const button of document.querySelectorAll('[data-close]'))button.addEventListener('click',()=>$(button.dataset.close).close());
 for(const dialog of document.querySelectorAll('dialog'))dialog.addEventListener('click',event=>{if(event.target!==dialog)return;const box=dialog.getBoundingClientRect();if(event.clientX<box.left||event.clientX>box.right||event.clientY<box.top||event.clientY>box.bottom)dialog.close();});
 $('previewDialog').addEventListener('close',()=>{previewMask=0;submitDemo();});
@@ -521,7 +575,7 @@ $('phonePreview').addEventListener('load',previewProfile);
 $('previewButton').addEventListener('click',()=>{if(!$('phonePreview').getAttribute('src'))$('phonePreview').src='/controller?preview=1';$('previewDialog').showModal();previewProfile();});
 let inviteOrigin=location.origin;
 if(lobbyMod) {
-  online=lobbyMod.onlineLobby({select,inviteOrigin:()=>inviteOrigin,adapter:()=>adapter,current:()=>current,paired:()=>ble.connected(0),centerFruit,
+  online=lobbyMod.onlineLobby({select,channelMenu,inviteOrigin:()=>inviteOrigin,adapter:()=>adapter,current:()=>current,paired:()=>ble.connected(0),centerFruit,
     phonesReady:()=>!ble.has(0)||controllers.player(0).ready});
 }
 if(features.fruit && games.some(g=>g.id==='kart-racing')){
@@ -540,9 +594,9 @@ if(!joiningOnline){
   }catch{playerGuide.hidden=false;}
 }
 if(joiningOnline)void online.open();
-else if(!games.length){notice('The Bluetooth host is ready. Install the app, then connect a player.');$('gameList').textContent='Connect your phone to get started.';}
+else if(!games.length){notice('The Bluetooth host is ready. Install the app, then connect a player.');}
 else if(!selection)void select('remote');
-window.__controllerkit={controllers,ble,online,couch,registry,registerGame,profile:()=>profile,current:()=>current,adapter:()=>adapter,select,play,togglePause,enableDemo,stage,features};
+window.__controllerkit={controllers,ble,online,couch,registry,registerGame,profile:()=>profile,current:()=>current,adapter:()=>adapter,select:openChannel,play,togglePause,enableDemo,stage,features};
 try{
   const info=staticSite?{}:await fetch('/connection-info').then(response=>response.json()),origins=downloadOrigins(info,location);
   for(const origin of origins){const option=document.createElement('option');option.value=origin;option.textContent=origin;$('downloadAddress').append(option);}
