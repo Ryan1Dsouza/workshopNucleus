@@ -145,7 +145,7 @@ function racerWallBounds(racer, time) {
   return {min, max};
 }
 export class Race {
-  constructor({ seed = 381, character = "mario", laps = 3, drivers, names, slot=0, bots = true, onEvent = () => {} } = {}) {
+  constructor({ seed = 381, character = "mario", laps = 3, drivers, names, slot=0, localParty = false, bots = true, onEvent = () => {} } = {}) {
     this.laps = laps === 1 ? 1 : 3;
     this.bots = !!bots;
     this.finishedAt = null;
@@ -164,7 +164,7 @@ export class Race {
       const racer = makeRacer(driver,i,grid);
       if (drivers) {
         racer.ownerSlot = i<humans.length ? i : 0;
-        racer.remote = racer.ownerSlot !== slot;
+        racer.remote = !localParty && racer.ownerSlot !== slot;
         if (i < humans.length && Array.isArray(names) && typeof names[i] === 'string' && names[i].trim()) {
           racer.playerName = names[i].trim();
         }
@@ -177,13 +177,14 @@ export class Race {
       this.racers.forEach((r,i)=>{r.id=i;});
     }
     this.player = this.racers[0];
+    this.localHumans = this.racers.slice(0, localParty ? humans.length : 1);
+    this.localInputs = this.localHumans.map(() => ({}));
     this.objects = [];
     this.nextId = 1;
     this.finishOrder = [];
     this.boxes = ITEM_ROWS.map((p, id) => ({ ...p, id, respawn: 0 }));
     this.coins = COIN_SPOTS.map((p, id) => ({ ...p, id, respawn: 0 }));
     this.count = 3;
-    this.pendingItem = false;
   }
   emit(type, racer = this.player, extra = {}) {
     this.onEvent({ type, racer: racer.id, time: this.time, ...extra });
@@ -218,10 +219,14 @@ export class Race {
       return;
     // A long background stall pauses instead of running a race without the driver.
     this.accumulator += Math.min(dt, 0.25);
-    if (input.item) this.pendingItem = true;
+    for (const r of this.localHumans) {
+      const latest = Array.isArray(input) ? input[r.id] || {} : input;
+      const snapshot = this.localInputs[r.id], item = snapshot.item || latest.item;
+      Object.assign(snapshot, {gas:false, brake:false, steer:0, drift:false, measuredWheel:false}, latest, {item});
+    }
     while (this.accumulator + 1e-10 >= FIXED_DT) {
-      this.step(FIXED_DT, { ...input, item: this.pendingItem });
-      this.pendingItem = false;
+      this.step(FIXED_DT, this.localInputs[0]);
+      for (const snapshot of this.localInputs) snapshot.item = false;
       this.accumulator -= FIXED_DT;
     }
   }
@@ -231,10 +236,12 @@ export class Race {
     }
     this.time += dt;
     if (this.state === "countdown") {
-      if (input.gas && !this.player.lastInput.gas)
-        this.player.gasDownAt = this.time;
-      if (!input.gas) this.player.gasDownAt = null;
-      this.player.lastInput = { ...input };
+      for (const r of this.localHumans) {
+        const controls = r.id === 0 ? input : this.localInputs[r.id];
+        if (controls.gas && !r.lastInput.gas) r.gasDownAt = this.time;
+        if (!controls.gas) r.gasDownAt = null;
+        r.lastInput = {...controls};
+      }
       const n = Math.max(0, 3 - Math.floor(this.time));
       if (n !== this.count) {
         this.count = n;
@@ -244,15 +251,13 @@ export class Race {
       this.state = "racing";
       this.count = 0;
       this.emit("go");
-      const held =
-        this.player.gasDownAt === null ? 0 : 3 - this.player.gasDownAt;
-      if (held >= 0.7 && held <= 1.5) {
-        this.player.boost = 1.8;
-        this.player.speed = 24;
-        this.emit("rocket");
-      } else if (held > 1.8) {
-        this.player.spin = 1.05;
-        this.emit("burnout");
+      for (const r of this.localHumans) {
+        const held = r.gasDownAt === null ? 0 : 3 - r.gasDownAt;
+        if (held >= 0.7 && held <= 1.5) {
+          r.boost = 1.8; r.speed = 24; this.emit("rocket", r);
+        } else if (held > 1.8) {
+          r.spin = 1.05; this.emit("burnout", r);
+        }
       }
     }
     this.raceTime += dt;
@@ -261,8 +266,8 @@ export class Race {
     const oldProgress = new Map(this.racers.map((r) => [r.id, r.progress]));
     for (const r of this.racers) {
       if(r.remote)continue;
-      const auto = r.id !== 0 || r.finishTime !== null;
-      this.move(r, auto ? this.cpuInput(r) : input, dt, auto);
+      const auto = r.id >= this.localHumans.length || r.finishTime !== null;
+      this.move(r, auto ? this.cpuInput(r) : r.id === 0 ? input : this.localInputs[r.id], dt, auto);
     }
     this.collisions(dt, oldProgress);
     this.updateObjects(dt, oldProgress);
@@ -271,14 +276,14 @@ export class Race {
       .filter((r) => r.finishTime !== null)
       .sort((a, b) => a.finishTime - b.finishTime)
       .map((r) => r.id);
-    if (this.player.finishTime !== null && this.state === "racing") {
+    if (this.state === "racing" && this.localHumans.every(r => r.finishTime !== null)) {
       this.state = "finishing";
       this.finishedAt = this.time;
       this.emit("finish");
     }
     if (
       this.state === "finishing" &&
-      this.finishOrder.length === 8
+      this.finishOrder.length === this.racers.length
     ) {
       this.showResults();
     }

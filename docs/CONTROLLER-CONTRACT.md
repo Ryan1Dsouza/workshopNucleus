@@ -35,7 +35,7 @@ After a successful verified connection, the host remembers that phone's id for i
 
 Quaternion components use ±32767 and are normalized on decode. Speed uses 0.01 degrees/second. Motion flags bit 0 means active and bit 1 means fresh gyro. Capture clocks and sequence numbers unwrap independently.
 
-Android 2.0.7 bundles the standard profiles. Their IDs are CRC32 values of the UTF-8 JSON returned by validateProfile with player and profileEpoch omitted. After reading the capability once per connection, the host can select a layout with one write. The phone replies with the usual 0x43 acknowledgement. Status 1 requests the full JSON for an unknown preset. A phone without the capability receives the full JSON directly.
+Android 2.0.7 and later bundle the standard profiles. Android 2.0.8 accepts player assignments 1–8 for a local Mario Kart room. Their IDs are CRC32 values of the UTF-8 JSON returned by validateProfile with player and profileEpoch omitted. After reading the capability once per connection, the host can select a layout with one write. The phone replies with the usual 0x43 acknowledgement. Status 1 requests the full JSON for an unknown preset. A phone without the capability receives the full JSON directly.
 
 One-byte legacy control commands remain: 1 starts a round, 3 suspends motion, 5 requests disconnect. Profile data is at most 4096 UTF-8 bytes. Both native receivers reject incomplete, reordered, oversized or bad-checksum transfers.
 

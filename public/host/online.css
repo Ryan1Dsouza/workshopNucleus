@@ -1,3 +1,15 @@
+.local-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));gap:12px}
+.local-seat {display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:14px;background:white;border:1px solid var(--line);border-radius:10px;min-width:0}
+.local-seat h3,.local-seat p {grid-column:1/-1;margin:0;overflow-wrap:anywhere}
+.local-seat p,#localStatus {font-size:13px;color:#40536a}
+.local-seat [aria-pressed=true] {background:#dfefe6;color:#174b35}
+body.local-room .game-toolbar,body.local-room .play-heading,body.local-room #gameHint,body.local-room .controllers-panel,body.local-room .library,body.local-room:not(.local-racing) #gameStage {display:none}
+body.local-room .workspace {display:block;max-width:1064px}
+body.local-racing .play-area {position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;background:#0b1322;padding:0;margin:0}
+body.local-racing #localMatchBar {display:flex;gap:12px;align-items:center;min-height:44px;padding:4px 12px;color:#fff;flex-wrap:wrap}
+#localMatchBar strong {margin-right:auto}
+body.local-racing #gameStage {flex:1;min-height:0;width:100%;border:0;border-radius:0}
+#localMatchBar[hidden],#createLocalRoom[hidden] {display:none}
 .online-panel {padding:20px clamp(16px,3vw,28px); background:var(--porcelain);border:1px solid var(--line);border-radius:16px;margin-bottom:16px}
 .lobby-outage:not([hidden]) {position:fixed;z-index:50;right:16px;bottom:16px;width:min(365px,calc(100% - 32px));padding:16px 18px;background:#fffaf1;border:1px solid #cfad6e;border-left:4px solid #946519;border-radius:12px;box-shadow:0 4px 18px #1b2e4426;color:var(--ink)}
 .lobby-outage strong {font-size:16px}

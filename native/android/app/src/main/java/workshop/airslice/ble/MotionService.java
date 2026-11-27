@@ -204,7 +204,7 @@ public class MotionService extends Service implements SensorEventListener {
         String orientation=next.getString("orientation"),mode=next.getString("motion");
         if(!orientation.equals("portrait")&&!orientation.equals("landscape")||!mode.equals("none")&&!mode.equals("aim")&&!mode.equals("steer"))throw new IllegalArgumentException("Invalid profile mode");
         int assigned=next.getInt("player"),revision=next.getInt("profileEpoch");
-        if(assigned<1||assigned>2||revision<0||revision>65535)throw new IllegalArgumentException("Invalid player profile");
+        if(assigned<1||assigned>8||revision<0||revision>65535)throw new IllegalArgumentException("Invalid player profile");
         JSONArray buttons=next.getJSONArray("controls");if(buttons.length()>11)throw new IllegalArgumentException("Too many controls");
         HashSet<String> ids=new HashSet<>();List<String> supported=Arrays.asList("up","right","down","left","a","b","one","two","plus","minus","home");
         for(int index=0;index<buttons.length();index++){

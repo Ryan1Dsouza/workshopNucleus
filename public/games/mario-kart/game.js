@@ -47,6 +47,7 @@ import {
 } from "./track.js";
 import { addAtmosphere } from "./atmosphere.js";
 import { roadFrame, chasePose, cameraClearance } from "./visual-frame.js";
+import { LocalViews } from "./local-views.mjs";
 import { WheelInput } from "./input.js";
 import { KartAudio } from "./audio.js";
 import {
@@ -221,7 +222,7 @@ for (const { mat, geos, originals } of staticGroups.values()) {
 }
 staticGroups.clear();
 twoSidedBoards.length = 0;
-let onlineSetup=null, match=null;
+let onlineSetup=null, match=null, localRoom=null, localViews=null;
 let raceSteering = menu.steering;
 const embedded = window.__controllerEmbedded === true;
 // The host already reports lowering the right edge as positive (ArrowRight).
@@ -253,13 +254,15 @@ const shadowTexture = canvasTexture(64, 64, (ctx, w, h) => {
   ctx.fillRect(0, 0, w, h);
 });
 function constructRace(reuseGrid = false) {
+  const options=localRoom || onlineSetup?.options;
   race = new Race({
     character: onlineSetup?.options.drivers[onlineSetup.slot] ?? menu.driver.id,
-    laps: onlineSetup?.options.laps ?? menu.laps,
-    drivers:onlineSetup?.options.drivers,
-    names:onlineSetup?.options.names,
+    laps: options?.laps ?? menu.laps,
+    drivers:options?.drivers,
+    names:options?.names,
     slot:onlineSetup?.slot,
-    bots: onlineSetup ? onlineSetup.options.bots !== false : true,
+    localParty:!!localRoom,
+    bots: options?.bots !== false,
     seed: onlineSetup?.seed ?? (new URLSearchParams(location.search).has("evidence")
       ? 42
       : Math.floor(performance.now()) % 100000),
@@ -268,7 +271,7 @@ function constructRace(reuseGrid = false) {
   match=onlineSetup?new KartMatch(race,onlineSetup.slot):null;
   resultsShown = false;resultsPresentation=null;
   $('again').disabled=false;
-  if (reuseGrid && !world.source && karts.length === race.racers.length) {
+  if (reuseGrid && !world.source && karts.length === race.racers.length && race.racers.every(r=>karts.some(k=>k.id===r.character.id))) {
     const byDriver = new Map(karts.map(k => [k.id, k]));
     karts.splice(0, karts.length, ...race.racers.map(r => byDriver.get(r.character.id)));
     return;
@@ -457,12 +460,12 @@ function begin() {
   $("track-label").hidden = true;
   $("hud").hidden = false;
   $("results").hidden = true;
-  menu.phoneLayout(raceSteering);
+  if(!localRoom)menu.phoneLayout(raceSteering);
   noticeUntil = 0;
   if (embedded) parent.postMessage({ type: "game-state", paused: false }, location.origin);
 }
 function confirm() {
-  if(match)return;
+  if(match || localRoom && race.state==='results')return;
   if (paused) {
     resume();
     return;
@@ -1027,7 +1030,7 @@ function draw(dt, now) {
   camera.updateProjectionMatrix();
   key.position.set(playerPose.x - 30, playerPose.y + 60, playerPose.z + 25);
   // Only hide a rival if the camera actually enters its body.
-  for (let i = 1; i < karts.length; i++) {
+  for (let i = 1; !localViews && i < karts.length; i++) {
     const k = karts[i];
     k.root.visible = rivalVisible(k.model, camera);
     // Canopies are wider than the body and need their own clearance.
@@ -1040,8 +1043,12 @@ function draw(dt, now) {
   key.target.updateMatrixWorld();
   renderer.info.reset();
   renderer.info.autoReset = false;
-  if (race.state !== "ready") broadcast.update(now, camera, dt);
-  renderer.render(scene, camera);
+  if(localViews){
+    localViews.draw(renderer,scene,race,karts,viewportWidth,viewportHeight);
+  }else{
+    if (race.state !== "ready") broadcast.update(now, camera, dt);
+    renderer.render(scene, camera);
+  }
   renderCount++;
   if (window.__kart && previousDrawTime && !document.hidden) {
     frameTimes.push(now - previousDrawTime);
@@ -1117,10 +1124,11 @@ function updateHUD() {
   if (standings) {
     race.showResults();
     resultsShown = true;
-    menu.phoneLayout('menu');
+    if(localRoom)window.frameElement?.dispatchEvent(new Event('kart-local-results'));
+    else menu.phoneLayout('menu');
     $("results").hidden = false;
     $("hud").hidden = true;
-    $("result-summary").textContent =
+    $("result-summary").textContent = localRoom ? standings[0].character.name+' wins · '+formatTime(standings[0].finishTime) :
       `${p.playerName ? `${p.playerName} (${p.character.name})` : p.character.name} · ${ordinal(standings.findIndex(r=>r.id===0)+1)} place · ${formatTime(p.finishTime)}`;
     resultsPresentation={started:performance.now(),duration:1.2,done:false,times:standings.map(r=>r.finishTime)};
     $('again').disabled=true;
@@ -1213,6 +1221,7 @@ function drawMap() {
 const driveKeys = ['KeyZ','KeyX','KeyW','KeyA','KeyS','KeyD','ArrowLeft','ArrowRight','ArrowUp','ArrowDown'];
 const hasDrivingKey = () => driveKeys.some(code => keys.has(code));
 function waitingForWheel() {
+  if(localRoom)return race.state==='countdown' && localRoom.inputs.some(input=>!input.ready);
   if (match || !usingPhone || race.state !== 'countdown' || hasDrivingKey()) return false;
   if (embedded) return !embeddedController.active || (raceSteering === 'gyro' && !embeddedController.live);
   return raceSteering === 'gyro' && !wheel.armed;
@@ -1257,8 +1266,8 @@ function frame(now) {
     itemPulse = false;
     const waitingWheel = waitingForWheel();
     match?.interpolate(now);
-    if (!waitingWheel)
-      race.update(dt, input);
+    if (!waitingWheel) race.update(dt, localRoom?.inputs ?? input);
+    if(localRoom)for(const controls of localRoom.inputs)controls.item=false;
     audio.update(race);
     setText($("wheel-status"),usingPhone
       ? (raceSteering === 'dpad' ? "D-pad steering" : (embedded ? "Gyro steering" : remote.status) + (wheel.invert ? " · inverted" : ""))
@@ -1470,6 +1479,20 @@ window.addEventListener("resize", () => {
 });
 
 function setControllerState(slot, state) {
+  if(localRoom){
+    const controls=localRoom.inputs[slot];
+    if(!controls || !state)return;
+    controls.ready=state.ready && state.connected;
+    const gyro=localRoom.modes[slot]==='gyro';
+    controls.gas=controls.ready && !!state.actions.accelerate;
+    controls.brake=controls.ready && !!state.actions.brake;
+    controls.drift=controls.ready && !!state.actions.drift;
+    controls.measuredWheel=gyro && state.motionLive;
+    controls.steer=!controls.ready ? 0 : gyro ? (state.displayAxes.steer || 0)*(wheel.invert?-1:1) : Number(state.buttons.right)-Number(state.buttons.left);
+    controls.item=controls.ready && (controls.item || !!state.pressedActions.item);
+    if(!controls.ready && race.state==='racing' && !paused)pause('Phone disconnected. Reconnect in the local room or return to the room.');
+    return;
+  }
   if (slot !== 0 || !state) return;
   const isPhone = state.connected && state.session !== "desktop";
   if (usingPhone && !isPhone && race?.state === "racing" && !paused)
@@ -1518,6 +1541,19 @@ window.__openwii = {
   get menuStep() { return menu.step; },
   setSteeringMode:menu.setSteeringMode,
   get race() { return race; },
+  endLocalRoom() {
+    localRoom=null; localViews?.close(); localViews=null;
+    paused=false; $('pause').hidden=true; $('again').hidden=false; $('results').hidden=true;
+    this.resetGame();
+  },
+  startLocalRoom(options) {
+    localRoom={...options, inputs:options.drivers.map(()=>({ready:false}))};
+    localViews?.close();
+    localViews=new LocalViews(options.names.map((name,i)=>name+' · '+CHARACTERS.find(c=>c.id===options.drivers[i]).name), $('local-views'));
+    constructRace(true); paused=false; keys.clear(); itemPulse=false; phoneHadGas=false; begin();
+    $('pause').hidden=true; $('again').hidden=true;
+    $('wheel-ready').firstChild.textContent='Preparing phone controls';
+  },
   startMatch(setup) {
     onlineSetup=setup;
     constructRace(true);paused=false;keys.clear();itemPulse=false;begin();

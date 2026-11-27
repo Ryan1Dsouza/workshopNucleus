@@ -10,6 +10,7 @@ export class SampledKartAudio {
   async prepare() {
     if(this.pending)return this.pending;
     this.pending=(async()=>{
+      if(globalThis.navigator?.onLine===false)return false;
       const response=await fetch('/assets/mario-kart/audio/manifest.json');
       if(!response.ok)return false;
       this.manifest=await response.json();
@@ -20,7 +21,7 @@ export class SampledKartAudio {
       const essential=priority.filter(k=>this.manifest.cues[k]).map(k=>[k,this.manifest.cues[k]]);
       const rest=allEntries.filter(([k])=>!priority.includes(k));
       const decodeOne=async([key,cue])=>{
-        if(this.buffers.has(key))return;
+        if(this.buffers.has(key) || globalThis.navigator?.onLine===false)return;
         try{
           const r=await fetch('/assets/mario-kart/audio/'+cue.file);if(!r.ok)throw new Error(String(r.status));
           this.buffers.set(key,await this.engine.ctx.decodeAudioData(await r.arrayBuffer()));

@@ -1,5 +1,4 @@
 import hosted from '../server/hosted-lobby.cjs';
-import turn from '../server/turn-config.cjs';
 
 const store = hosted.lobbyStore(hosted.redis);
 export default async function lobby(req,res) {
@@ -10,7 +9,6 @@ export default async function lobby(req,res) {
   if (Number(req.headers['content-length']) > 48000 || JSON.stringify(req.body || {}).length > 48000) return res.status(413).end();
   try {
     const result = await hosted.handleLobby(store,req.headers.authorization?.replace(/^Bearer /,''),req.body);
-    if(result.room && ['create','join'].includes(req.body.action))result.iceServers=await turn.roomIceServers();
     res.status(200).json(result);
   } catch (error) {
     if (error instanceof hosted.LobbyError) return res.status(200).json({error:error.message});

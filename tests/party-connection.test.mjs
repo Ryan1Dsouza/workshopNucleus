@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {MatchPeer} from '../public/core/transport.js';
-import turn from '../server/turn-config.cjs';
+import {stunServers,directDescription} from '../public/core/direct-ice.js';
 
 test('late ICE and stale answers cannot modify the replacement connection',async t=>{
   class Peer {
@@ -15,34 +15,31 @@ test('late ICE and stale answers cannot modify the replacement connection',async
   }
   const old=globalThis.RTCPeerConnection;globalThis.RTCPeerConnection=Peer;
   t.after(()=>{if(old)globalThis.RTCPeerConnection=old;else delete globalThis.RTCPeerConnection;});
-  const iceServers=[{urls:['turn:relay.example:3478','turns:relay.example:443?transport=tcp'],username:'a',credential:'b'},
+  const iceServers=[{urls:['turn:relay.example:3478','turns:relay.example:443?transport=tcp','stun:direct.example:3478'],username:'a',credential:'b'},
     {urls:'turns:other.example:443',username:'c',credential:'d'}];
   const sent=[],p=new MatchPeer({initiator:true,iceServers,signal:msg=>sent.push(msg),onLink(){}});
   t.after(()=>p.close());
-  assert.deepEqual(p.pc.config.iceServers,[{...iceServers[0],urls:['turn:relay.example:3478']}]);
+  assert.deepEqual(p.pc.config.iceServers,[{urls:['stun:direct.example:3478']}]);
   await p.describe(true);
   await p.receive({retry:true,generation:1});
   await new Promise(r=>setTimeout(r,0));
   assert.deepEqual(sent.map(p=>p.generation),[1,2]);
-  assert.deepEqual(p.pc.config.iceServers,iceServers);
+  assert.deepEqual(p.pc.config.iceServers,[{urls:['stun:direct.example:3478']}]);
   const candidate={candidate:'candidate:1 1 udp 123 127.0.0.1 12345 typ host'};
   await p.receive({candidate,generation:1});
   await p.receive({description:{type:'answer',sdp:'obsolete'},generation:1});
   assert.equal(p.pc.remoteDescription,undefined);
   await Promise.all([p.receive({candidate,generation:2}),p.receive({description:{type:'answer',sdp:'current'},generation:2})]);
   assert.equal(p.pc.remoteDescription.sdp,'current');
+  await p.receive({candidate:{candidate:candidate.candidate.replace('typ host','typ relay')},generation:2});
   assert.deepEqual(p.pc.candidates,[candidate.candidate]);
   await p.receive({retry:true,generation:1});
   assert.equal(p.generation,3);
 });
 
-test('room members receive UDP and TLS/443 relay credentials without the provider API key',async t=>{
-  const get=t.mock.method(globalThis,'fetch',async()=>Response.json([
-    {urls:['turn:relay.example:3478','turn:relay.example:443?transport=tcp','turns:relay.example:443','turns:relay.example:443?transport=tcp','turns:relay.example:5349','turns:relay.example:443?transport=udp'],username:'guest',credential:'temporary'},
-    {urls:'stun:stun.example'}
-  ]));
-  assert.deepEqual(await turn.roomIceServers('https://wrong.example/api/v1/turn/credentials'),[]);
-  assert.equal(get.mock.callCount(),0);
-  const servers=await turn.roomIceServers('https://workshop.metered.live/api/v1/turn/credentials?apiKey=fixture');
-  assert.deepEqual(servers,[{urls:['turn:relay.example:3478','turns:relay.example:443','turns:relay.example:443?transport=tcp'],username:'guest',credential:'temporary'}]);
+test('mixed configurations drop relay credentials and SDP drops relay and TCP candidates',()=>{
+  assert.deepEqual(stunServers([{urls:['turn:relay','stun:direct'],username:'a',credential:'b'}]),[{urls:['stun:direct']}]);
+  const line='a=candidate:1 1 udp 20 192.0.2.1 1001 typ ';
+  const input=['v=0',line+'relay',line+'srflx',line.replace('udp','tcp')+'host',''].join('\r\n');
+  assert.equal(directDescription({type:'offer',sdp:input}).sdp,['v=0',line+'srflx',''].join('\r\n'));
 });

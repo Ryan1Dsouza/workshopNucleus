@@ -390,7 +390,7 @@ function validateProfile(value) {
     profile.layout = value.layout;
   }
   if (value.player !== undefined) {
-    if (![1, 2].includes(value.player)) throw new Error('Invalid player assignment.');
+    if (!Number.isInteger(value.player) || value.player < 1 || value.player > 8) throw new Error('Invalid player assignment.');
     profile.player = value.player;
   }
   if (value.profileEpoch !== undefined) {

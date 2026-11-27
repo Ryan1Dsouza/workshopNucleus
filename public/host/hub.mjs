@@ -19,8 +19,8 @@ const [motionMod,registryMod,catalogMod,lobbyMod]=await Promise.all([
 ]);
 const MotionInput=motionMod?.MotionInput||null;
 // Smooth presentation once, using capture timestamps; keep measured aim direct.
-const controllers=new ControllerState({createMotion:MotionInput?()=>new MotionInput({smoothing:false}):undefined});
-let splitAim=false, online=null;
+const controllers=new ControllerState({slots:8,createMotion:MotionInput?()=>new MotionInput({smoothing:false}):undefined});
+let splitAim=false, online=null, couch=null;
 function resizePointers() {
   const stage=$('gameStage');
   for(const player of controllers.players)player.motion?.pointer.setViewport(stage.clientWidth/(splitAim?2:1),stage.clientHeight);
@@ -63,7 +63,7 @@ let phoneMenu=null, menuButtons=null, menuProfiles=new WeakSet();
 const menuMask=['up','down','left','right','a','b','one','two','minus'].reduce((mask,id)=>mask|BUTTON_BITS[id],0);
 function receiveButtons(frame,slot,session,applied) {
   if(!features.buttons)return;
-  if(slot===0 && phoneMenu && menuProfiles.has(applied) && applied.profileEpoch===frame.profileEpoch){
+  if(!couch?.active && slot===0 && phoneMenu && menuProfiles.has(applied) && applied.profileEpoch===frame.profileEpoch){
     if(menuButtons?.session!==session)menuButtons={session,sequence:null,mask:0,consumed:0};
     const last=menuButtons.sequence, delta=(frame.sequence-last)&65535;
     if(last!==null && (!delta || delta>=32768))return;
@@ -89,14 +89,14 @@ function receiveButtons(frame,slot,session,applied) {
   controllers.buttons(slot,frame,session);
 }
 function notice(text,error=false){$('notice').textContent=text;$('notice').classList.remove('pending');$('notice').classList.toggle('error',error);}
-function assignedProfile(slot){return {...profile,player:slot+1,profileEpoch:controllers.profileEpoch};}
+function assignedProfile(slot){return {...controllers.player(slot).profile,player:slot+1,profileEpoch:controllers.profileEpoch};}
 async function syncController(slot){
   if(!ble.connected(slot))return;
   const session=controllers.player(slot).session, assigned=assignedProfile(slot);
   if(assigned.id==='kart-racing')menuProfiles.add(assigned);
   const currentRequest=()=>ble.connected(slot) && controllers.player(slot).session===session && controllers.profileEpoch===assigned.profileEpoch;
   controlsFailed[slot]=false;
-  $('retryControls'+slot).hidden=true;
+  if(slot<2)$('retryControls'+slot).hidden=true;
   deviceText[slot]='Sending the game controls…';
   try{
     const ack=await ble.sendProfile(slot,assigned);
@@ -113,6 +113,7 @@ async function syncController(slot){
   if(online?.active)online.render();
 }
 const ble=new BluetoothLink({
+  slots:8,
   onState:state=>{
     controlsFailed[state.slot]=false;
     deviceText[state.slot]=state.text;
@@ -129,7 +130,7 @@ const ble=new BluetoothLink({
     else if(command.type==='wheel-rotation')controllers.setWheelRotation(slot,command);
     else if(command.type==='suspend')controllers.player(slot).motion?.suspend();
     else if(command.type==='disconnect')ble.disconnect(slot);
-    else if(command.type==='start'&&features.fruit)play();
+    else if(command.type==='start'&&features.fruit&&!couch?.active)play();
   }
 });
 const demoButtons=new ButtonStore(()=>submitDemo());
@@ -144,11 +145,11 @@ function previewProfile(){
   $('previewDialog').dataset.orientation=profile.orientation;
   if($('phonePreview').contentWindow&&$('phonePreview').getAttribute('src'))$('phonePreview').contentWindow.postMessage({type:'controller-preview-profile',profile:assignedProfile(0)},location.origin);
 }
-function setCurrentProfile(next){
+function setCurrentProfile(next, overrides){
   releaseDemo();profile=validateProfile({...next,motion:features.motion?next.motion:'none',controls:features.buttons?next.controls:[]});
-  controllers.setProfile(profile);
+  controllers.setProfile(profile, overrides);
   if(controllers.player(0).session==='desktop')controllers.markReady(0,controllers.profileEpoch);
-  for(const slot of [0,1])void syncController(slot);
+  for(const slot of ble.devices.keys())void syncController(slot);
   previewProfile();
 }
 function renderCard(game){
@@ -165,6 +166,7 @@ function renderCard(game){
 }
 async function select(id){
   const game=games.find(entry=>entry.id===id);if(!game)return;
+  couch?.close();
   setExpanded(false);
   backgroundRound=null;
   pendingPlay=null;
@@ -196,6 +198,7 @@ async function select(id){
     const playable=id!=='remote';$('startGame').disabled=!playable;$('pauseGame').disabled=!playable;$('restartGame').disabled=!playable;
     $('enlargeGame').disabled=!playable;
     $('gameTools').hidden=!playable;
+    $('createLocalRoom').hidden=id!=='kart-racing';
     $('roundOptions').hidden=id!=='fruit-ninja';
     const frame=$('gameStage').querySelector('iframe');
     try{frame?.contentWindow?.addEventListener('keydown',restoreWithEscape,true);frame?.contentWindow?.addEventListener('focus',()=>{clearTimeout(focusLossTimer);resumeFromBackground();});}catch{/* Cross-origin games retain the visible Restore button. */}
@@ -209,7 +212,7 @@ function flushPendingPlay(){
   const requested=pendingPlay;pendingPlay=null;play(requested.options);
 }
 function play(options={}){
-  if(online?.active||!adapter||current?.id==='remote')return;backgroundRound=null;
+  if(couch?.active || online?.active||!adapter||current?.id==='remote')return;backgroundRound=null;
   if(current.id==='kart-racing' && adapter.api?.race.state==='ready'){
     if(adapter.api.menuStep==='steering'){adapter.api.confirm();return;}
     if(ble.has(0) && adapter.api.menuStep!=='start'){adapter.api.setSteeringMode(adapter.api.steeringMode);return;}
@@ -274,14 +277,16 @@ function renderPlayers(now){
     $('latency'+slot).textContent=metric?.rtt?.median!==undefined?Math.round(metric.rtt.median)+' ms RTT':record?'BLE':player.connected?'Desktop':'—';
   }
   const count=controllers.players.filter(player=>player.connected).length;
-  $('connectionCount').lastChild.textContent=count+' / 2 controllers';
+  $('connectionCount').lastChild.textContent=count+' / '+(couch?.active?couch.capacity:2)+' controllers';
+  couch?.render();
   $('connectionCount').classList.toggle('has-controllers',count>0);
 }
 let last=performance.now(),lastUi=0,lastDemo=0;
 function frame(now){
   if(controllers.player(0).session==='desktop'&&now-lastDemo>400){submitDemo();lastDemo=now;}
-  for(const slot of [0,1]){
+  for(let slot=0;slot<(couch?.active?couch.capacity:2);slot++){
     const state=controllers.sample(slot,now);
+    if(couch?.active){couch.input(slot,state);continue;}
     if(online?.active){
       if(slot===0 && online.playing)adapter?.api?.setControllerState(current.id==='fruit-ninja'?online.slot:0,state);
       if(slot===0 && online.room && !online.room.match && current?.id==='kart-racing' && !$('roomSteering').disabled){
@@ -307,6 +312,7 @@ requestAnimationFrame(frame);
 const keyMap={ArrowUp:'up',ArrowRight:'right',ArrowDown:'down',ArrowLeft:'left',w:'up',a:'left',s:'down',d:'right',z:'a',x:'b','1':'one','2':'two','+':'plus','-':'minus'};
 window.addEventListener('keydown',event=>{
   if(restoreWithEscape(event))return;
+  if(couch?.active)return;
   if(event.target.closest('input,textarea,select')||online?.active&&(!online.playing||event.key==='Escape'))return;
   if(document.querySelector('dialog[open]'))return;
   if (adapter?.handleKey && !(['Enter','Space'].includes(event.code) && event.target.closest('button,a'))) {
@@ -321,7 +327,7 @@ window.addEventListener('keydown',event=>{
 window.addEventListener('keyup',event=>{adapter?.handleKey?.(event);demoButtons.release(event.code);});
 function pauseInBackground(){
   releaseDemo();
-  if(online?.active||!adapter||current?.id==='remote'||paused||backgroundRound)return;
+  if(couch?.active || online?.active||!adapter||current?.id==='remote'||paused||backgroundRound)return;
   if(adapter.api?.game && adapter.api.game.state.phase!=='playing')return;
   backgroundRound={adapter,selection};adapter.pause(true);
 }
@@ -507,11 +513,16 @@ if(lobbyMod) {
   online=lobbyMod.onlineLobby({select,inviteOrigin:()=>inviteOrigin,adapter:()=>adapter,current:()=>current,paired:()=>ble.connected(0),centerFruit,
     phonesReady:()=>!ble.has(0)||controllers.player(0).ready});
 }
+if(features.fruit && games.some(g=>g.id==='kart-racing')){
+  const {localKartRoom}=await import('./local-kart-room.mjs');
+  couch=localKartRoom({ble,controllers,adapter:()=>adapter,setCurrentProfile,syncController,
+    status:slot=>controlsFailed[slot]?deviceText[slot]:null});
+}
 const joiningOnline=!!online && new URLSearchParams(location.search).has('join');
 if(joiningOnline)void online.open();
 else if(games.length)void select('remote');
 else{notice('The Bluetooth host is ready. Install the app, then connect a player.');$('gameList').textContent='Connect your phone to get started.';}
-window.__controllerkit={controllers,ble,online,registry,registerGame,profile:()=>profile,current:()=>current,adapter:()=>adapter,select,play,togglePause,enableDemo,stage,features};
+window.__controllerkit={controllers,ble,online,couch,registry,registerGame,profile:()=>profile,current:()=>current,adapter:()=>adapter,select,play,togglePause,enableDemo,stage,features};
 try{
   const info=staticSite?{}:await fetch('/connection-info').then(response=>response.json()),origins=downloadOrigins(info,location);
   for(const origin of origins){const option=document.createElement('option');option.value=origin;option.textContent=origin;$('downloadAddress').append(option);}

@@ -104,6 +104,7 @@ export class AudioEngine {
   }
   async fetchOverride(name) {
     for (const ext of EXTENSIONS) {
+      if(globalThis.navigator?.onLine===false)break;
       try {
         const path = `${this.basePath}/${name}.${ext}`;
         if(audioFiles && !audioFiles.includes(path))continue;

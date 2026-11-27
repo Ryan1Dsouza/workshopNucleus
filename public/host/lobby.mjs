@@ -92,7 +92,7 @@ export function onlineLobby({select,inviteOrigin,adapter,current,paired,centerFr
       if(peers.has(id))continue;
       const senderSlot=()=>room?.players.findIndex(p=>p.id===id)??-1;
       const initiator=slot<senderSlot();
-      const peer=new MatchPeer({initiator,iceServers:[...iceServers,...(socket.iceServers||[])],
+      const peer=new MatchPeer({initiator,iceServers,
         onStatus:render,
         signal:packet=>socket?.signal({...packet,to:id}),
         onLink:value=>{
@@ -260,12 +260,8 @@ export function onlineLobby({select,inviteOrigin,adapter,current,paired,centerFr
     const blocked=waiting.some(peer=>peer.status==='blocked');
     const retrying=waiting.some(peer=>peer.status==='retrying');
     $('retryPeer').hidden=!waiting.length || !!room.match || !!outage;
-    const urls=[...iceServers,...(socket.iceServers||[])].flatMap(s=>s.urls);
-    const hasRelay=urls.some(url=>/^turns?:/i.test(url));
-    const hasSecureRelay=urls.some(url=>/^turns:/i.test(url));
-    const pendingLink=blocked ? (hasRelay?'The laptops couldn’t connect—the shared cross-network relay quota may be full or blocked on this network. Select Retry laptop connection, or try the same home Wi-Fi, a hotspot, or Local play.':
-      'No direct connection between laptops. Try the same home Wi-Fi, a hotspot, or Local play.')
-      : retrying?(hasSecureRelay?'Trying a secure relay…':'Retrying the connection between laptops…'):'Connecting laptops over WebRTC…';
+    const pendingLink=blocked ? 'Direct UDP connection unavailable. Switch Wi-Fi or try a mobile hotspot, then retry the laptop connection.'
+      : retrying?'Retrying the direct connection…':'Connecting laptops directly over WebRTC…';
     $('readyPlayer').textContent=me?.ready?'Cancel ready':'Ready';
     $('readyPlayer').setAttribute('aria-pressed',String(!!me?.ready));
     const needsSteering=kart && paired() && adapter()?.api?.menuStep!=='start' && !me?.ready;

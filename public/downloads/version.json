@@ -1,8 +1,8 @@
 {
-  "versionCode": 11,
-  "versionName": "2.0.7",
-  "apkSha256": "46ad4e7772d79b341cf29cfdf0efb7a55bf1d4adf3464585f216d0fa1255d05f",
-  "uiSha256": "35c636dcad6eec46b5cffe70895be353c80c9a60128e9ca6839d8e6d9b50b160",
+  "versionCode": 12,
+  "versionName": "2.0.8",
+  "apkSha256": "ca98ab946af0c71c4a2da92ec41dd8ba2e3d3d489688e12e5dceff47b362cdce",
+  "uiSha256": "62ebd0f16f1b089d7255aaf028dec344903f9f465a36fdc6ce32739550f39f4a",
   "apkUrl": "/downloads/air-slice-ble.apk",
   "uiUrl": "/downloads/controller.html"
 }

@@ -15,14 +15,14 @@ function actionsFor(profile, mask) {
 }
 
 export class ControllerState {
-  constructor({ createMotion } = {}) {
+  constructor({ createMotion, slots = 2 } = {}) {
     this.profileEpoch = 0; this.profile = null;
-    this.players = [0, 1].map(slot => ({ slot, connected: false, name: '', session: '', ready: false,
+    this.players = Array.from({length:slots}, (_,slot) => ({ slot, connected: false, name: '', session: '', ready: false,
       motion: createMotion?.() || null, mask: 0, pressed: 0, released: 0, buttonSequence: null,
       actionPressed:new Set(),actionReleased:new Set(),buttonsAt: 0, reference: null, latestQuat: null, steer: 0,
       landscapeSign: 1, steerFilter: new OneEuroFilter({ minCutoff: 4.5, beta: 0.35, derivativeCutoff: 1 }) }));
   }
-  player(slot) { if (![0, 1].includes(slot)) throw new Error('Invalid player slot.'); return this.players[slot]; }
+  player(slot) { if (!Number.isInteger(slot) || !this.players[slot]) throw new Error('Invalid player slot.'); return this.players[slot]; }
   connect(slot, session, name) {
     const player = this.player(slot);
     if (player.session !== session) { player.motion?.resetSession(); player.reference = player.latestQuat = null; player.buttonSequence = null; player.rotation = null; player.levelReference = false; player.landscapeSign = 1; player.steerFilter.reset(); }
@@ -34,17 +34,19 @@ export class ControllerState {
     player.steerFilter.reset();
     player.motion?.resetSession();
   }
-  setProfile(profile) {
+  setProfile(profile, overrides = []) {
     this.profile = validateProfile(profile); this.profileEpoch = (this.profileEpoch + 1) & 65535;
     for (const player of this.players) {
-      this.release(player.slot); player.ready = false; player.buttonSequence = null;
+      this.release(player.slot);
+      player.profile = overrides[player.slot] ? validateProfile(overrides[player.slot]) : this.profile;
+      player.ready = false; player.buttonSequence = null;
       player.actionPressed.clear();player.actionReleased.clear();
       player.reference = player.latestQuat?.slice() || null; player.steer = 0;
       player.levelReference = false; player.rotation = null; player.landscapeSign = 1; player.steerFilter.reset();
       if (player.motion) {
-        player.motion.timeout = profile.motion === 'steer' ? 450 : 150;
-        player.motion.collectPath = profile.motion === 'aim';
-        player.motion.pointer.smoothDisplay = profile.id === 'fruit-ninja';
+        player.motion.timeout = player.profile.motion === 'steer' ? 450 : 150;
+        player.motion.collectPath = player.profile.motion === 'aim';
+        player.motion.pointer.smoothDisplay = player.profile.id === 'fruit-ninja';
       }
       player.motion?.center({}, performance.now());
     }
@@ -52,7 +54,7 @@ export class ControllerState {
   }
   markReady(slot, epoch) { const player = this.player(slot); if (epoch === this.profileEpoch && player.connected) player.ready = true; }
   release(slot, {suspendMotion = true} = {}) {
-    const player = this.player(slot);for(const [action,held]of Object.entries(actionsFor(this.profile,player.mask)))if(held)player.actionReleased.add(action);
+    const player = this.player(slot);for(const [action,held]of Object.entries(actionsFor(player.profile,player.mask)))if(held)player.actionReleased.add(action);
     player.actionPressed.clear();player.released |= player.mask; player.mask = player.pressed = 0;
     if(suspendMotion)player.motion?.suspend();
   }
@@ -64,7 +66,7 @@ export class ControllerState {
       const delta = (frame.sequence - player.buttonSequence + 65536) % 65536;
       if (!delta || delta >= 32768) return false;
     }
-    const before=actionsFor(this.profile,player.mask),after=actionsFor(this.profile,frame.mask);
+    const before=actionsFor(player.profile,player.mask),after=actionsFor(player.profile,frame.mask);
     if (after.recenter && !before.recenter) this.center(slot,{freshGrip:true},now);
     for(const action of Object.keys(after)){if(after[action]&&!before[action])player.actionPressed.add(action);if(before[action]&&!after[action])player.actionReleased.add(action);}
     player.pressed |= frame.mask & ~player.mask; player.released |= player.mask & ~frame.mask;
@@ -81,7 +83,7 @@ export class ControllerState {
       if (change.reset) player.steerFilter.reset();
       const poseTime = Number.isFinite(frame.poseT) ? frame.poseT : frame.t;
       this.steering(player, poseTime);
-      if (this.profile.motion === 'steer') player.motion.wheelDisplay.push({x:player.steer,y:0},poseTime,now,change.reset);
+      if (player.profile.motion === 'steer') player.motion.wheelDisplay.push({x:player.steer,y:0},poseTime,now,change.reset);
     }
     return true;
   }
@@ -106,7 +108,7 @@ export class ControllerState {
   setWheelRotation(slot,{rotation,profileEpoch,session}) {
     const player=this.player(slot);
     if (!player.connected || session!==player.session || profileEpoch!==this.profileEpoch ||
-        this.profile.motion!=='steer' || !Number.isInteger(rotation) || rotation<0 || rotation>3) return false;
+        player.profile.motion!=='steer' || !Number.isInteger(rotation) || rotation<0 || rotation>3) return false;
     if (player.rotation!==rotation) {
       player.rotation=rotation;
       // The initial profile center can have been captured in portrait. In the
@@ -121,7 +123,7 @@ export class ControllerState {
   }
   steering(player, poseTime = null) {
     if (!player.latestQuat) { player.steer = 0; return; }
-    if (this.profile?.motion === 'steer' && this.profile.orientation === 'landscape') {
+    if (player.profile?.motion === 'steer' && player.profile.orientation === 'landscape') {
       const cur = bodyAxesFromQuat(player.latestQuat);
       const ref = player.reference && !player.levelReference ? bodyAxesFromQuat(player.reference) : null;
       let rawDeg;
@@ -144,7 +146,7 @@ export class ControllerState {
         rawDeg = sign * (elevation(cur.y) - (refSign === sign && !portraitRef ? elevation(ref.y) : 0));
       }
       const deg = Number.isFinite(poseTime) ? player.steerFilter.filter(rawDeg, poseTime / 1000) : rawDeg;
-      if (this.profile.id === 'kart-racing') {
+      if (player.profile.id === 'kart-racing') {
         player.steer = kartWheelSteer(deg);
         return;
       }
@@ -171,14 +173,14 @@ export class ControllerState {
     const result = { slot, connected: player.connected, ready: player.ready, session: player.session,
       name: player.name, profileEpoch: this.profileEpoch, buttons: buttonState(player.mask),
       pressed: buttonState(player.pressed), released: buttonState(player.released),
-      actions:actionsFor(this.profile,player.mask),pressedActions:Object.fromEntries([...player.actionPressed].map(action=>[action,true])),releasedActions:Object.fromEntries([...player.actionReleased].map(action=>[action,true])),
+      actions:actionsFor(player.profile,player.mask),pressedActions:Object.fromEntries([...player.actionPressed].map(action=>[action,true])),releasedActions:Object.fromEntries([...player.actionReleased].map(action=>[action,true])),
       axes: { x: position.x, y: position.y, steer: player.motion?.pointer.live ? player.steer : 0 },
       displayAxes: { x: display.x, y: display.y },
       motionLive: !!player.motion?.pointer.live, cutting: !!movement.cutting && player.ready, reset: !!movement.reset };
     if (player.motion?.collectPath) {
       result.motionPath = player.motion.path.splice(0).map(({measuredAt,...point})=>({...point,age:Math.max(0,now-measuredAt)}));
     }
-    if (this.profile?.motion === 'steer' && player.motion)
+    if (player.profile?.motion === 'steer' && player.motion)
       result.displayAxes.steer = result.motionLive ? player.motion.wheelDisplay.sampleAt(now).x : 0;
     player.pressed = player.released = 0;player.actionPressed.clear();player.actionReleased.clear();return result;
   }

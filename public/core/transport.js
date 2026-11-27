@@ -3,6 +3,7 @@
 import { PeerMetrics } from './diagnostics.js';
 import { MotionQueue } from './motion-queue.js';
 import { MotionClock } from './motion-clock.js';
+import { directCandidate, directDescription, stunServers } from './direct-ice.js';
 import { features } from '../stage.mjs';
 export { roomCode } from './room.js';
 const safeParse = text => { try { return JSON.parse(text); } catch { return null; } };
@@ -10,7 +11,7 @@ const safeParse = text => { try { return JSON.parse(text); } catch { return null
 // Laptop-to-laptop gameplay. Signaling handles only SDP and ICE.
 export class MatchPeer {
   constructor({initiator,iceServers=[],signal,onLink,onFrame,onLatency,onStatus=()=>{}}) {
-    this.initiator=initiator;this.iceServers=iceServers;this.onStatus=onStatus;
+    this.initiator=initiator;this.iceServers=stunServers(iceServers);this.onStatus=onStatus;
     this.signal=signal;this.onLink=onLink;this.onFrame=onFrame;this.onLatency=onLatency;
     this.sequence=0;this.closed=false;this.lastSequence=-1;this.incoming=Promise.resolve();
     this.attempts=0;this.openConnection(1);
@@ -18,18 +19,12 @@ export class MatchPeer {
   openConnection(generation) {
     this.releaseConnection();
     this.generation=generation;
-    // A TURN/TLS allocation still produces a UDP relay ICE candidate. Enable
-    // the TLS hop to the relay on retry while keeping direct UDP candidates.
-    const servers=generation>1 ? this.iceServers : this.iceServers.flatMap(server=>{
-      const urls=[server.urls].flat().filter(url=>!/^turns:/i.test(url));
-      return urls.length?[{...server,urls}]:[];
-    });
-    const pc=this.pc=new RTCPeerConnection({iceServers:servers});
+    const pc=this.pc=new RTCPeerConnection({iceServers:this.iceServers});
     this.status=this.attempts?'retrying':'connecting';
     this.attempts++;
     this.pending=[];this.gathered=[];this.announced=false;
     pc.onicecandidate=({candidate})=>{
-      if(pc!==this.pc || !candidate || !/ udp /i.test(candidate.candidate))return;
+      if(pc!==this.pc || !candidate || !directCandidate(candidate.candidate))return;
       const packet={candidate:candidate.toJSON(),generation};
       if(this.announced)this.signal(packet);else this.gathered.push(packet);
     };
@@ -77,8 +72,7 @@ export class MatchPeer {
     await pc.setLocalDescription(sdp);
     if(pc!==this.pc)return;
     // SDP may already contain gathered candidates in an answer or ICE restart.
-    const udpOnly = sdp.sdp.split('\r\n').filter(line=>!/^a=candidate:/i.test(line)||/ udp /i.test(line)).join('\r\n');
-    this.signal({description:{type:sdp.type,sdp:udpOnly},generation});
+    this.signal({description:directDescription(sdp),generation});
     this.announced=true;
     for(const packet of this.gathered.splice(0))this.signal(packet);
   }
@@ -99,13 +93,14 @@ export class MatchPeer {
     }
     const pc=this.pc;
     if(description){
+      description=directDescription(description);
       if(pc.remoteDescription?.sdp===description.sdp || (description.type==='answer' && pc.signalingState!=='have-local-offer'))return;
       await pc.setRemoteDescription(description);
       if(pc!==this.pc)return;
       for(const c of this.pending.splice(0))await pc.addIceCandidate(c);
       if(pc!==this.pc)return;
       if(description.type==='offer')await this.describe(false);
-    }else if(candidate && / udp /i.test(candidate.candidate)){
+    }else if(candidate && directCandidate(candidate.candidate)){
       if(this.pc.remoteDescription)await this.pc.addIceCandidate(candidate);
       else this.pending.push(candidate);
     }

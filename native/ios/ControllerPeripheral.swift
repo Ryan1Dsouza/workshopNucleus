@@ -124,7 +124,7 @@ final class ControllerPeripheral: NSObject, CBPeripheralManagerDelegate {
           let title = value["title"] as? String, !title.isEmpty, title.count <= 48,
           let orientation = value["orientation"] as? String, ["portrait","landscape"].contains(orientation),
           let mode = value["motion"] as? String, ["none","aim","steer"].contains(mode),
-          let player = value["player"] as? Int, [1,2].contains(player),
+          let player = value["player"] as? Int, (1...8).contains(player),
           let revision = value["profileEpoch"] as? Int, revision >= 0, revision <= 65535,
           let controls = value["controls"] as? [[String: Any]], controls.count <= 11 else { throw NSError(domain: "ControllerKit", code: 2) }
         let supported = ["up","right","down","left","a","b","one","two","plus","minus","home"]; var used = Set<String>()

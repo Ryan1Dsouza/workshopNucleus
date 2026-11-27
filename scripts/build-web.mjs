@@ -2,15 +2,12 @@ import {cp,mkdir,readdir,writeFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {iceServers as defaults} from '../public/host/online-config.js';
-import turn from '../server/turn-config.cjs';
+import {stunServers} from '../public/core/direct-ice.js';
 
 const root=fileURLToPath(new URL('../',import.meta.url)), out=path.join(root,'dist','web');
 const signal=process.env.SIGNAL_URL ? new URL(process.env.SIGNAL_URL) : null;
 if(signal && (!['http:','https:'].includes(signal.protocol)||signal.username||signal.password||signal.pathname!=='/'))throw Error('SIGNAL_URL must be an HTTP(S) origin.');
-const servers=JSON.parse(process.env.ICE_SERVERS || JSON.stringify(defaults));
-if(!Array.isArray(servers) || servers.some(s=>!s || ![s.urls].flat().length ||
-  ![s.urls].flat().every(url=>typeof url==='string' && (/^stun:[^/?#@\s]+(?:\?transport=udp)?$/i.test(url) || turn.isTurnUrl(url)))))
-  throw Error('ICE_SERVERS must contain STUN, UDP TURN, or secure TURN on port 443.');
+const servers=stunServers(JSON.parse(process.env.ICE_SERVERS || JSON.stringify(defaults)));
 
 for(const [source,target] of [
   ['public','.'],['workshop','workshop'],['node_modules/three/build','vendor/three'],

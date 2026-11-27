@@ -7,10 +7,10 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const transientWriteErrors = new Set(['NetworkError','OperationError','UnknownError','TimeoutError','AbortError']);
 
 export class BluetoothLink {
-  constructor({ onSample, onCommand, onState, onButtons } = {}) {
+  constructor({ onSample, onCommand, onState, onButtons, slots = 2 } = {}) {
     this.handlers = { onSample, onCommand, onState, onButtons };
     this.devices = new Map(); this.serial = 0; this.destroyed = false;
-    this.savedIds=[0,1].map(slot=>{try{return globalThis.localStorage?.getItem('controllerkit.ble.player.'+slot)||'';}catch{return '';}});
+    this.savedIds=Array.from({length:slots},(_,slot)=>{try{return globalThis.localStorage?.getItem('controllerkit.ble.player.'+slot)||'';}catch{return '';}});
     this.grantedDevices=[];this.grantVersion=0;void this.loadGrantedDevices();
     this.probeTimer = setInterval(() => { for (const r of this.devices.values()) void this.ping(r); }, 1000);
   }
@@ -34,7 +34,7 @@ export class BluetoothLink {
   }
   async connect(slot, {chooseNew = false} = {}) {
     if (this.destroyed) throw new Error('Bluetooth receiver was closed. Reload the host.');
-    if (![0, 1].includes(slot)) throw new Error('Choose Player 1 or Player 2.');
+    if (!Number.isInteger(slot) || slot<0 || slot>=this.savedIds.length) throw new Error('Invalid player slot.');
     if (!globalThis.isSecureContext) throw new Error('Open the laptop host on localhost or HTTPS for Bluetooth.');
     if (!globalThis.navigator?.bluetooth?.requestDevice) throw new Error('Use desktop Chrome or Edge with Bluetooth LE support. Linux may require the experimental Web Platform flag.');
     // Reuse this player's previously verified device only while the browser
@@ -42,7 +42,7 @@ export class BluetoothLink {
     const saved=!chooseNew&&this.grantedDevices.find(d=>d.id===this.savedIds[slot]);
     const device = saved || await navigator.bluetooth.requestDevice({ filters: [{ services: [BLE_SERVICE] }] });
     if (this.destroyed) return;
-    if ([...this.devices.values()].some(r => r.device.id === device.id && r.slot !== slot)) throw new Error('That phone is already assigned to the other player.');
+    if ([...this.devices.values()].some(r => r.device.id === device.id && r.slot !== slot)) throw new Error('That phone is already assigned to another player.');
     this.disconnect(slot);
     const r = { device, slot, connected: false, attempt: 0, generation: 0, disposed: false, initializing: true, listeners: [] };
     this.devices.set(slot, r);

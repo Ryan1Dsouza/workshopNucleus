@@ -51,9 +51,21 @@
         <div role="alert"><strong>Online lobbies unavailable</strong><p id="outageDetail"></p></div>
         <div class="outage-actions"><button id="retryLobby" class="secondary-button">Retry connection</button><button id="outageLocal" class="text-button">Local play</button></div>
       </aside>
+      <section class="online-panel" id="localKartRoom" aria-labelledby="localRoomTitle" hidden>
+        <div class="online-heading"><h2 id="localRoomTitle">Mario Kart local room</h2><button class="text-button" id="leaveLocalRoom">Leave room</button></div>
+        <p class="online-note">Pair one phone per driver to this laptop. Each player gets a view on the shared screen.</p>
+        <div class="online-row">
+          <label class="online-field">Players<select id="localCapacity"></select></label>
+          <label class="online-field">Laps<select id="localLaps"><option>1</option><option>3</option></select></label>
+          <label class="online-field">CPU bots<select id="localBots"><option value="true">Fill to 8 with bots</option><option value="false">Humans only</option></select></label>
+        </div>
+        <div class="local-grid" id="localDrivers"></div>
+        <div class="online-row"><button class="primary-button" id="startLocalMatch" disabled>Start race</button><span id="localStatus" role="status"></span></div>
+      </section>
+      <div class="online-match-bar" id="localMatchBar" hidden><strong>Mario Kart · Local room</strong><button class="secondary-button" id="localFullscreen">Fullscreen</button><button class="secondary-button" id="backLocalRoom">Return to room</button></div>
       <section class="online-panel" id="onlinePanel" aria-labelledby="onlineTitle" hidden>
         <div class="online-heading"><h2 id="onlineTitle">Online multiplayer</h2><button class="text-button" id="leaveRoom" hidden>Leave lobby</button></div>
-        <p class="online-note" id="onlineNotice">Mario Kart supports 2–8 players (empty seats fill with bots) and Fruit Ninja supports 2. Same Wi-Fi or home networks connect directly; separate strict networks share a limited monthly relay quota, so try the same Wi-Fi, a hotspot, or Local play if a cross-network room fails to link.</p>
+        <p class="online-note" id="onlineNotice">Mario Kart supports 2–8 players (empty seats fill with bots) and Fruit Ninja supports 2. Online races require a direct connection between all laptops. If your network blocks it, switch Wi-Fi or try a mobile hotspot and retry.</p>
         <div id="lobbyBrowser">
           <div class="create-lobby"><label class="online-field">Your name<input id="onlineName" maxlength="32" autocomplete="nickname" placeholder="Enter your name" required></label>
           <div class="online-row" id="createLobbyGroup">
@@ -108,7 +120,7 @@
           <label>Mode<select id="roundMode"><option value="classic">Classic</option><option value="practice">Practice</option></select></label>
           <label>Timer<select id="roundDuration"><option value="60">1 minute</option><option value="120">2 minutes</option><option value="180">3 minutes</option><option value="0">No limit</option></select></label>
         </div>
-        <div class="game-tools" id="gameTools" hidden><button class="primary-button" id="startGame" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 3 10 7-10 7Z"/></svg>Play</button><button class="secondary-button" id="pauseGame" disabled>Pause</button><button class="secondary-button" id="restartGame" disabled>Restart</button><button class="secondary-button" id="enlargeGame" aria-controls="gameStage" aria-pressed="false" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg><span id="enlargeLabel">Enlarge game</span></button></div>
+        <div class="game-tools" id="gameTools" hidden><button class="secondary-button" id="createLocalRoom" hidden>Create local room</button><button class="primary-button" id="startGame" disabled><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 3 10 7-10 7Z"/></svg>Play</button><button class="secondary-button" id="pauseGame" disabled>Pause</button><button class="secondary-button" id="restartGame" disabled>Restart</button><button class="secondary-button" id="enlargeGame" aria-controls="gameStage" aria-pressed="false" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></svg><span id="enlargeLabel">Enlarge game</span></button></div>
         <div id="notice" class="notice" role="status">Starting your workspace…</div>
         <div class="input-tools"><button class="keyboard-button" id="controlsButton" aria-haspopup="dialog" aria-controls="controlsDialog"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h.1M10 9h.1M14 9h.1M18 9h.1M6 12h.1M10 12h.1M14 12h.1M18 12h.1M7 15h10"/></svg>Controls guide</button><button id="previewButton" class="text-button" aria-haspopup="dialog">Preview controller</button></div>
       </div>

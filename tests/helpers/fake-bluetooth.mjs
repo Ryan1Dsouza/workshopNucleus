@@ -69,7 +69,7 @@ export function installFakeBluetooth(target = globalThis) {
     };
     return device;
   }
-  const phones = [phone('one'), phone('two')];
+  const phones = [phone('one'), phone('two'), ...Array.from({length:6},(_,i)=>phone(String(i+3)))];
   const state = { phones, next: 0, failure: null, requests: [], granted: [],
     async getDevices(){return this.granted.slice();},
     async requestDevice(options) { this.requests.push(options); if (this.failure) throw this.failure; const device=this.phones[this.next];if(!this.granted.includes(device))this.granted.push(device);return device; },

@@ -59,7 +59,6 @@ class HostedLobby {
     if(result.room.code===this.code && result.revision<this.revision)return;
     this.revision=result.revision;
     this.code=result.room.code;
-    if(Array.isArray(result.iceServers))this.iceServers=result.iceServers;
     this.room=result.room;
     const signature=JSON.stringify(result.room);
     if (signature!==this.previous) {
