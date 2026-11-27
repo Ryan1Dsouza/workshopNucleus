@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import hosted from '../server/hosted-lobby.cjs';
 import rules from '../server/lobby-room.cjs';
+import endpoint from '../api/lobby.js';
 
 function storage() {
   const rows=new Map();
@@ -19,6 +20,30 @@ function storage() {
 }
 const secret=i=>String(i).padStart(64,'0');
 const request=(action,data={})=>({action,requestId:randomUUID(),...data});
+
+test('the production API distinguishes an exhausted allowance from a temporary storage outage',async t=>{
+  const variable='KV_REST_API_URL', credential='KV_REST_API_TOKEN';
+  for(const key of [variable,credential]){
+    const old=process.env[key];
+    t.after(()=>{if(old===undefined)delete process.env[key];else process.env[key]=old;});
+  }
+  process.env[variable]='https://lobbies.example';
+  process.env[credential]='fixture';
+  let upstream;
+  t.mock.method(globalThis,'fetch',async()=>upstream);
+  const req={method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+secret(1)},body:{action:'directory'}};
+  for(const [response,expected] of [
+    [new Response('Limit reached',{status:429}),429],
+    [Response.json({error:'ERR max requests limit exceeded'}),429],
+    [new Response('Temporarily unavailable',{status:503}),503]
+  ]){
+    upstream=response;
+    const res={setHeader(){},status(value){this.code=value;return this;},json(value){this.body=value;}};
+    await endpoint(req,res);
+    assert.equal(res.code,expected);
+    assert.equal(res.body.error,'Lobby service is temporarily unavailable.');
+  }
+});
 
 test('hosted joins reserve the last seat once, retry safely, and keep peer signaling private',async()=>{
   const db=storage(), send=(i,q)=>hosted.handleLobby(db,secret(i),q);

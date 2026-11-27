@@ -46,10 +46,10 @@ async function redis(command) {
   if (!url || !token) throw new Error('Lobby storage is unconfigured.');
   const r = await fetch(url, {method:'POST',headers:{authorization:'Bearer '+token,'content-type':'application/json'},
     body:JSON.stringify(command),signal:AbortSignal.timeout(4500)});
-  const result = await r.json();
+  const result = await r.json().catch(()=>({error:'Invalid storage response.'}));
   if (!r.ok || result.error) {
     const error=new Error('Lobby storage is unavailable.');
-    if (r.status===429 || /quota|command limit|monthly.*limit|bandwidth limit|rate limit/i.test(result.error||'')) error.status=429;
+    if (r.status===429 || /quota|(?:command|request|bandwidth|rate)s? limit|monthly.*limit/i.test(result.error||'')) error.status=429;
     throw error;
   }
   return result.result;
