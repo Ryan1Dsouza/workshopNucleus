@@ -4,6 +4,7 @@ import { mergeGeometries } from "/vendor/three-examples/utils/BufferGeometryUtil
 import { modelSpec } from "./model-spec.js";
 import { driverFabric, projectFabric } from "./driver-fabric.js";
 import { sourceWheelMaterial } from "./source-wheel.js";
+import { sharedItemResources } from "./item-models.js";
 const materials = new Map();
 function mat(color) {
   if (!materials.has(color))
@@ -142,7 +143,7 @@ export function disposeModel(root) {
     const shared = new Set(materials.values());
     root.traverse((o) => {
       for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
-        if (m && !shared.has(m)) ownedMaterials.add(m);
+        if (m && !shared.has(m) && !sharedItemResources.has(m)) ownedMaterials.add(m);
       }
     });
     ownedMaterials.forEach((m) => m.dispose());
@@ -152,9 +153,9 @@ export function disposeModel(root) {
     ownedMaterials = new Set();
   const shared = new Set(materials.values());
   root.traverse((o) => {
-    if (o.geometry) geometries.add(o.geometry);
+    if (o.geometry && !sharedItemResources.has(o.geometry)) geometries.add(o.geometry);
     for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
-      if (m && !shared.has(m)) ownedMaterials.add(m);
+      if (m && !shared.has(m) && !sharedItemResources.has(m)) ownedMaterials.add(m);
     }
   });
   geometries.forEach((g) => g.dispose());

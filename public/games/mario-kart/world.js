@@ -395,6 +395,7 @@ export async function buildWorld(scene) {
     opacity: 0.6,
     roughness: 0.85,
   });
+  const edgePaint=roadMaterial(pavement,"#c5ad46",true);
   for (const [a, b] of [
     [0, SECTIONS.antiStart],
     [SECTIONS.glideEnd, L],
@@ -409,7 +410,7 @@ export async function buildWorld(scene) {
           b,
           side * 8.78 - 0.04,
           side * 8.78 + 0.04,
-          roadMaterial(pavement, "#c5ad46", true),
+          edgePaint,
           0.085,
         ),
       );
@@ -530,6 +531,7 @@ export async function buildWorld(scene) {
   await yieldDuringLoad();
   // Floodlight pylons and their visible luminaires. Illumination is consolidated
   // into the scene's key/fill lights rather than hundreds of GPU point lights.
+  const floodlightTile=new THREE.MeshBasicMaterial({color:new THREE.Color("#ceeeff").multiplyScalar(3)});
   for (let i = 0; i < 12; i++) {
     const a = (i * Math.PI * 2) / 12,
       x = Math.cos(a) * 255,
@@ -545,9 +547,7 @@ export async function buildWorld(scene) {
         lamp,
         [1.5, 0.75, 0.1],
         [((k % 6) - 2.5) * 1.85, Math.floor(k / 6) * 1.05 - 0.5, 0.4],
-        new THREE.MeshBasicMaterial({
-          color: new THREE.Color("#ceeeff").multiplyScalar(3),
-        }),
+        floodlightTile,
       );
   }
   // Lit office towers rise above the bowl, as in the Stadium night skyline.

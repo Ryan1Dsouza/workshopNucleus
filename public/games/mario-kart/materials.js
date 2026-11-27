@@ -121,5 +121,6 @@ export function roadMaterial(maps, color = "#838482", paint = false) {
   `,
     );
   };
+  mat.customProgramCacheKey = () => 'stadium-road-wear-v1';
   return mat;
 }

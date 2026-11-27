@@ -1,4 +1,5 @@
 import {sourceJumpLaunch} from "./source-jump.js";
+import {createPose,capturePose} from './render-pose.js';
 import { stepSourceGlide } from './glide.js';
 import { contactResponse } from "./contact-response.js";
 import { roadFrame } from "./visual-frame.js";
@@ -203,6 +204,7 @@ export class Race {
   position(r) {
     return this.standings.indexOf(r) + 1;
   }
+  get alpha() { return this.state==='ready' ? 1 : clamp(this.accumulator/FIXED_DT,0,1); }
   update(dt, input = {}) {
     if (
       !Number.isFinite(dt) ||
@@ -220,6 +222,9 @@ export class Race {
     }
   }
   step(dt, input) {
+    for (const r of this.racers) {
+      if (!r.remote) capturePose(r,r.prevPose??=createPose());
+    }
     this.time += dt;
     if (this.state === "countdown") {
       if (input.gas && !this.player.lastInput.gas)

@@ -1,4 +1,15 @@
 import * as T from 'three';
+const templates=new Map();
+export const sharedItemResources=new WeakSet();
+export function itemInstance(type,build) {
+ let template=templates.get(type);
+ if(!template){
+   template=build(type);
+   template.traverse(mesh=>{if(mesh.isMesh){sharedItemResources.add(mesh.geometry);sharedItemResources.add(mesh.material);}});
+   templates.set(type,template);
+ }
+ return template.clone();
+}
 const material=(color)=>new T.MeshStandardMaterial({color,roughness:.42});
 function mesh(g,geometry,mat,x=0,y=0,z=0){const m=new T.Mesh(geometry,mat);m.position.set(x,y,z);m.castShadow=true;g.add(m);return m;}
 function eyes(g,y,z,size=1){for(const x of [-.16,.16]){const e=mesh(g,new T.SphereGeometry(1,16,12),material('#161319'),x*size,y,z);e.scale.set(.055*size,.16*size,.035*size);}}
@@ -6,6 +17,9 @@ function eyes(g,y,z,size=1){for(const x of [-.16,.16]){const e=mesh(g,new T.Sphe
 /** Lit silhouettes shared by the glove and projectile, including shell seams,
  * faces, the blue shell's spikes and the banana's curved peel. */
 export function makeItemModel(type){
+ return itemInstance(type,buildItem);
+}
+function buildItem(type){
  const g=new T.Group();g.name='item-'+type;
  if(type==='banana'){
   const yellow=material('#ffdc21'),inside=material('#fff4a3');

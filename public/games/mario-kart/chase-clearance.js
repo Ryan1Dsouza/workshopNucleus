@@ -1,12 +1,13 @@
 import * as THREE from 'three';
+const probe = new THREE.Vector3();
 
 /** Keep the driver visible when a nearby rail blocks the low chase segment.
  * Search clear lateral/elevated eyes before shortening the arm into the kart.
  * The collision query remains authoritative; no candidate bypasses scenery.
  */
 export function clearChaseView(body, head, eye, up, avoid, crown=head) {
-  const clear = candidate => avoid(body, candidate).distanceToSquared(candidate)<1e-8 &&
-    avoid(head, candidate).distanceToSquared(candidate)<1e-8;
+  const clear = candidate => avoid(body, candidate,probe).distanceToSquared(candidate)<1e-8 &&
+    avoid(head, candidate,probe).distanceToSquared(candidate)<1e-8;
   if (clear(eye)) return eye.clone();
   const bodySafe = avoid(body, eye);
   // Compare ordinary arm shortening with lateral clearance, rather than first
@@ -34,7 +35,7 @@ export function clearChaseView(body, head, eye, up, avoid, crown=head) {
   }
   // A kart already overlapping a rail can have both lower anchors inside it.
   // Preserve a clear view of the upper head instead of pulling the eye into it.
-  const upperClear=candidate=>avoid(crown,candidate).distanceToSquared(candidate)<1e-8;
+  const upperClear=candidate=>avoid(crown,candidate,probe).distanceToSquared(candidate)<1e-8;
   if(upperClear(eye))return eye.clone();
   for(const {lateral,height} of offsets){
     const candidate=eye.clone().addScaledVector(right,lateral).addScaledVector(up,height);
@@ -60,7 +61,7 @@ export function smoothChaseCorrection(eye, resolved, body, crown, avoid, offset,
   if(desired.distanceToSquared(offset)<1e-8){offset.copy(desired);return resolved;}
   const proposal=offset.clone().lerp(desired,1-Math.exp(-Math.max(0,dt)*10));
   const candidate=eye.clone().add(proposal);
-  if(candidate.distanceTo(body)>4.5 && avoid(crown,candidate).distanceToSquared(candidate)<1e-8){
+  if(candidate.distanceTo(body)>4.5 && avoid(crown,candidate,probe).distanceToSquared(candidate)<1e-8){
     offset.copy(proposal);return candidate;
   }
   offset.copy(desired);return resolved;

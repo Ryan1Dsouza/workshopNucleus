@@ -31,16 +31,16 @@ export function cameraCollision(root) {
         cells.get(key).push(copy);
       }
   });
-  const ray = new THREE.Raycaster();
-  return (focus, eye) => {
-    const direction = eye.clone().sub(focus),
-      length = direction.length();
-    if (length < 0.01) return eye.clone();
+  const ray = new THREE.Raycaster(), direction=new THREE.Vector3(), candidates=new Set(), hits=[];
+  return (focus, eye, out=new THREE.Vector3()) => {
+    direction.subVectors(eye,focus);
+    const length = direction.length();
+    if (length < 0.01) return out.copy(eye);
     direction.divideScalar(length);
     ray.set(focus, direction);
     ray.near = 0.05;
     ray.far = length;
-    const candidates = new Set();
+    candidates.clear();
     for (
       let x = Math.floor(Math.min(focus.x, eye.x) / cellSize);
       x <= Math.floor(Math.max(focus.x, eye.x) / cellSize);
@@ -55,11 +55,12 @@ export function cameraCollision(root) {
           candidates.add(object);
     let nearest = length;
     for (const object of candidates) {
-      const hits = ray.intersectObject(object, false);
+      hits.length=0;
+      ray.intersectObject(object, false, hits);
       if (hits.length) nearest = Math.min(nearest, hits[0].distance);
     }
     return nearest < length
-      ? focus.clone().addScaledVector(direction, Math.max(0.15, nearest - 0.45))
-      : eye.clone();
+      ? out.copy(focus).addScaledVector(direction, Math.max(0.15, nearest - 0.45))
+      : out.copy(eye);
   };
 }

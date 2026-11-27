@@ -57,7 +57,7 @@ export function raceEffects(scene,random=Math.random){
   for(let i=0;i<5;i++)emit(origin,{x:(random()-.5)*3,y:(random()-.5)*3,z:(random()-.5)*3},palette[i],1.3,.25,3,n);
   glass.instanceColor.needsUpdate=true;
  }
- function tire(r,frame,dt){
+ function tire(r,frame,dt,pose=r){
   let state=tireState.get(r);if(!state){state={debt:0,tier:0};tireState.set(r,state);}
   if(!r.drift||r.speed<10||r.gliding||r.jump){state.debt=0;state.tier=0;return;}
   if(dt<=0)return;
@@ -65,7 +65,7 @@ export function raceEffects(scene,random=Math.random){
   state.debt+=dt*(tier?130:60);const amount=Math.min(7,Math.floor(state.debt));state.debt=Math.min(1,state.debt-amount);
   const flare=tier>state.tier;state.tier=tier;
   for(const side of [-1,1]){
-   const position={x:r.x-f.x*1.15+right.x*side*1.08+n.x*.13,y:r.y-f.y*1.15+right.y*side*1.08+n.y*.13,z:r.z-f.z*1.15+right.z*side*1.08+n.z*.13};
+   const position={x:pose.x-f.x*1.15+right.x*side*1.08+n.x*.13,y:pose.y-f.y*1.15+right.y*side*1.08+n.y*.13,z:pose.z-f.z*1.15+right.z*side*1.08+n.z*.13};
    if(tier)emit(position,{x:f.x*r.speed*.72,y:f.y*r.speed*.72,z:f.z*r.speed*.72},color,flare?1.45:.48+random()*.18,flare?.15:.045,3,n);
    for(let i=0;i<amount+(flare?12:0);i++){
     const lateral=side*(1.5+random()*5),lift=.5+random()*3,back=2+random()*6;
@@ -83,7 +83,10 @@ export function raceEffects(scene,random=Math.random){
    liveParticles = true;
    const age=1-p.life/p.total;
    for(const axis of ['x','y','z']){p[axis]+=p.velocity[axis]*dt;if(p.kind===0)p.velocity[axis]-=p.normal[axis]*12*dt;}
-   positions.set([p.x,p.y,p.z],i*3);velocities.set([p.velocity.x,p.velocity.y,p.velocity.z],i*3);tint.set(p.color);colors.set([tint.r,tint.g,tint.b],i*3);
+   const offset=i*3;
+   positions[offset]=p.x;positions[offset+1]=p.y;positions[offset+2]=p.z;
+   velocities[offset]=p.velocity.x;velocities[offset+1]=p.velocity.y;velocities[offset+2]=p.velocity.z;
+   tint.set(p.color).toArray(colors,offset);
    kinds[i]=p.kind;sizes[i]=p.size*(p.kind===1?1+age*1.8:1);alphas[i]=(1-age)*(p.kind===1?.22:1);
   });
   points.visible = liveParticles;

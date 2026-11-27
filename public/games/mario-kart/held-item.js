@@ -1,8 +1,11 @@
 import * as THREE from 'three';
-import {makeItemModel} from './item-models.js';
+import {makeItemModel,itemInstance,sharedItemResources} from './item-models.js';
 
 /** A lit, round mushroom; analytic spots keep the cap smooth at race distance. */
 export function createHeldMushroom() {
+  return itemInstance('mushroom',buildMushroom);
+}
+function buildMushroom() {
   const group = new THREE.Group();
   group.name = 'held-mushroom';
   const capMaterial = new THREE.MeshStandardMaterial({color:0xe51627,roughness:.38});
@@ -84,7 +87,8 @@ export function updateHeldItem(model,racer,dt) {
   if(state.amount<.0001)state.amount=0;
   const type=show?racer.item:racer.itemUse?.type;
   if(type && state.type!==type){
-    mushroom.traverse(o=>{o.geometry?.dispose();o.material?.dispose();});mushroom.clear();
+    mushroom.traverse(o=>{if(o.material && !sharedItemResources.has(o.material))o.material.dispose();});
+    mushroom.clear();
     const prop=type==='mushroom'?createHeldMushroom():makeItemModel(type);
     if(type!=='mushroom')prop.scale.setScalar(.48);
     mushroom.add(prop);state.type=type;

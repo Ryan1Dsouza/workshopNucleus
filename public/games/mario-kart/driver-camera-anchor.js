@@ -42,10 +42,10 @@ function measureHead(model) {
  * the driver merely to reveal that occluded low target. Aim clearance at the
  * rendered head while leaving the chase eye and look-ahead composition intact.
  */
-export function driverCameraAnchor(model, fallback, upper=false) {
+export function driverCameraAnchor(model, fallback, upper=false, out=new THREE.Vector3()) {
   if (!anchors.has(model)) anchors.set(model, measureHead(model));
   const anchor = anchors.get(model);
-  if (!anchor) return fallback.clone();
+  if (!anchor) return out.copy(fallback);
   anchor.head.updateWorldMatrix(true, false);
-  return anchor.head.localToWorld((upper?anchor.crown:anchor.point).clone());
+  return anchor.head.localToWorld(out.copy(upper?anchor.crown:anchor.point));
 }

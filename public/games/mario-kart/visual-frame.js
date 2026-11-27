@@ -52,49 +52,49 @@ export function cameraClearance(position, referenceS = null) {
     y: Math.max(position.y, surfaceAt(p.s, p.lateral).y + 1.25),
   };
 }
-export function flightFrame(racer) {
+export function flightFrame(racer, heading=racer.heading) {
   // An airborne hit can remove almost all forward speed while gravity keeps
   // acting. That velocity is not a useful viewing direction: it carries the
   // chase eye over the canopy and even ahead of the driver. Retain the source
   // glide's minimum launch pace as the camera reference through interruptions.
   // Ordinary flight and the steep ramp departure still follow their descent.
   const speed=Math.max(26,Math.abs(racer.speed||0));
-  const forward=norm({x:Math.sin(racer.heading)*speed,y:Number.isFinite(racer.flightV)?racer.flightV:-speed*.08,z:-Math.cos(racer.heading)*speed});
+  const forward=norm({x:Math.sin(heading)*speed,y:Number.isFinite(racer.flightV)?racer.flightV:-speed*.08,z:-Math.cos(heading)*speed});
   // Follow actual descent, with an up vector perpendicular to that flight.
   // A horizontal camera behind the steep launch ramp starts inside the road.
   const up=norm({x:-forward.x*forward.y,y:1-forward.y*forward.y,z:-forward.z*forward.y});
   return {forward,up};
 }
-export function chasePose(racer) {
+export function chasePose(racer, pose=racer) {
   const frame = racer.gliding
-    ? activeSurfaceTrack ? flightFrame(racer) : {
+    ? activeSurfaceTrack ? flightFrame(racer,pose.heading) : {
         up: { x: 0, y: 1, z: 0 },
         forward: {
-          x: Math.sin(racer.heading),
+          x: Math.sin(pose.heading),
           y: -0.08,
-          z: -Math.cos(racer.heading),
+          z: -Math.cos(pose.heading),
         },
       }
-    : roadFrame(racer.s, racer.lateral, racer.heading, racer.surfaceForward, racer.surfaceNormal);
+    : roadFrame(pose.s, pose.lateral, pose.heading, racer.jump?null:pose.surfaceForward, racer.jump?{x:0,y:1,z:0}:pose.surfaceNormal);
   const { up: n, forward: f } = frame;
   // MK8-like composition: kart low in frame with room to read upcoming corners, road and landmarks ahead.
   const back = racer.gliding ? 8.8 : 9.6,
     height = racer.gliding ? 3.8 : 3.65;
   const eye = cameraClearance(
     {
-      x: racer.x - f.x * back + n.x * height,
-      y: racer.y - f.y * back + n.y * height,
-      z: racer.z - f.z * back + n.z * height,
+      x: pose.x - f.x * back + n.x * height,
+      y: pose.y - f.y * back + n.y * height,
+      z: pose.z - f.z * back + n.z * height,
     },
-    racer.s,
+    pose.s,
   );
-  const ahead = surfaceAt(racer.s + 14, racer.lateral * 0.55);
+  const ahead = surfaceAt(pose.s + 14, pose.lateral * 0.55);
   const follow = racer.gliding ? 0 : 0.45;
   const aimHeight=racer.gliding?1.3:3.1;
   const aim = {
-    x: (racer.x + f.x * 12) * (1 - follow) + ahead.x * follow + n.x * aimHeight,
-    y: (racer.y + f.y * 12) * (1 - follow) + ahead.y * follow + n.y * aimHeight,
-    z: (racer.z + f.z * 12) * (1 - follow) + ahead.z * follow + n.z * aimHeight,
+    x: (pose.x + f.x * 12) * (1 - follow) + ahead.x * follow + n.x * aimHeight,
+    y: (pose.y + f.y * 12) * (1 - follow) + ahead.y * follow + n.y * aimHeight,
+    z: (pose.z + f.z * 12) * (1 - follow) + ahead.z * follow + n.z * aimHeight,
   };
   const viewUp = norm({ x: n.x * 0.72, y: n.y * 0.72 + 0.28, z: n.z * 0.72 });
   return { eye, aim, up: viewUp };

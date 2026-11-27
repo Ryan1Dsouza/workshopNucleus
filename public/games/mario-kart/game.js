@@ -1,4 +1,6 @@
 import {KartMatch} from './online.js';
+import {createPose,samplePose} from './render-pose.js';
+import {RenderBudget} from '../../core/render-budget.js';
 import * as menu from './menu.mjs';
 import {itemRoulette} from "./item-roulette.js";
 import {raceEffects} from "./race-effects.js";
@@ -9,7 +11,7 @@ import { RoundedBoxGeometry } from "/vendor/three-examples/geometries/RoundedBox
 import { makeHoverGlow, updateHoverGlow } from "./hover-effects.js";
 import { updateDriverLook } from "./driver-look.js";
 import { makeItemModel } from "./item-models.js";
-import { updateHeldItem, heldItemOrigin } from "./held-item.js";
+import { updateHeldItem, heldItemOrigin, createHeldMushroom } from "./held-item.js";
 import { rivalVisible } from "./rival-visibility.js";
 import { driverCameraAnchor } from "./driver-camera-anchor.js";
 import { clearChaseView, clearanceLookTarget, smoothChaseCorrection } from "./chase-clearance.js";
@@ -69,10 +71,12 @@ window.addEventListener("error", (e) => {
 });
 const renderer = new THREE.WebGLRenderer({
   canvas,
-  antialias: true,
+  antialias: false,
   powerPreference: "high-performance",
 });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 1));
+const renderBudget=new RenderBudget();
+const updatePixelRatio=()=>renderer.setPixelRatio(Math.min(devicePixelRatio,1)*renderBudget.scale);
+updatePixelRatio();
 let viewportWidth = innerWidth, viewportHeight = innerHeight;
 renderer.setSize(viewportWidth, viewportHeight);
 renderer.shadowMap.enabled = false;
@@ -120,7 +124,7 @@ if (world.source) {
 }
 // The source stadium has 16:9 panels; generated scenery uses 4:3 panels.
 const broadcast = stadiumBroadcast(renderer, scene, world.screenMaterials,
-  world.source ? {width:320,height:180} : {width:256,height:192});
+  world.source ? {width:192,height:108} : {width:160,height:120});
 addAtmosphere(scene);
 // Consolidate static scenery by material. No dynamic light/firework meshes are
 // included; source object transforms are baked, preserving exact geometry.
@@ -189,7 +193,7 @@ for (const o of staticMeshes) {
     g.setAttribute("color", new THREE.BufferAttribute(colors, 3));
     // Keep distant stands and buildings independently frustum-cullable.
     const origin = o.matrixWorld.elements;
-    id = [material.type, material.side, Math.floor(origin[12] / 100), Math.floor(origin[14] / 100)].join('/');
+    id = [material.type, material.side, Math.floor(origin[12] / 180), Math.floor(origin[14] / 180)].join('/');
     if (!staticGroups.has(id)) {
       material = material.clone();
       material.color.set(0xffffff);
@@ -292,6 +296,7 @@ function constructRace(reuseGrid = false) {
     shadow.rotation.x = -Math.PI / 2;
     scene.add(shadow);
     karts.push({
+      pose:createPose(),
       id: r.character.id,
       root,
       model,
@@ -383,7 +388,8 @@ function onEvent(e) {
   if(e.type==='hit' && race?.racers[e.racer]){
     const r=race.racers[e.racer];burst(r,28,e.cause==='blue'?'#98dbff':'#fff0a0');
     if(e.cause==='blue'){
-      const ball=new THREE.Mesh(new THREE.SphereGeometry(1,32,20),new THREE.MeshBasicMaterial({color:'#b9eaff',transparent:true,opacity:.65,depthWrite:false,blending:THREE.AdditiveBlending}));
+      const ball=impactTemplate.clone();
+      ball.material=impactTemplate.material.clone();
       ball.position.set(r.x,r.y+1,r.z);scene.add(ball);itemImpacts.push({mesh:ball,start:race.time});
     }
   }
@@ -781,12 +787,18 @@ function burst(r, n, color) {
 }
 const objectMeshes = new Map();
 const itemImpacts=[];
+const impactTemplate=new THREE.Mesh(new THREE.SphereGeometry(1,32,20),new THREE.MeshBasicMaterial({
+  color:'#b9eaff',transparent:true,opacity:.65,depthWrite:false,blending:THREE.AdditiveBlending
+}));
 const camTarget = new V(),
   unconstrainedEye = new V(),
   sceneryOffset = new V(),
   cameraAimTarget = new V(),
   cameraAim = new V(),
   cameraUp = new V(0, 1, 0);
+const worldUp=new V(0,1,0), surfaceUp=new V(), cameraFocus=new V(), beforeClearance=new V(),
+  headFocus=new V(), upperHeadFocus=new V(), canopy=new V(), jumpRotation=new THREE.Quaternion(), jumpEuler=new THREE.Euler();
+const activeObjects=new Set();
 const basis = new THREE.Matrix4(),
   basisX = new V(),
   basisY = new V(),
@@ -798,21 +810,22 @@ let lastFlightCamera = null, landingCamera = null;
 function draw(dt, now) {
   const p = race.player,
     time = race.time;
+  const alpha=race.alpha, playerPose=karts[0].pose, pixelHeight=viewportHeight*renderer.getPixelRatio();
   world.update(
     now / 1000,
     race.state === "countdown" ? race.count : race.state === "ready" ? 3 : 0,
   );
   for (const [i, r] of race.racers.entries()) {
-    const k = karts[i],
-      path = activeSurfaceTrack ? surfaceAt(r.s,r.lateral) : trackAt(r.s);
-    const hop = r.hop > 0 ? Math.sin((r.hop / 0.36) * Math.PI) * 0.7 : 0;
-    k.root.position.set(r.x, r.y + hop + 0.1, r.z);
+    const k = karts[i], pose=samplePose(r,alpha,k.pose),
+      path = activeSurfaceTrack ? surfaceAt(pose.s,pose.lateral) : trackAt(pose.s);
+    const hop = pose.hop > 0 ? Math.sin((pose.hop / 0.36) * Math.PI) * 0.7 : 0;
+    k.root.position.set(pose.x, pose.y + hop + 0.1, pose.z);
     if (activeSurfaceTrack && !r.gliding) {
-      const n = r.surfaceNormal||path.normal;
-      k.root.position.set(r.x+n.x*(hop+.1),r.y+n.y*(hop+.1),r.z+n.z*(hop+.1));
+      const n = pose.surfaceNormal||path.normal;
+      k.root.position.set(pose.x+n.x*(hop+.1),pose.y+n.y*(hop+.1),pose.z+n.z*(hop+.1));
     }
     if (!r.gliding) {
-      const frame = roadFrame(r.s, r.lateral, r.heading, r.surfaceForward, r.surfaceNormal);
+      const frame = roadFrame(pose.s, pose.lateral, pose.heading, pose.surfaceForward, pose.surfaceNormal);
       basisX.set(frame.right.x, frame.right.y, frame.right.z);
       basisY.set(frame.up.x, frame.up.y, frame.up.z);
       basisZ.set(-frame.forward.x, -frame.forward.y, -frame.forward.z);
@@ -824,7 +837,7 @@ function draw(dt, now) {
       // the kart by roughly 57 degrees in a single frame.
       if (activeSurfaceTrack && k.wasGliding === false)
         k.launchOrientation = k.root.quaternion.clone();
-      k.root.rotation.set(-0.08, -r.heading, 0, "YXZ");
+      k.root.rotation.set(-0.08, -pose.heading, 0, "YXZ");
       if (activeSurfaceTrack && k.launchOrientation && r.flight < .32) {
         k.flightOrientation ||= new THREE.Quaternion();
         k.flightOrientation.copy(k.root.quaternion);
@@ -834,11 +847,11 @@ function draw(dt, now) {
     }
     if(r.jump){
       if(!k.wasJumping)k.jumpOrientation=k.root.quaternion.clone();
-      const flat=new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.atan2(r.jump.velocity,Math.max(20,r.speed)),-r.heading,0,'YXZ'));
+      const flat=jumpRotation.setFromEuler(jumpEuler.set(-Math.atan2(r.jump.velocity,Math.max(20,r.speed)),-pose.heading,0,'YXZ'));
       k.root.quaternion.slerpQuaternions(k.jumpOrientation,flat,THREE.MathUtils.smoothstep(r.jump.age,0,.16));
     }
     k.wasJumping=!!r.jump;
-    if(r.landing>0)k.root.position.y-=Math.sin((1-r.landing/.24)*Math.PI)*.16;
+    if(pose.landing>0)k.root.position.y-=Math.sin((1-pose.landing/.24)*Math.PI)*.16;
     k.wasGliding = r.gliding;
     if (!r.gliding) k.launchOrientation = null;
     k.model.rotation.y = r.spin > 0 ? time * 15 : r.drift ? -r.drift * 0.25 : 0;
@@ -848,7 +861,7 @@ function draw(dt, now) {
     updateBoostEffect(k.boostEffect,k.model,r.boost,time+i*.17);
     if (r.star > 0 || k.starActive) updateStarModel(k.model,r.star>0,(time*.65+i*.1)%1);
     k.starActive = r.star > 0;
-    updateStarAura(k.starAura,r.star>0,time+i*.17,viewportHeight);
+    updateStarAura(k.starAura,r.star>0,time+i*.17,pixelHeight);
     if(!paused) k.wheelHover = (k.wheelHover||0) + ((r.anti?1:0)-(k.wheelHover||0))*(1-Math.exp(-dt*18));
     for (const [wi, w] of k.wheels.entries()) {
       if (!w) continue;
@@ -864,20 +877,20 @@ function draw(dt, now) {
     updateGlider(k.glider,r,time);
     // The airborne spline is the flight corridor, not a physical surface.
     // Its lower landing road is at ground level; the shadow belongs there.
-    k.shadow.position.set(r.x, r.gliding ? 0.09 : r.y + 0.04, r.z);
+    k.shadow.position.set(pose.x, r.gliding ? 0.09 : pose.y + 0.04, pose.z);
     if (activeSurfaceTrack && r.gliding && !path.glide) k.shadow.position.y = path.y + .09;
     if (activeSurfaceTrack && !r.gliding) {
-      const n=r.surfaceNormal||path.normal;k.shadow.position.set(r.x+n.x*.04,r.y+n.y*.04,r.z+n.z*.04);
+      const n=pose.surfaceNormal||path.normal;k.shadow.position.set(pose.x+n.x*.04,pose.y+n.y*.04,pose.z+n.z*.04);
     }
-    if(r.jump){const g=activeSurfaceTrack.support(r,{x:0,y:1,z:0})||path;k.shadow.position.set(r.x,g.y+.04,r.z);}
+    if(r.jump){const g=activeSurfaceTrack.support(pose,worldUp)||path;k.shadow.position.set(pose.x,g.y+.04,pose.z);}
     k.shadow.material.opacity = r.gliding||r.jump ? 0.2 : 0.7;
     if (!r.gliding) {
       k.shadow.quaternion.copy(k.root.quaternion);
       k.shadow.rotateX(-Math.PI / 2);
-    } else k.shadow.rotation.set(-Math.PI / 2, 0, r.heading);
-    effects.tire(r,r.drift ? roadFrame(r.s,r.lateral,r.heading,r.surfaceForward,r.surfaceNormal) : null,paused?0:dt);
+    } else k.shadow.rotation.set(-Math.PI / 2, 0, pose.heading);
+    effects.tire(r,r.drift ? roadFrame(pose.s,pose.lateral,pose.heading,pose.surfaceForward,pose.surfaceNormal) : null,paused?0:dt,pose);
   }
-  effects.update(paused?0:dt,viewportHeight);
+  effects.update(paused?0:dt,pixelHeight);
   for (const [i, m] of coinMeshes.entries()) {
     m.visible = race.coins[i].respawn === 0 && m.getWorldPosition(basisX).distanceTo(camera.position) > 1.6;
     m.rotation.z = now * 0.003;
@@ -887,7 +900,8 @@ function draw(dt, now) {
     g.rotation.y = now * 0.001;
     g.rotation.z = Math.sin(now * 0.001 + i) * 0.2;
   }
-  const alive = new Set();
+  const alive = activeObjects;
+  alive.clear();
   for (const o of race.objects) {
     alive.add(o.id);
     if (!objectMeshes.has(o.id)) {
@@ -906,24 +920,20 @@ function draw(dt, now) {
         m.position.set(target.x+Math.cos(a)*orbit,target.y+4.5*(1-THREE.MathUtils.smoothstep(t,.55,.85)),target.z+Math.sin(a)*orbit);}
     }
     const releaseTime=o.type==='banana'?.42:.22, t=Math.min(1,o.age/releaseTime);
-    if(t<1){m.position.lerpVectors(m.userData.release,m.position,t);m.position.addScaledVector(new V(n.x,n.y,n.z),Math.sin(t*Math.PI)*(o.type==='banana'?.6:1.4));}
+    if(t<1){m.position.lerpVectors(m.userData.release,m.position,t);m.position.addScaledVector(surfaceUp.copy(n),Math.sin(t*Math.PI)*(o.type==='banana'?.6:1.4));}
     if (activeSurfaceTrack) {
-      m.quaternion.setFromUnitVectors(new V(0,1,0),new V(n.x,n.y,n.z));
+      m.quaternion.setFromUnitVectors(worldUp,surfaceUp.copy(n));
       m.rotateY(o.type==='banana'?0:o.age*12);
     } else m.rotation.y = o.type==='banana'?0:o.age*12;
   }
   for (const [id, m] of objectMeshes)
     if (!alive.has(id)) {
       scene.remove(m);
-      m.traverse((o) => {
-        o.geometry?.dispose();
-        if (o.material) o.material.dispose();
-      });
       objectMeshes.delete(id);
     }
   for(let i=itemImpacts.length-1;i>=0;i--){const impact=itemImpacts[i],age=race.time-impact.start;
     impact.mesh.scale.setScalar(.5+Math.min(1,age/.24)*6);impact.mesh.material.opacity=Math.max(0,.7*(1-age/.5));
-    if(age>.5||age<0){scene.remove(impact.mesh);impact.mesh.geometry.dispose();impact.mesh.material.dispose();itemImpacts.splice(i,1);}
+    if(age>.5||age<0){scene.remove(impact.mesh);impact.mesh.material.dispose();itemImpacts.splice(i,1);}
   }
   particles.forEach((p, i) => {
     p.life -= paused ? 0 : dt;
@@ -938,7 +948,7 @@ function draw(dt, now) {
   particleGeo.attributes.position.needsUpdate = true;
   particleGeo.attributes.color.needsUpdate = true;
   boostFeedback=updateBoostScreen(race.time,p.boost);
-  const desired = chasePose(p.jump?{...p,surfaceForward:null,surfaceNormal:{x:0,y:1,z:0}}:p);
+  const desired = chasePose(p,playerPose);
   // Blend camera offsets after contact so the steep flight camera does not
   // drop instantly to ground chase height. Keep following the moving kart;
   // geometry clearance still runs below after smoothing.
@@ -946,8 +956,8 @@ function draw(dt, now) {
     if (p.gliding) {
       lastFlightCamera = {eye: {}, aim: {}, up: {...desired.up}};
       for (const axis of ["x", "y", "z"]) {
-        lastFlightCamera.eye[axis] = desired.eye[axis] - p[axis];
-        lastFlightCamera.aim[axis] = desired.aim[axis] - p[axis];
+        lastFlightCamera.eye[axis] = desired.eye[axis] - playerPose[axis];
+        lastFlightCamera.aim[axis] = desired.aim[axis] - playerPose[axis];
       }
       landingCamera = null;
     } else {
@@ -958,9 +968,9 @@ function draw(dt, now) {
       if (landingCamera) {
         const blend = THREE.MathUtils.smoothstep(race.time - landingCamera.started, 0, .45);
         for (const axis of ["x", "y", "z"]) {
-          desired.eye[axis] = THREE.MathUtils.lerp(p[axis] + landingCamera.eye[axis], desired.eye[axis], blend);
-          desired.aim[axis] = THREE.MathUtils.lerp(p[axis] + landingCamera.aim[axis], desired.aim[axis], blend);
-          desired.up[axis] = THREE.MathUtils.lerp(landingCamera.up[axis], desired.up[axis], blend);
+          desired.eye[axis] = THREE.MathUtils.lerp(playerPose[axis] + landingCamera.eye[axis], desired.eye[axis], blend);
+          desired.aim[axis] = THREE.MathUtils.lerp(playerPose[axis] + landingCamera.aim[axis], desired.aim[axis], blend);
+          desired.uplayerPose[axis] = THREE.MathUtils.lerp(landingCamera.uplayerPose[axis], desired.uplayerPose[axis], blend);
         }
         if (blend === 1) landingCamera = null;
       }
@@ -970,22 +980,22 @@ function draw(dt, now) {
   }
   const finishBlend = p.finishTime === null ? 0 : THREE.MathUtils.smoothstep(race.time - (race.finishedAt ?? race.time), 0, .9);
   if (p.finishTime !== null) {
-    const basis = roadFrame(p.s, p.lateral, p.heading, p.surfaceForward, p.surfaceNormal);
+    const basis = roadFrame(playerPose.s, playerPose.lateral, playerPose.heading, playerPose.surfaceForward, playerPose.surfaceNormal);
     const angle = Math.PI * (1 - finishBlend), radius = THREE.MathUtils.lerp(9.6, 8, finishBlend);
     for (const axis of ['x', 'y', 'z']) {
-      desired.eye[axis] = p[axis] + radius * (basis.forward[axis] * Math.cos(angle) + basis.right[axis] * Math.sin(angle)) + basis.up[axis] * THREE.MathUtils.lerp(3.65, 2.8, finishBlend);
-      desired.aim[axis] = THREE.MathUtils.lerp(desired.aim[axis], p[axis] + basis.up[axis] * 1.4, finishBlend);
+      desired.eye[axis] = playerPose[axis] + radius * (basis.forward[axis] * Math.cos(angle) + basis.right[axis] * Math.sin(angle)) + basis.uplayerPose[axis] * THREE.MathUtils.lerp(3.65, 2.8, finishBlend);
+      desired.aim[axis] = THREE.MathUtils.lerp(desired.aim[axis], playerPose[axis] + basis.uplayerPose[axis] * 1.4, finishBlend);
     }
   }
   if (race.state === "ready") {
-    const t = -p.heading - Math.PI*.31 + Math.sin(now*.00008)*.045;
-    camTarget.set(p.x + Math.cos(t) * 7.6, p.y + 3.7, p.z + Math.sin(t) * 7.6);
-    cameraAimTarget.set(p.x-Math.sin(t)*2.65, p.y + 1.3, p.z+Math.cos(t)*2.65);
+    const t = -playerPose.heading - Math.PI*.31 + Math.sin(now*.00008)*.045;
+    camTarget.set(playerPose.x + Math.cos(t) * 7.6, playerPose.y + 3.7, playerPose.z + Math.sin(t) * 7.6);
+    cameraAimTarget.set(playerPose.x-Math.sin(t)*2.65, playerPose.y + 1.3, playerPose.z+Math.cos(t)*2.65);
     cameraUp.set(0, 1, 0);
   } else {
     camTarget.set(desired.eye.x, desired.eye.y, desired.eye.z);
     cameraAimTarget.set(desired.aim.x, desired.aim.y, desired.aim.z);
-    const up = new V(desired.up.x, desired.up.y, desired.up.z);
+    const up = surfaceUp.copy(desired.up);
     cameraUp.lerp(up, 1 - Math.exp(-dt * 7)).normalize();
   }
   if (!initializedCamera || debug.snapCamera) {
@@ -1003,18 +1013,18 @@ function draw(dt, now) {
   // Smooth the intended rig independently. Feeding corrected eyes back into
   // smoothing makes the camera repeatedly drift into and jump off the rail.
   if (race.state !== "ready") {
-    const safe = cameraClearance(unconstrainedEye, race.player.s);
+    const safe = cameraClearance(unconstrainedEye, playerPose.s);
     camera.position.copy(safe);
-    const cameraNormal = activeSurfaceTrack && !p.gliding ? (p.surfaceNormal||surfaceAt(p.s,p.lateral).normal) : {x:0,y:1,z:0};
-    const cameraFocus = new V(p.x+cameraNormal.x*1.3,p.y+cameraNormal.y*1.3,p.z+cameraNormal.z*1.3);
-    const headFocus = driverCameraAnchor(karts[0].model,cameraFocus);
-    const upperHeadFocus = driverCameraAnchor(karts[0].model,cameraFocus,true);
-    const beforeClearance = camera.position.clone();
+    const cameraNormal = activeSurfaceTrack && !p.gliding ? (playerPose.surfaceNormal||surfaceAt(playerPose.s,playerPose.lateral).normal) : {x:0,y:1,z:0};
+    cameraFocus.set(playerPose.x+cameraNormal.x*1.3,playerPose.y+cameraNormal.y*1.3,playerPose.z+cameraNormal.z*1.3);
+    driverCameraAnchor(karts[0].model,cameraFocus,false,headFocus);
+    driverCameraAnchor(karts[0].model,cameraFocus,true,upperHeadFocus);
+    beforeClearance.copy(camera.position);
     const resolvedEye = clearChaseView(cameraFocus,headFocus,camera.position,
-      new V(cameraNormal.x,cameraNormal.y,cameraNormal.z),avoidScenery,upperHeadFocus);
+      surfaceUp.copy(cameraNormal),avoidScenery,upperHeadFocus);
     camera.position.copy(smoothChaseCorrection(beforeClearance,resolvedEye,cameraFocus,
       upperHeadFocus,avoidScenery,sceneryOffset,dt));
-    camera.position.copy(cameraClearance(camera.position, race.player.s));
+    camera.position.copy(cameraClearance(camera.position, playerPose.s));
     camera.up.copy(cameraUp);
     camera.lookAt(clearanceLookTarget(beforeClearance,camera.position,headFocus,cameraAim));
   } else {
@@ -1029,22 +1039,22 @@ function draw(dt, now) {
   if (finishBlend > 0) camera.setViewOffset(viewportWidth, viewportHeight, viewportWidth * .22 * finishBlend, 0, viewportWidth, viewportHeight);
   else camera.clearViewOffset();
   camera.updateProjectionMatrix();
-  key.position.set(p.x - 30, p.y + 60, p.z + 25);
+  key.position.set(playerPose.x - 30, playerPose.y + 60, playerPose.z + 25);
   // Only hide a rival if the camera actually enters its body.
   for (let i = 1; i < karts.length; i++) {
     const k = karts[i];
     k.root.visible = rivalVisible(k.model, camera);
     // Canopies are wider than the body and need their own clearance.
     if (k.glider.visible) {
-      const canopy = k.root.localToWorld(new V(0, 3.3, 0));
+      k.root.localToWorld(canopy.set(0, 3.3, 0));
       k.glider.visible = camera.position.distanceTo(canopy) > 5.3;
     }
   }
-  key.target.position.set(p.x, p.y, p.z);
+  key.target.position.set(playerPose.x, playerPose.y, playerPose.z);
   key.target.updateMatrixWorld();
   renderer.info.reset();
   renderer.info.autoReset = false;
-  if (race.state !== "ready") broadcast.update(now, camera);
+  if (race.state !== "ready") broadcast.update(now, camera, dt);
   renderer.render(scene, camera);
   renderCount++;
   if (window.__kart && previousDrawTime && !document.hidden) {
@@ -1054,6 +1064,18 @@ function draw(dt, now) {
   previousDrawTime = now;
   updateHUD();
 }
+function setText(element,value) {
+  if(element.textContent!==value)element.textContent=value;
+}
+function setStyle(element,key,value) {
+  if(element.style[key]!==value)element.style[key]=value;
+}
+function setHidden(element,value) {
+  if(element.hidden!==value)element.hidden=value;
+}
+const driftColors=['rgb(238, 246, 255)','rgb(67, 213, 255)','rgb(255, 170, 49)','rgb(217, 134, 255)'];
+const driftLabels=['HOLD THE DRIFT','MINI-TURBO','SUPER MINI-TURBO','ULTRA MINI-TURBO'];
+const lamps=$('lamps').querySelectorAll('i');
 function updateHUD() {
   document.body.classList.toggle("racing", race.state !== "ready");
   if (race.state === "ready") return;
@@ -1066,45 +1088,34 @@ function updateHUD() {
     $('position').innerHTML=raceLettering(String(position),position===1?'gold':position===2?'silver':position===3?'bronze':'orange')+`<sup>${ordinal(position).replace(String(position),'')}</sup>`;
     $('position').animate([{scale:'1.2'},{scale:'1'}],{duration:240});
   }
-  $("speed-number").textContent = Math.round(Math.abs(p.speed) * 3.6);
-  $("speed-bar").style.width =
-    Math.min(100, (Math.abs(p.speed) / 55) * 100) + "%";
+  setText($("speed-number"),String(Math.round(Math.abs(p.speed)*3.6)));
+  setStyle($("speed-bar"),'width',Math.min(100,Math.round(Math.abs(p.speed)/55*1000)/10)+'%');
   const recentlyUsed=!p.item && p.itemUse?.age<.16;
   $("item-frame").classList.toggle("empty", !p.item && p.roulette <= 0 && !recentlyUsed);
   updateItemReel(race.time,p.roulette,p.item || (recentlyUsed?p.itemUse.type:null));
-  $("item-caption").textContent =
+  setText($("item-caption"),
     p.roulette > 0
       ? "ROULETTE"
       : p.item
         ? { green: "GREEN SHELL", red: "RED SHELL", blue: "BLUE SHELL" }[
             p.item
           ] || p.item.toUpperCase()
-        : "ITEM";
-  $("drift-meter").style.opacity = p.drift ? 1 : 0;
-  $("drift-fill").style.width = Math.min(100, (p.charge / 3.4) * 100) + "%";
-  $("drift-fill").style.background = [
-    "#eef6ff",
-    "#43d5ff",
-    "#ffaa31",
-    "#d986ff",
-  ][p.tier];
-  $("drift-label").textContent = [
-    "HOLD THE DRIFT",
-    "MINI-TURBO",
-    "SUPER MINI-TURBO",
-    "ULTRA MINI-TURBO",
-  ][p.tier];
+        : "ITEM");
+  setStyle($("drift-meter"),'opacity',p.drift?'1':'0');
+  setStyle($("drift-fill"),'width',Math.min(100,Math.round(p.charge/3.4*1000)/10)+'%');
+  setStyle($("drift-fill"),'backgroundColor',driftColors[p.tier]);
+  setText($("drift-label"),driftLabels[p.tier]);
 
-  $("hit-flash").style.opacity = race.time < hitUntil ? 0.6 : 0;
-  $("notice").hidden = race.time > noticeUntil || race.state === "countdown";
-  $("countdown").hidden = !(
+  setStyle($("hit-flash"),'opacity',race.time<hitUntil?'0.6':'0');
+  setHidden($("notice"),race.time > noticeUntil || race.state === "countdown");
+  setHidden($("countdown"),!(
     race.state === "countdown" ||
     (race.state === "racing" && race.time < 3.65)
-  );
+  ));
   const waiting=waitingForWheel();
   const count=waiting?'':race.count?String(race.count):'GO!';
-  $('wheel-ready').hidden=!waiting;
-  $('lamps').style.opacity=waiting?'.35':'1';
+  setHidden($('wheel-ready'),!waiting);
+  setStyle($('lamps'),'opacity',waiting?'0.35':'1');
   if($('count-number').dataset.value!==count){
     $('count-number').dataset.value=count;
     $('count-number').innerHTML=count?raceLettering(count):'';
@@ -1113,9 +1124,7 @@ function updateHUD() {
     if(count==='GO!')$('count-number').animate([{opacity:0,scale:'1.4'},{opacity:1,scale:'1',offset:.2},{opacity:1,scale:'1',offset:.7},{opacity:0,scale:'1.12'}],{duration:650});
   }
   $("lamps").classList.toggle("go", race.count === 0);
-  $("lamps")
-    .querySelectorAll("i")
-    .forEach((el, i) => el.classList.toggle("on", i < 4 - race.count));
+  lamps.forEach((el, i) => el.classList.toggle("on", i < 4 - race.count));
   drawMap();
   const showStandings=["finishing","results"].includes(race.state) && !resultsShown && audio.resultsReady;
   const standings=showStandings && (match?match.resultStandings():race.standings);
@@ -1140,7 +1149,7 @@ function updateHUD() {
   if(resultsShown&&resultsPresentation&&!resultsPresentation.done){
     const elapsed=(performance.now()-resultsPresentation.started)/1000;
     const progress=Math.max(0,Math.min(1,(elapsed-.12)/(resultsPresentation.duration-.12)));
-    document.querySelectorAll('#standings .time').forEach((el,i)=>el.textContent=resultsPresentation.times[i] === null ? '—' : formatTime(resultsPresentation.times[i]*progress));
+    document.querySelectorAll('#standings .time').forEach((el,i)=>setText(el,resultsPresentation.times[i] === null ? '—' : formatTime(resultsPresentation.times[i]*progress)));
     if(progress===1){resultsPresentation.done=true;$('again').disabled=false;}
   }
 }
@@ -1214,6 +1223,7 @@ function waitingForWheel() {
 let smoothedPhoneSteer = 0;
 function frame(now) {
   requestAnimationFrame(frame);
+  if (renderBudget.observe(now-lastFrame,race.state==='racing' && !document.hidden && !paused && !debug.freeze)) updatePixelRatio();
   const dt = Math.max(0, Math.min((now - lastFrame) / 1000, 0.1));
   lastFrame = now;
   if (!debug.freeze && !paused) {
@@ -1253,9 +1263,9 @@ function frame(now) {
     if (!waitingWheel)
       race.update(dt, input);
     audio.update(race);
-    $("wheel-status").textContent = usingPhone
+    setText($("wheel-status"),usingPhone
       ? (raceSteering === 'dpad' ? "D-pad steering" : (embedded ? "Gyro steering" : remote.status) + (wheel.invert ? " · inverted" : ""))
-      : "W/↑/Z gas · S/↓/X brake · A/D steer · Shift drift · Space item";
+      : "W/↑/Z gas · S/↓/X brake · A/D steer · Shift drift · Space item");
   }
   draw(dt || 1 / 60, now);
 }
@@ -1322,6 +1332,7 @@ const debug = {
   get statue() {
     return world.statue;
   },
+  get renderPose() { return karts[0]?.pose; },
   get cameraState() {
     const safe = cameraClearance(camera.position, race.player.s);
     return {
@@ -1337,6 +1348,7 @@ const debug = {
   },
   get stats() {
     return {
+      pixelRatio:renderer.getPixelRatio(),programs:renderer.info.programs.length,
       calls: renderer.info.render.calls,
       triangles: renderer.info.render.triangles,
     };
@@ -1350,6 +1362,7 @@ if (new URLSearchParams(location.search).get("evidence") === "1") {
     const p = surfaceAt(s, lateral),
       r = race.player;
     Object.assign(r, {
+      prevPose:null,
       s: wrap(s, L),
       progress: s + (lap - 1) * L,
       x: p.x,
@@ -1436,13 +1449,26 @@ function controlDistancesFor() {
 }
 constructRace();
 syncPickupPools();
+// Three r185 compiles hidden meshes and points, including the gliders, wheel
+// glows and pooled particles. Supply the props and star shaders created later.
+const warmup=new THREE.Group();
+for(const type of ITEMS)warmup.add(type==='mushroom'?createHeldMushroom():makeItemModel(type));
+const starVariants=warmup.clone();
+starVariants.add(karts[0].model.clone());
+updateStarModel(starVariants,true,0);
+warmup.add(starVariants,impactTemplate);
+scene.add(warmup);
+warmup.visible=false;
 await renderer.compileAsync(scene, camera);
+await broadcast.compile();
+scene.remove(warmup);
 lastFrame = performance.now();
 requestAnimationFrame(frame);
 window.addEventListener("resize", () => {
   viewportWidth = innerWidth; viewportHeight = innerHeight;
   renderer.setSize(viewportWidth, viewportHeight);
   camera.aspect = viewportWidth / viewportHeight;
+  updatePixelRatio();
   camera.updateProjectionMatrix();
 });
 
