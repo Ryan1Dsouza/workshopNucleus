@@ -499,7 +499,20 @@ $('activateKeyboardBtn').addEventListener('click',()=>{
 $('startGame').addEventListener('click',()=>play());$('pauseGame').addEventListener('click',togglePause);$('restartGame').addEventListener('click',()=>play());
 $('enlargeGame').addEventListener('click',()=>setExpanded(!expanded));
 $('fullscreen').addEventListener('click',()=>{if(document.fullscreenElement)void document.exitFullscreen?.();else void document.documentElement.requestFullscreen?.().catch(()=>{});});
-for(const id of ['controllersTab','appButton','emptyConnect','quickQrButton'])$(id)?.addEventListener('click',()=>$('connectionDialog').showModal());
+const playerGuide=$('playerGuide'), connectionDialog=$('connectionDialog');
+for(const id of ['controllersTab','appButton','emptyConnect','quickQrButton'])$(id)?.addEventListener('click',()=>{
+  connectionDialog.append(playerGuide);
+  playerGuide.hidden=false;
+  connectionDialog.showModal();
+  if(id==='quickQrButton')$('downloadLink').focus();
+});
+$('dismissPlayerGuide').addEventListener('click',()=>{
+  if(connectionDialog.open)connectionDialog.close();
+  else {
+    playerGuide.hidden=true;
+    $('controllersTab').focus();
+  }
+});
 $('roundPlayers').addEventListener('change',()=>{if(!online?.active && current?.id==='fruit-ninja')adapter.configure(roundOptions());});
 $('playTab').addEventListener('click',()=>{if(online?.active)online.close();else $('gameStage').scrollIntoView({block:'center'});});
 for(const id of ['workshopTab','extensionGuide'])$(id).addEventListener('click',()=>$('workshopDialog').showModal());
@@ -519,6 +532,15 @@ if(features.fruit && games.some(g=>g.id==='kart-racing')){
     status:slot=>controlsFailed[slot]?deviceText[slot]:null});
 }
 const joiningOnline=!!online && new URLSearchParams(location.search).has('join');
+if(!joiningOnline){
+  try{
+    const key='controllerkit.playerGuideSeen';
+    if(!localStorage.getItem(key)){
+      playerGuide.hidden=false;
+      localStorage.setItem(key,'1');
+    }
+  }catch{playerGuide.hidden=false;}
+}
 if(joiningOnline)void online.open();
 else if(games.length)void select('remote');
 else{notice('The Bluetooth host is ready. Install the app, then connect a player.');$('gameList').textContent='Connect your phone to get started.';}
@@ -539,5 +561,8 @@ try{
     }
   };
   $('downloadAddress').addEventListener('change',draw);draw();
-  if(origins[0]===location.origin&&['localhost','127.0.0.1'].includes(location.hostname))$('downloadCaption').textContent='Connect the laptop to your phone’s network to generate a reachable download QR.';
-}catch(error){$('downloadCaption').textContent='Open /downloads/ on the laptop’s LAN address.';console.error(error);}
+  if(!staticSite && (origins[0]!==location.origin || ['localhost','127.0.0.1','[::1]'].includes(location.hostname))){
+    $('downloadCaption').hidden=false;
+    $('downloadCaption').textContent=origins[0]===location.origin?'Connect the laptop to your phone’s network to get a scannable link.':'Connect your phone to the laptop’s Wi-Fi to use this code.';
+  }
+}catch(error){$('downloadCaption').hidden=false;$('downloadCaption').textContent='Open /downloads/ on the laptop’s LAN address.';console.error(error);}

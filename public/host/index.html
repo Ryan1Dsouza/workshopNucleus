@@ -35,6 +35,37 @@
     </div>
   </header>
 
+  <section class="player-guide" id="playerGuide" aria-labelledby="connectionHeading" hidden>
+    <div class="dialog-heading">
+      <h2 id="connectionHeading">Use your phone as a controller</h2>
+      <button type="button" id="dismissPlayerGuide" class="close-button" aria-label="Close setup guide">×</button>
+    </div>
+    <div class="connection-layout">
+      <div class="connection-steps">
+        <ol>
+          <li><h3>Install the Android app</h3>
+            <p>Download the APK on your phone, open it and tap <b>Install</b>. If asked, allow your browser to install this app.</p>
+            <a class="primary-button" href="/downloads/air-slice-ble.apk" download>Download Android APK</a>
+          </li>
+          <li><h3>Start Bluetooth</h3>
+            <p>Open <b>ControllerKit</b> on your phone, tap <b>Start Bluetooth</b> and allow <b>Nearby devices</b> when prompted.</p>
+          </li>
+          <li><h3>Pair on your laptop</h3>
+            <p>Open this site in <b>Chrome</b> or <b>Edge</b>. Under <b>Player connections</b>, click <b>Connect phone</b>, select your phone, then choose a game.</p>
+          </li>
+        </ol>
+        <a class="text-button" href="/workshop/IPHONE-SETUP.md" download>iPhone setup instructions</a>
+      </div>
+      <aside class="install-card" aria-label="Android download QR code">
+        <h3>Scan with your phone</h3>
+        <div class="download-qr" id="downloadQr" aria-label="Android app download QR code"></div>
+        <a id="downloadLink" class="download-link" href="/downloads/" target="_blank" rel="noopener">Open download page<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8 4H4v12h12v-4M11 3h6v6M17 3l-9 9"/></svg></a>
+        <label class="address-label" id="addressLabel" hidden>Laptop address<select id="downloadAddress" aria-label="Laptop LAN address for downloads"></select></label>
+        <p class="install-caption" id="downloadCaption" hidden></p>
+      </aside>
+    </div>
+  </section>
+
   <main class="workspace">
     <aside class="library" aria-label="Game library">
       <div class="section-heading"><h2>Your games</h2><span id="libraryCount">0</span></div>
@@ -158,24 +189,7 @@
 
   <footer class="page-footer"><span>Local games. Bluetooth controls.</span><span id="stageLabel">Controller workshop</span><a href="/workshop/README.md" download>Workshop guide</a></footer>
 
-  <dialog id="connectionDialog" aria-labelledby="connectionHeading">
-    <div class="dialog-heading"><h2 id="connectionHeading">Connect your phone</h2><button class="close-button" data-close="connectionDialog" aria-label="Close connection guide">×</button></div>
-    <p class="dialog-intro">Install once. Your games send their controls to the app.</p>
-    <div class="connection-layout">
-      <article class="install-card">
-        <h3>Get the Android app</h3>
-        <div class="download-qr" id="downloadQr" aria-label="Android app download QR code"></div>
-        <a id="downloadLink" class="download-link" href="/downloads/" target="_blank" rel="noopener">Open download page<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8 4H4v12h12v-4M11 3h6v6M17 3l-9 9"/></svg></a>
-        <label class="address-label" id="addressLabel" hidden>Laptop address<select id="downloadAddress" aria-label="Laptop LAN address for downloads"></select></label>
-        <p class="install-caption" id="downloadCaption">Phone and laptop share a network for installation.</p>
-      </article>
-      <div class="connection-steps">
-        <ol><li><strong>Install the app</strong><p>Scan the QR on your phone and download the Android APK.</p></li><li><strong>Start Bluetooth</strong><p>Open ControllerKit and allow Nearby devices when prompted.</p></li><li><strong>Choose a player</strong><p>Close this guide, click Connect phone for a player, then select your device.</p></li></ol>
-        <p class="connection-note">Buttons and wrist motion travel over Bluetooth. The second player pairs independently.</p>
-        <a class="text-button" href="/workshop/IPHONE-SETUP.md" download>iPhone setup instructions</a>
-      </div>
-    </div>
-  </dialog>
+  <dialog id="connectionDialog" aria-labelledby="connectionHeading"></dialog>
 
   <dialog id="previewDialog" aria-labelledby="previewHeading">
     <div class="dialog-heading"><h2 id="previewHeading">Meet your controller</h2><button class="close-button" data-close="previewDialog" aria-label="Close preview">×</button></div>

@@ -17,6 +17,17 @@ try{
   await host.goto(origin+'/host');await host.waitForFunction(()=>window.__controllerkit);
   assert.equal(await host.title(),'ControllerKit · Play anything');
   assert.equal(await host.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  const setup=host.locator('#playerGuide');
+  assert.equal(await setup.isVisible(),true);
+  const [apk]=await Promise.all([
+    host.waitForEvent('download'),setup.getByRole('link',{name:'Download Android APK'}).click(),
+  ]);
+  assert.equal(apk.suggestedFilename(),'air-slice-ble.apk');
+  assert.equal(await apk.failure(),null);
+  await setup.getByRole('button',{name:'Close setup guide'}).click();
+  await host.reload();await host.waitForFunction(()=>window.__controllerkit);
+  assert.equal(await setup.isVisible(),false);
+  pass('first visit offers the Android APK and returning players go straight to the dashboard');
   await host.screenshot({path:path.join(output,'host-dashboard.png'),fullPage:true});
   pass('neutral dashboard, input lab and LAN download QR load');
   const labBox=await host.locator('.lab-grid').boundingBox();
@@ -44,7 +55,7 @@ try{
   assert.equal(await host.evaluate(()=>__fakeBle.requests.length===1&&__fakeBle.phones[0].gatt.connects===3),true);
   pass('saved phone reconnects without another picker and offers an explicit alternative choice');
   await host.evaluate(()=>{__fakeBle.next=1;});await host.click('#pair1');await host.waitForFunction(()=>__controllerkit.controllers.player(1).ready);
-  assert.deepEqual(await host.evaluate(()=>__fakeBle.phones.map(phone=>phone.profile.player)),[1,2]);
+  assert.deepEqual(await host.evaluate(()=>__fakeBle.granted.map(phone=>phone.profile.player)),[1,2]);
   pass('two simulated BLE phones receive independent assigned profiles');
   await host.evaluate(()=>{__fakeBle.phones[0].buttons(16|8);__fakeBle.phones[1].buttons(32);});
   await host.waitForFunction(()=>__controllerkit.controllers.player(0).mask===24&&__controllerkit.controllers.player(1).mask===32);
@@ -56,8 +67,8 @@ try{
   assert.equal(await host.evaluate(()=>[...__controllerkit.controllers.players].every(player=>!player.motion.pointer.pending.cutting)),true);
   pass('captured-pose centering resets strokes in either arrival order');
   await host.click('[data-game="fruit-ninja"]');await host.waitForFunction(()=>__controllerkit.adapter()?.api);
-  await host.waitForFunction(()=>__fakeBle.phones.every(phone=>phone.profile.id==='fruit-ninja')&&__controllerkit.controllers.players.every(player=>player.ready));
-  assert.deepEqual(await host.evaluate(()=>__fakeBle.phones.map(phone=>phone.gatt.connects)),[3,1]);
+  await host.waitForFunction(()=>__fakeBle.granted.every(phone=>phone.profile.id==='fruit-ninja')&&[0,1].every(slot=>__controllerkit.controllers.player(slot).ready));
+  assert.deepEqual(await host.evaluate(()=>__fakeBle.granted.map(phone=>phone.gatt.connects)),[3,1]);
   assert.equal(await host.evaluate(()=>__controllerkit.controllers.players.every(player=>player.mask===0)),true);
   pass('game switching updates BLE profiles and releases old controls without reconnecting');
   await host.evaluate(()=>__fakeBle.phones[0].buttons(16));await host.waitForFunction(()=>__controllerkit.adapter().api.game.paused===false);
@@ -98,7 +109,7 @@ try{
   assert.equal(await game.evaluate(()=>__openwii.game.state.score),roundScore);
   assert.equal(await game.evaluate(()=>__openwii.game.getPlayer(0).trail.points.length),0);
   assert.equal(await host.evaluate(()=>__controllerkit.controllers.profileEpoch),profileEpoch);
-  assert.deepEqual(await host.evaluate(()=>__fakeBle.phones.map(phone=>phone.gatt.connects)),[3,1]);
+  assert.deepEqual(await host.evaluate(()=>__fakeBle.granted.map(phone=>phone.gatt.connects)),[3,1]);
   await host.screenshot({path:path.join(output,'fruit-ninja-enlarged.png'),fullPage:true});
   await host.click('#enlargeGame');await host.waitForFunction(()=>!document.querySelector('.play-area').classList.contains('is-expanded')&&!document.fullscreenElement);
   assert.equal(await host.locator('#enlargeLabel').textContent(),'Enlarge game');
@@ -166,10 +177,11 @@ try{
   await nativePhone.keyboard.down('z');await nativePhone.waitForFunction(()=>__controllerUi.mask()===16);
   await nativePhone.evaluate(()=>onNativeState({running:false,connected:false}));await nativePhone.waitForFunction(()=>__controllerUi.mask()===0);
   assert.equal(await nativePhone.locator('#bluetoothButton').isVisible(),true);
-  assert.equal(await nativePhone.locator('#extras').isVisible(),false);
+  assert.equal(await nativePhone.locator('#extras').isVisible(),true);
+  assert.equal(await nativePhone.locator('#hapticsOption').isVisible(),false);
   await nativePhone.close();
   pass('phone native UI sends Center, cancels simultaneous touch, retains button fallback and exposes Stop in options');
-  await host.click('[data-game="remote"]');await host.waitForFunction(()=>__controllerkit.current()?.id==='remote'&&__controllerkit.controllers.players.every(player=>player.ready));
+  await host.click('[data-game="remote"]');await host.waitForFunction(()=>__controllerkit.current()?.id==='remote'&&[0,1].every(slot=>__controllerkit.controllers.player(slot).ready));
   await host.evaluate(()=>{__fakeBle.phones[1].buttons(32);__fakeBle.phones[0].gatt.disconnect();});
   await host.waitForFunction(()=>!__controllerkit.controllers.player(0).connected);
   assert.equal(await host.evaluate(()=>__controllerkit.controllers.player(1).connected&&__controllerkit.controllers.player(1).mask===32),true);
