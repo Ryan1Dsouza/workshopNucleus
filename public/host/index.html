@@ -41,6 +41,10 @@
     </aside>
 
     <section class="play-area" aria-label="Selected game">
+      <aside id="lobbyOutage" class="lobby-outage" aria-label="Online play status" hidden>
+        <div role="alert"><strong>Online lobbies unavailable</strong><p id="outageDetail"></p></div>
+        <div class="outage-actions"><button id="retryLobby" class="secondary-button">Retry connection</button><button id="outageLocal" class="text-button">Local play</button></div>
+      </aside>
       <section class="online-panel" id="onlinePanel" aria-labelledby="onlineTitle" hidden>
         <div class="online-heading"><h2 id="onlineTitle">Online multiplayer</h2><button class="text-button" id="leaveRoom" hidden>Leave lobby</button></div>
         <div id="lobbyBrowser">

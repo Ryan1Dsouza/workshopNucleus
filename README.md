@@ -74,15 +74,15 @@ For online play each person opens the host on their own laptop and pairs their p
 
 ### Deploy the frontend and signaling service
 
-For the published WorkshopNucleus site, sign in to Render and deploy the free lobby service using the repository's preset. When Render shows **Live**, copy the service's public `https://…onrender.com` address. In the Vercel project **workshopnucleus**, set the Production environment variable `SIGNAL_URL` to that address and redeploy. The preset already allows connections from `https://workshopnucleus.vercel.app`. [Deploy the lobby service on Render](https://render.com/deploy?repo=https://github.com/Ryan1Dsouza/workshopNucleus)
+The published Vercel site uses the same-origin `/api/lobby/` function and a dedicated Upstash Redis database. To reproduce it, connect **Upstash for Redis** to the Vercel project in Production, choose **Free**, turn off automatic upgrades, and redeploy. The integration supplies `KV_REST_API_URL` and `KV_REST_API_TOKEN` to the function. Leave `SIGNAL_URL` unset for this setup. Room state expires when the host leaves or its two-minute presence lease lapses. Browsers check the directory or room periodically and send setup changes immediately. During a match, game frames use WebRTC between the playing laptops.
 
-For a different frontend domain or hosting provider, configure both services as follows.
+For a static frontend with an external Socket.IO signaling service, configure both services as follows. [Render deployment preset](https://render.com/deploy?repo=https://github.com/Ryan1Dsouza/workshopNucleus)
 
 1. Deploy this repository to a persistent Node 22 web service on Render, Fly.io or Railway. Install with `npm ci --omit=dev`, start with `node server/index.cjs`, and set `LOCAL_HTTPS=0` behind the provider's HTTPS proxy. Enable WebSocket upgrades and use one service instance. Rooms live in memory and expire on host disconnect or server restart.
 2. Import the repository into Vercel. The supplied configuration builds with `npm run build` and publishes `dist/web`. Set `SIGNAL_URL` to the HTTPS origin of the Node service. On the service, set `LOBBY_ORIGINS` to the comma-separated frontend origins. Redeploy after changing these values.
 3. Set Vercel's `ICE_SERVERS` build variable to a JSON array such as `[{"urls":"stun:stun.example.org:3478"},{"urls":"turn:turn.example.org:3478?transport=udp","username":"player","credential":"temporary-password"}]`. The default supplies a public STUN server. For restrictive NATs, supply a working UDP TURN relay. These values are visible to browsers. Use client-scoped TURN credentials and rotate them before expiry.
 
-The lobby socket carries discovery, setup, SDP and ICE. Every pair of laptops exchanges live game frames over an unordered WebRTC data channel with zero retransmits. A selected TURN candidate relays the encrypted WebRTC traffic over UDP. Networks that block UDP cannot start an online match.
+Both lobby transports carry discovery, setup, SDP and ICE. Every pair of laptops exchanges live game frames over an unordered WebRTC data channel with zero retransmits. A selected TURN candidate relays the encrypted WebRTC traffic over UDP. Networks that block UDP cannot start an online match.
 
 ## Checks
 

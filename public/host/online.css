@@ -1,4 +1,8 @@
 .online-panel {padding:20px clamp(16px,3vw,28px); background:var(--porcelain);border:1px solid var(--line);border-radius:16px;margin-bottom:16px}
+.lobby-outage:not([hidden]) {position:fixed;z-index:50;right:16px;bottom:16px;width:min(365px,calc(100% - 32px));padding:16px 18px;background:#fffaf1;border:1px solid #cfad6e;border-left:4px solid #946519;border-radius:12px;box-shadow:0 4px 18px #1b2e4426;color:var(--ink)}
+.lobby-outage strong {font-size:16px}
+.lobby-outage p {font-size:14px;line-height:1.45;margin:4px 0 10px}
+.outage-actions {display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .online-panel [hidden],.online-panel[hidden],#onlineTab[hidden] {display:none}
 .online-heading,.online-row {display:flex;align-items:end;flex-wrap:wrap;gap:10px 14px}
 .online-heading {justify-content:space-between;align-items:center;margin-bottom:12px}
